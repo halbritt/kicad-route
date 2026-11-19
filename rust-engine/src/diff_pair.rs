@@ -2644,8 +2644,8 @@ fn legal_edge_with_width(
         return Ok(false);
     }
 
-    let mask_pad_clr = if r.solder_mask_to_copper_clearance_nm > 0 {
-        r.solder_mask_expansion_nm + r.solder_mask_to_copper_clearance_nm
+    let mask_pad_clr = if layer_name == "F.Cu" || layer_name == "B.Cu" {
+        r.solder_mask_expansion_nm.max(0) + r.solder_mask_to_copper_clearance_nm.max(0)
     } else {
         0
     };
@@ -2920,7 +2920,36 @@ fn legal_edge_with_width(
     if hole_flow.is_break() {
         return Ok(false);
     }
-    Ok(true)
+    if !engine.edge_clears_artwork(net, layer_idx, a, b, width_nm)? {
+        return Ok(false);
+    }
+    engine.edge_clears_mask(net, layer_idx, a, b, width_nm)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn pair_mask_disjoint(
+    engine: &Engine,
+    layer_idx: usize,
+    pa: Point,
+    pb: Point,
+    pw: i64,
+    na: Point,
+    nb: Point,
+    nw: i64,
+) -> Result<bool, Failure> {
+    if engine.input.mask_apertures.is_empty()
+        || engine.input.rules.solder_mask_to_copper_clearance_nm > 0
+    {
+        return Ok(true);
+    }
+    let mut p_hits = Vec::new();
+    engine.mask_apertures_hit(layer_idx, pa, pb, pw, &mut p_hits)?;
+    if p_hits.is_empty() {
+        return Ok(true);
+    }
+    let mut n_hits = Vec::new();
+    engine.mask_apertures_hit(layer_idx, na, nb, nw, &mut n_hits)?;
+    Ok(!p_hits.iter().any(|m| n_hits.contains(m)))
 }
 
 fn point_in_poly_ray(pt: Point, outer: &[Point], holes: &[Vec<Point>]) -> bool {
@@ -3215,6 +3244,9 @@ fn legal_pair_coupled_step(
     // Enforce edge-to-edge gap >= gap_min_nm (segments_near threshold is w1 + w2 + 2 * clr)
     let min_center_dist = 2 * i128::from(width_nm) + 2 * i128::from(pair.gap_min_nm);
     if geometry::segments_near(pa, pb, na, nb, min_center_dist, false) {
+        return Ok(false);
+    }
+    if !pair_mask_disjoint(engine, layer_idx, pa, pb, width_nm, na, nb, width_nm)? {
         return Ok(false);
     }
     if let Some(imp) = &pair.impedance {
@@ -3729,7 +3761,9 @@ fn enumerate_end_fanouts(
                                     }
                                     if !fanout_trunk_pair_ok(
                                         pair, ps[0], ps[1], ew, ns[0], ns[1], ew,
-                                    ) {
+                                    ) || !pair_mask_disjoint(
+                                        engine, li, ps[0], ps[1], ew, ns[0], ns[1], ew,
+                                    )? {
                                         cross_ok = false;
                                         break;
                                     }
@@ -3943,6 +3977,20 @@ fn coupled_via_pair_check(
         end_layer: engine.layer_name(e_idx).to_owned(),
         kind,
     };
+    for l_idx in s_idx..=e_idx {
+        if !pair_mask_disjoint(
+            engine,
+            l_idx,
+            vp,
+            vp,
+            via_p.diameter_nm,
+            vn,
+            vn,
+            via_n.diameter_nm,
+        )? {
+            return Ok(None);
+        }
+    }
     Ok(Some((via_p, via_n, vp, vn)))
 }
 
@@ -4077,6 +4125,18 @@ fn validate_via_jog_pair(
         }
         let min_clr2 = 2 * i128::from(pair.width_nm) + 2 * i128::from(pair.clearance_nm);
         if geometry::segments_near(p_a, p_b, n_a, n_b, min_clr2, false) {
+            return Ok(None);
+        }
+        if !pair_mask_disjoint(
+            engine,
+            layer_idx,
+            p_a,
+            p_b,
+            pair.width_nm,
+            n_a,
+            n_b,
+            pair.width_nm,
+        )? {
             return Ok(None);
         }
     }
@@ -5022,6 +5082,64 @@ fn validate_and_build_coupled_solution(
         || !net_clear_non_root_pads(engine, pair.neg_net, &n_tracks, &vias)
     {
         return Ok(None);
+    }
+    if !engine.input.mask_apertures.is_empty()
+        && engine.input.rules.solder_mask_to_copper_clearance_nm == 0
+    {
+        let mut hits = Vec::new();
+        let mut pos_hits = BTreeSet::new();
+        for t in p_tracks
+            .iter()
+            .chain(engine.copper.tracks().filter(|t| t.net == pair.pos_net))
+        {
+            if let Some(li) = engine.layer_index(&t.layer) {
+                engine.mask_apertures_hit(li, t.start, t.end, t.width_nm, &mut hits)?;
+                pos_hits.extend(hits.iter().copied());
+            }
+        }
+        for v in vias
+            .iter()
+            .chain(engine.copper.vias().filter(|v| v.net == pair.pos_net))
+        {
+            if v.net != pair.pos_net {
+                continue;
+            }
+            let s_idx = engine.layer_index(&v.start_layer).unwrap_or(0);
+            let e_idx = engine.layer_index(&v.end_layer).unwrap_or(s_idx);
+            for li in s_idx.min(e_idx)..=s_idx.max(e_idx) {
+                engine.mask_apertures_hit(li, v.at, v.at, v.diameter_nm, &mut hits)?;
+                pos_hits.extend(hits.iter().copied());
+            }
+        }
+        if !pos_hits.is_empty() {
+            for t in n_tracks
+                .iter()
+                .chain(engine.copper.tracks().filter(|t| t.net == pair.neg_net))
+            {
+                if let Some(li) = engine.layer_index(&t.layer) {
+                    engine.mask_apertures_hit(li, t.start, t.end, t.width_nm, &mut hits)?;
+                    if hits.iter().any(|m| pos_hits.contains(m)) {
+                        return Ok(None);
+                    }
+                }
+            }
+            for v in vias
+                .iter()
+                .chain(engine.copper.vias().filter(|v| v.net == pair.neg_net))
+            {
+                if v.net != pair.neg_net {
+                    continue;
+                }
+                let s_idx = engine.layer_index(&v.start_layer).unwrap_or(0);
+                let e_idx = engine.layer_index(&v.end_layer).unwrap_or(s_idx);
+                for li in s_idx.min(e_idx)..=s_idx.max(e_idx) {
+                    engine.mask_apertures_hit(li, v.at, v.at, v.diameter_nm, &mut hits)?;
+                    if hits.iter().any(|m| pos_hits.contains(m)) {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
     }
     tracks = p_tracks;
     tracks.extend(n_tracks);

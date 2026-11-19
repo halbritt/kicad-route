@@ -484,15 +484,23 @@ def pad_shape(pad, cu_layers=None):
             copper = raw_copper
     else:
         copper = [] if attrib == pcbnew.PAD_ATTRIB_NPTH else raw_copper
+    layer_set = pad.GetLayerSet()
+    has_f_mask = layer_set.Contains(pcbnew.F_Mask)
+    has_b_mask = layer_set.Contains(pcbnew.B_Mask)
     if attrib == pcbnew.PAD_ATTRIB_SMD:
         if len(copper) != 1:
             raise UnsupportedBoard('SMD pads must sit on exactly one copper layer')
+        cu_layer = copper[0]
+        if (has_f_mask and cu_layer != pcbnew.F_Cu) or (has_b_mask and cu_layer != pcbnew.B_Cu):
+            raise UnsupportedBoard('SMD pad solder-mask layer must match its copper layer')
         if any(point(getter()) != [0, 0] for getter in (
                 pad.GetDrillSize, pad.GetSecondaryDrillSize, pad.GetTertiaryDrillSize)):
             raise UnsupportedBoard('drilled pads are not represented')
     elif attrib == pcbnew.PAD_ATTRIB_PTH:
         if not copper:
             raise UnsupportedBoard('through-hole pads must include at least one copper layer')
+        if (has_f_mask and pcbnew.F_Cu not in copper) or (has_b_mask and pcbnew.B_Cu not in copper):
+            raise UnsupportedBoard('PTH pad solder-mask layer must match its copper layers')
         if hasattr(pad, 'GetPadstackMode') and hasattr(pcbnew, 'PAD_MODE_NORMAL'):
             if pad.GetPadstackMode() != pcbnew.PAD_MODE_NORMAL:
                 raise UnsupportedBoard('non-uniform PTH padstack mode is not represented')
@@ -833,6 +841,42 @@ def _extract_text_shapes(drawing, *, layer, base_id, context_label):
     return [(str(uuid.uuid5(base_uuid, str(idx))), shape_obj) for idx, shape_obj in enumerate(shapes)]
 
 
+def _extract_graphic_poly_rings(drawing, *, context_label):
+    raw_set = drawing.GetPolyShape()
+    for idx in range(raw_set.OutlineCount()):
+        if raw_set.Outline(idx).ArcCount() != 0:
+            raise UnsupportedBoard(f'{context_label} curved arc polygon graphics are not represented')
+        for h in range(raw_set.HoleCount(idx)):
+            if raw_set.Hole(idx, h).ArcCount() != 0:
+                raise UnsupportedBoard(f'{context_label} curved arc polygon holes are not represented')
+    poly_set = raw_set
+    if bool(drawing.IsSolidFill()):
+        poly_set = pcbnew.SHAPE_POLY_SET(raw_set)
+        poly_set.Simplify()
+    count = poly_set.OutlineCount()
+    if count <= 0:
+        raise UnsupportedBoard('empty polygon graphic is not represented')
+    rings = []
+    for idx in range(count):
+        outline_ring = poly_set.Outline(idx)
+        if outline_ring.ArcCount() != 0:
+            raise UnsupportedBoard(f'{context_label} curved arc polygon graphics are not represented')
+        outer = _extract_poly_ring(outline_ring)
+        if len(outer) < 3:
+            raise UnsupportedBoard('degenerate polygon graphic is not represented')
+        holes = []
+        for h in range(poly_set.HoleCount(idx)):
+            hole_ring = poly_set.Hole(idx, h)
+            if hole_ring.ArcCount() != 0:
+                raise UnsupportedBoard(f'{context_label} curved arc polygon holes are not represented')
+            hole = _extract_poly_ring(hole_ring)
+            if len(hole) < 3:
+                raise UnsupportedBoard('degenerate polygon hole graphic is not represented')
+            holes.append(hole)
+        rings.append((outer, holes))
+    return rings
+
+
 def _check_graphic_drawing(drawing, *, context_label, layer=None):
     if isinstance(drawing, pcbnew.PCB_DIMENSION_BASE):
         raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
@@ -846,18 +890,17 @@ def _check_graphic_drawing(drawing, *, context_label, layer=None):
         raise UnsupportedBoard(f'{context_label} text box graphics are not represented')
     if not isinstance(drawing, pcbnew.PCB_SHAPE):
         raise UnsupportedBoard(f'{context_label} non-shape graphics are not represented')
+    if drawing.GetLocalSolderMaskMargin() is not None:
+        raise UnsupportedBoard(f'{context_label} solder-mask margins are not represented')
+    effective_layer = drawing.GetLayer() if layer is None else layer
+    if pcbnew.IsCopperLayer(effective_layer) and drawing.HasSolderMask():
+        raise UnsupportedBoard(f'{context_label} solder-mask openings are not represented')
     if drawing.GetShape() == pcbnew.SHAPE_T_BEZIER:
         raise UnsupportedBoard(f'{context_label} Bezier curves are not represented')
     if drawing.IsHatchedFill():
         raise UnsupportedBoard(f'{context_label} hatched fill graphics are not represented')
     if drawing.GetShape() == pcbnew.SHAPE_T_POLY:
-        poly_set = drawing.GetPolyShape()
-        for idx in range(poly_set.OutlineCount()):
-            if poly_set.Outline(idx).ArcCount() != 0:
-                raise UnsupportedBoard(f'{context_label} curved arc polygon graphics are not represented')
-            for h in range(poly_set.HoleCount(idx)):
-                if poly_set.Hole(idx, h).ArcCount() != 0:
-                    raise UnsupportedBoard(f'{context_label} curved arc polygon holes are not represented')
+        _extract_graphic_poly_rings(drawing, context_label=context_label)
 
 
 def _extract_poly_ring(poly):
@@ -904,30 +947,10 @@ def _extract_graphic_shapes(drawing, *, base_id, layer=None, context_label='grap
             corners.reverse()
         return [(base_id, {'kind': 'polygon', 'outer': corners, 'width_nm': width_nm, 'filled': filled})]
     if shape_t == pcbnew.SHAPE_T_POLY:
-        poly_set = drawing.GetPolyShape()
-        if filled:
-            poly_set = pcbnew.SHAPE_POLY_SET(poly_set)
-            poly_set.Simplify()
-        count = poly_set.OutlineCount()
-        if count <= 0:
-            raise UnsupportedBoard('empty polygon graphic is not represented')
+        rings = _extract_graphic_poly_rings(drawing, context_label=context_label)
+        count = len(rings)
         out = []
-        for idx in range(count):
-            outline_ring = poly_set.Outline(idx)
-            if outline_ring.ArcCount() != 0:
-                raise UnsupportedBoard(f'{context_label} curved arc polygon graphics are not represented')
-            outer = _extract_poly_ring(outline_ring)
-            if len(outer) < 3:
-                raise UnsupportedBoard('degenerate polygon graphic is not represented')
-            holes = []
-            for h in range(poly_set.HoleCount(idx)):
-                hole_ring = poly_set.Hole(idx, h)
-                if hole_ring.ArcCount() != 0:
-                    raise UnsupportedBoard(f'{context_label} curved arc polygon holes are not represented')
-                hole = _extract_poly_ring(hole_ring)
-                if len(hole) < 3:
-                    raise UnsupportedBoard('degenerate polygon hole graphic is not represented')
-                holes.append(hole)
+        for idx, (outer, holes) in enumerate(rings):
             shape_obj = {'kind': 'polygon', 'outer': outer, 'width_nm': width_nm, 'filled': filled}
             if holes:
                 shape_obj['holes'] = holes
@@ -1055,12 +1078,20 @@ def _extract_via(via, cu_layers, board):
     kind = _via_kind_str(via.GetViaType())
     if hasattr(via, 'IsBackdrilledOrPostMachined') and any(via.IsBackdrilledOrPostMachined(l) for l in cu_layers):
         raise UnsupportedBoard('backdrilled or post-machined vias are not represented')
+    if via.HasSolderMask():
+        raise UnsupportedBoard('vias with explicit solder-mask openings are not represented')
+    if via.GetLocalSolderMaskMargin() is not None:
+        raise UnsupportedBoard('via solder-mask margins are not represented')
     top, bot = via.TopLayer(), via.BottomLayer()
     if top not in cu_layers or bot not in cu_layers:
         raise UnsupportedBoard('via references a disabled copper layer')
     i0, i1 = cu_layers.index(top), cu_layers.index(bot)
     lo, hi = min(i0, i1), max(i0, i1)
     span = cu_layers[lo:hi + 1]
+    if (pcbnew.F_Cu in span and not via.IsTented(pcbnew.F_Mask)) or (
+        pcbnew.B_Cu in span and not via.IsTented(pcbnew.B_Mask)
+    ):
+        raise UnsupportedBoard('untented vias are not represented')
     widths = {int(via.GetWidth(l)) for l in span}
     if len(widths) != 1:
         raise UnsupportedBoard('non-uniform per-layer via widths are not represented')
@@ -1081,6 +1112,51 @@ def _extract_via(via, cu_layers, board):
     }
 
 
+def _extract_npth_mask_apertures(pad, settings):
+    layer_set = pad.GetLayerSet()
+    mask_layers = [layer for layer in (pcbnew.F_Mask, pcbnew.B_Mask) if layer_set.Contains(layer)]
+    if not mask_layers:
+        return []
+    size = point(pad.GetSize())
+    drill = point(pad.GetDrillSize())
+    if (
+        size == drill
+        and settings.m_SolderMaskExpansion == 0
+        and settings.m_SolderMaskToCopperClearance == 0
+    ):
+        return []
+    if point(pad.GetOffset()) != [0, 0] or pad.GetOrientationDegrees() % 90 != 0:
+        raise UnsupportedBoard('NPTH solder-mask apertures with offset or non-orthogonal rotation are not represented')
+    kind = pad.GetShape()
+    if kind not in (pcbnew.PAD_SHAPE_CIRCLE, pcbnew.PAD_SHAPE_RECT):
+        raise UnsupportedBoard('NPTH solder-mask apertures with non-trivial shape are not represented')
+    if kind == pcbnew.PAD_SHAPE_CIRCLE and (size[0] != size[1] or size[0] % 2 != 0):
+        raise UnsupportedBoard('NPTH solder-mask apertures with non-trivial shape are not represented')
+    if kind == pcbnew.PAD_SHAPE_RECT and (size[0] % 2 != 0 or size[1] % 2 != 0):
+        raise UnsupportedBoard('NPTH solder-mask apertures with non-trivial shape are not represented')
+    base_uuid = uuid.UUID(item_id(pad))
+    cx, cy = point(pad.GetPosition())
+    out = []
+    for ml in mask_layers:
+        lname = 'F.Mask' if ml == pcbnew.F_Mask else 'B.Mask'
+        if kind == pcbnew.PAD_SHAPE_CIRCLE:
+            shape_obj = {'kind': 'circle', 'center': [cx, cy], 'radius_nm': size[0] // 2, 'width_nm': 0, 'filled': True}
+        else:
+            hx, hy = (size[0] // 2, size[1] // 2) if pad.GetOrientationDegrees() % 180 == 0 else (size[1] // 2, size[0] // 2)
+            shape_obj = {
+                'kind': 'polygon',
+                'outer': [[cx - hx, cy - hy], [cx + hx, cy - hy], [cx + hx, cy + hy], [cx - hx, cy + hy]],
+                'width_nm': 0,
+                'filled': True,
+            }
+        exp_nm = max(0, int(pad.GetSolderMaskExpansion(ml)))
+        aperture = {'id': str(uuid.uuid5(base_uuid, lname)), 'layer': lname, 'shape': shape_obj}
+        if exp_nm > 0:
+            aperture['expansion_nm'] = exp_nm
+        out.append(aperture)
+    return out
+
+
 def load_supported(path: Path, *, project_path: Path | None = None):
     resolve_sidecars(path, project_path=project_path)
     validate_native_pad_scalars(read_bounded(path))
@@ -1098,6 +1174,8 @@ def load_supported(path: Path, *, project_path: Path | None = None):
             settings.m_SolderMaskExpansion, settings.m_SolderMaskMinWidth,
             settings.m_SolderMaskToCopperClearance)):
         raise UnsupportedBoard('negative solder-mask rules are not represented')
+    if len(cu_layers) >= 2 and (not settings.m_TentViasFront or not settings.m_TentViasBack):
+        raise UnsupportedBoard('untented vias are not represented')
     for drawing in board.GetDrawings():
         layer = drawing.GetLayer()
         if layer in cu_set:
@@ -1126,7 +1204,6 @@ def load_supported(path: Path, *, project_path: Path | None = None):
                 field_layer in (pcbnew.F_Mask, pcbnew.B_Mask)
                 and field.IsVisible()
                 and not footprint.AllowSolderMaskBridges()
-                and not settings.m_AllowSoldermaskBridgesInFPs
             ):
                 raise UnsupportedBoard('footprint solder-mask fields are not represented')
         for drawing in footprint.GraphicalItems():
@@ -1138,7 +1215,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
             elif pcbnew.IsCopperLayer(layer):
                 raise UnsupportedBoard('footprint copper on disabled layer is not represented')
             elif layer in (pcbnew.F_Mask, pcbnew.B_Mask):
-                if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
+                if not footprint.AllowSolderMaskBridges():
                     _check_graphic_drawing(drawing, context_label='footprint solder-mask', layer=layer)
         for pad in footprint.Pads():
             pad_shape(pad, cu_layers)
@@ -1149,6 +1226,8 @@ def load_supported(path: Path, *, project_path: Path | None = None):
                 raise UnsupportedBoard('negative pad clearance overrides are not represented')
             if pad.GetLocalSolderMaskMargin() is not None:
                 raise UnsupportedBoard('pad solder-mask margins are not represented')
+            if pad.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH and not footprint.AllowSolderMaskBridges():
+                _extract_npth_mask_apertures(pad, settings)
     for track in board.GetTracks():
         if type(track) is pcbnew.PCB_TRACK and track.GetLayer() in cu_set:
             continue
@@ -1669,14 +1748,26 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         elif layer in (pcbnew.F_Mask, pcbnew.B_Mask):
             if isinstance(drawing, pcbnew.PCB_SHAPE) or type(drawing) is pcbnew.PCB_TEXT:
                 layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
-                for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='board solder-mask'):
-                    mask_apertures.append({'id': item_uuid, 'layer': layer_name, 'shape': shape_obj})
+                exp_nm = max(0, int(drawing.GetSolderMaskExpansion())) if isinstance(drawing, pcbnew.PCB_SHAPE) else 0
+                base_id = item_id(drawing)
+                extracted = _extract_graphic_shapes(drawing, base_id=base_id, layer=layer, context_label='board solder-mask')
+                for item_uuid, shape_obj in extracted:
+                    aperture = {'id': item_uuid, 'layer': layer_name, 'shape': shape_obj}
+                    if len(extracted) > 1:
+                        aperture['group_id'] = base_id
+                    if exp_nm > 0:
+                        aperture['expansion_nm'] = exp_nm
+                    mask_apertures.append(aperture)
             else:
                 _check_graphic_drawing(drawing, context_label='board solder-mask', layer=layer)
 
     for footprint in board.GetFootprints():
         fp_nets = {int(p.GetNetCode()) for p in footprint.Pads() if int(p.GetNetCode()) != 0}
         fp_mask_net = next(iter(fp_nets)) if len(fp_nets) == 1 else None
+        if not footprint.AllowSolderMaskBridges():
+            for pad in footprint.Pads():
+                if pad.GetAttribute() == pcbnew.PAD_ATTRIB_NPTH:
+                    mask_apertures.extend(_extract_npth_mask_apertures(pad, settings))
         for drawing in footprint.GraphicalItems():
             layer = drawing.GetLayer()
             if layer in cu_set:
@@ -1685,11 +1776,18 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='footprint copper'):
                     graphics.append({'id': item_uuid, 'net': max(0, net), 'layer': layer_name, 'shape': shape_obj})
             elif layer in (pcbnew.F_Mask, pcbnew.B_Mask):
-                if not footprint.AllowSolderMaskBridges() and not settings.m_AllowSoldermaskBridgesInFPs:
+                if not footprint.AllowSolderMaskBridges():
                     if isinstance(drawing, pcbnew.PCB_SHAPE) or type(drawing) is pcbnew.PCB_TEXT:
                         layer_name = 'F.Mask' if layer == pcbnew.F_Mask else 'B.Mask'
-                        for item_uuid, shape_obj in _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=layer, context_label='footprint solder-mask'):
+                        exp_nm = max(0, int(drawing.GetSolderMaskExpansion())) if isinstance(drawing, pcbnew.PCB_SHAPE) else 0
+                        base_id = item_id(drawing)
+                        extracted = _extract_graphic_shapes(drawing, base_id=base_id, layer=layer, context_label='footprint solder-mask')
+                        for item_uuid, shape_obj in extracted:
                             aperture = {'id': item_uuid, 'layer': layer_name, 'shape': shape_obj}
+                            if len(extracted) > 1:
+                                aperture['group_id'] = base_id
+                            if exp_nm > 0:
+                                aperture['expansion_nm'] = exp_nm
                             if fp_mask_net is not None:
                                 aperture['net'] = fp_mask_net
                             mask_apertures.append(aperture)

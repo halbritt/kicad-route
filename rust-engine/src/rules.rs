@@ -3601,9 +3601,12 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
                     edge_clearance_nm: nr.edge_clearance_nm.max(0),
                     hole_clearance_nm: nr.hole_clearance_nm.max(0),
                     same_net_hole_clearance_nm: 0,
-                    solder_mask_expansion_nm: 0,
-                    solder_mask_min_width_nm: 0,
-                    solder_mask_to_copper_clearance_nm: 0,
+                    solder_mask_expansion_nm: eff.minimums.solder_mask_expansion_nm.max(0),
+                    solder_mask_min_width_nm: eff.minimums.solder_mask_min_width_nm.max(0),
+                    solder_mask_to_copper_clearance_nm: eff
+                        .minimums
+                        .solder_mask_to_copper_clearance_nm
+                        .max(0),
                 };
             }
             return Ok(eff.clone());

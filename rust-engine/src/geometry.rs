@@ -1331,40 +1331,34 @@ pub fn filled_polygons_overlap(
 }
 
 fn unfilled_circle_connects_pad(center: Point, radius_nm: i64, width_nm: i64, p: &Pad) -> bool {
+    unfilled_circle_near_pad(center, radius_nm, width_nm, -CONTACT_OVERLAP_NM, p, true)
+}
+
+fn unfilled_circle_near_pad(
+    center: Point,
+    radius_nm: i64,
+    width_nm: i64,
+    clearance: i64,
+    p: &Pad,
+    inclusive: bool,
+) -> bool {
     let hw = width_nm / 2;
     let r_out = radius_nm + hw;
     let r_in = (radius_nm - hw).max(0);
     if r_in == 0 {
-        let synth = Pad {
-            id: String::new(),
-            net: p.net,
-            at: center,
-            layers: p.layers.clone(),
-            local_clearance_nm: p.local_clearance_nm,
-            zone_connection: crate::model::PadZoneConnection::Inherited,
-            thermal_gap_nm: None,
-            thermal_spoke_width_nm: None,
-            thermal_spoke_angle_mdeg: None,
-            orientation_mdeg: 0,
-            footprint_ref: None,
-            pad_number: None,
-            fromto_id: None,
-            shape: Shape::Circle { radius_nm: r_out },
-            drill: None,
-        };
-        return pads_touch(&synth, p);
+        return track_near_pad(center, center, 2 * r_out, clearance, p, inclusive);
     }
     match &p.shape {
         Shape::Circle { radius_nm: pr } => track_near_circle(
             p.at,
             p.at,
             2 * *pr,
-            -CONTACT_OVERLAP_NM,
+            clearance,
             center,
             radius_nm,
             hw * 2,
             false,
-            true,
+            inclusive,
         ),
         Shape::Capsule {
             start_nm,
@@ -1374,31 +1368,35 @@ fn unfilled_circle_connects_pad(center: Point, radius_nm: i64, width_nm: i64, p:
             *start_nm,
             *end_nm,
             (*pw / 2) * 2,
-            -CONTACT_OVERLAP_NM,
+            clearance,
             center,
             radius_nm,
             hw * 2,
             false,
-            true,
+            inclusive,
         ),
         Shape::Rect { .. } | Shape::RoundRect { .. } | Shape::BoxExact { .. } => {
             let (ConnCore2x::Box { lo2, hi2 }, rp2) = ConnCore2x::from_pad(p) else {
                 unreachable!()
             };
             let c2 = [center[0] * 2, center[1] * 2];
-            let gap4 =
-                4 * i128::from(r_out) + 2 * i128::from(rp2) - 4 * i128::from(CONTACT_OVERLAP_NM);
-            if !segment_near_rect(c2, c2, lo2, hi2, gap4, true) {
+            let gap4 = 4 * i128::from(r_out) + 2 * i128::from(rp2) + 4 * i128::from(clearance);
+            if !segment_near_rect(c2, c2, lo2, hi2, gap4, inclusive) {
                 return false;
             }
-            let need2 = 2 * i128::from(r_in) + 2 * i128::from(CONTACT_OVERLAP_NM) - i128::from(rp2);
+            let need2 = 2 * i128::from(r_in) - 2 * i128::from(clearance) - i128::from(rp2);
             if need2 <= 0 {
                 return true;
             }
             let corners = [lo2, [hi2[0], lo2[1]], hi2, [lo2[0], hi2[1]]];
-            corners
-                .iter()
-                .any(|&v| dot(sub(v, c2), sub(v, c2)) >= sq(need2))
+            corners.iter().any(|&v| {
+                let d2 = dot(sub(v, c2), sub(v, c2));
+                if inclusive {
+                    d2 >= sq(need2)
+                } else {
+                    d2 > sq(need2)
+                }
+            })
         }
         Shape::ConvexPolygon {
             vertices,
@@ -1408,18 +1406,23 @@ fn unfilled_circle_connects_pad(center: Point, radius_nm: i64, width_nm: i64, p:
                 center,
                 center,
                 2 * r_out,
-                -CONTACT_OVERLAP_NM,
+                clearance,
                 vertices,
                 *rp,
-                true,
+                inclusive,
             ) {
                 return false;
             }
-            let need = i128::from(r_in) + i128::from(CONTACT_OVERLAP_NM) - i128::from(*rp);
+            let need = i128::from(r_in) - i128::from(clearance) - i128::from(*rp);
             need <= 0
-                || vertices
-                    .iter()
-                    .any(|&v| dot(sub(v, center), sub(v, center)) >= sq(need))
+                || vertices.iter().any(|&v| {
+                    let d2 = dot(sub(v, center), sub(v, center));
+                    if inclusive {
+                        d2 >= sq(need)
+                    } else {
+                        d2 > sq(need)
+                    }
+                })
         }
     }
 }
@@ -1831,9 +1834,22 @@ pub fn graphic_connects_pad(g: &CopperGraphic, p: &Pad) -> bool {
 }
 
 fn unfilled_circles_connect(ca: Point, ra: i64, wa: i64, cb: Point, rb: i64, wb: i64) -> bool {
+    unfilled_circles_near(ca, ra, wa, cb, rb, wb, -CONTACT_OVERLAP_NM, true)
+}
+
+fn unfilled_circles_near(
+    ca: Point,
+    ra: i64,
+    wa: i64,
+    cb: Point,
+    rb: i64,
+    wb: i64,
+    clearance: i64,
+    inclusive: bool,
+) -> bool {
     let ha = wa / 2;
     let hb = wb / 2;
-    if ha + hb < CONTACT_OVERLAP_NM {
+    if i128::from(ha) + i128::from(hb) + i128::from(clearance) < 0 {
         return false;
     }
     let r_out_a = ra + ha;
@@ -1841,16 +1857,16 @@ fn unfilled_circles_connect(ca: Point, ra: i64, wa: i64, cb: Point, rb: i64, wb:
     let r_out_b = rb + hb;
     let r_in_b = rb - hb;
     let d2 = dot(sub(ca, cb), sub(ca, cb));
-    let outer = i128::from(r_out_a) + i128::from(r_out_b) - i128::from(CONTACT_OVERLAP_NM);
-    if outer < 0 || d2 > sq(outer) {
+    let outer = i128::from(r_out_a) + i128::from(r_out_b) + i128::from(clearance);
+    if outer < 0 || !compare(d2, sq(outer), inclusive) {
         return false;
     }
-    let gap_a = i128::from(r_in_b) - i128::from(r_out_a) + i128::from(CONTACT_OVERLAP_NM);
-    if gap_a > 0 && d2 < sq(gap_a) {
+    let gap_a = i128::from(r_in_b) - i128::from(r_out_a) - i128::from(clearance);
+    if gap_a > 0 && !compare(sq(gap_a), d2, inclusive) {
         return false;
     }
-    let gap_b = i128::from(r_in_a) - i128::from(r_out_b) + i128::from(CONTACT_OVERLAP_NM);
-    if gap_b > 0 && d2 < sq(gap_b) {
+    let gap_b = i128::from(r_in_a) - i128::from(r_out_b) - i128::from(clearance);
+    if gap_b > 0 && !compare(sq(gap_b), d2, inclusive) {
         return false;
     }
     true
@@ -2079,6 +2095,319 @@ pub fn graphics_connect(a: &CopperGraphic, b: &CopperGraphic) -> bool {
                 || (*fa && *fb && filled_polygons_overlap(oa, ha, ob, hb))
         }
     }
+}
+
+pub fn mask_overlaps_pad(m: &MaskAperture, p: &Pad) -> bool {
+    let exp = m.expansion_nm.max(0);
+    match &m.shape {
+        GraphicShape::Segment {
+            start,
+            end,
+            width_nm,
+        } => track_near_pad(*start, *end, *width_nm, exp, p, false),
+        GraphicShape::Arc {
+            start,
+            mid,
+            end,
+            width_nm,
+        } => {
+            let (chords, sag) = arc_to_conservative_chords(*start, *mid, *end);
+            chords
+                .windows(2)
+                .any(|w| track_near_pad(w[0], w[1], *width_nm, exp + sag, p, false))
+        }
+        GraphicShape::Circle {
+            center,
+            radius_nm,
+            width_nm,
+            filled,
+        } => {
+            if *filled {
+                track_near_pad(*center, *center, 2 * *radius_nm + *width_nm, exp, p, false)
+            } else {
+                unfilled_circle_near_pad(*center, *radius_nm, *width_nm, exp, p, false)
+            }
+        }
+        GraphicShape::Polygon {
+            outer,
+            holes,
+            width_nm,
+            filled,
+        } => {
+            if *filled && zone_fill_connects_pad(outer, holes, p) {
+                return true;
+            }
+            let check_ring = |ring: &[Point]| {
+                let n = ring.len();
+                (0..n).any(|i| track_near_pad(ring[i], ring[(i + 1) % n], *width_nm, exp, p, false))
+            };
+            check_ring(outer) || holes.iter().any(|h| check_ring(h))
+        }
+    }
+}
+
+pub fn mask_overlaps_filled_polygon(
+    m: &MaskAperture,
+    outer: &[Point],
+    holes: &[Vec<Point>],
+) -> bool {
+    if outer.len() < 3 {
+        return false;
+    }
+    let exp = m.expansion_nm.max(0);
+    match &m.shape {
+        GraphicShape::Segment {
+            start,
+            end,
+            width_nm,
+        } => track_near_filled_polygon(*start, *end, *width_nm, exp, outer, holes, false),
+        GraphicShape::Arc {
+            start,
+            mid,
+            end,
+            width_nm,
+        } => {
+            let (chords, sag) = arc_to_conservative_chords(*start, *mid, *end);
+            chords.windows(2).any(|w| {
+                track_near_filled_polygon(w[0], w[1], *width_nm, exp + sag, outer, holes, false)
+            })
+        }
+        GraphicShape::Circle {
+            center,
+            radius_nm,
+            width_nm,
+            filled,
+        } => {
+            if *filled {
+                track_near_filled_polygon(
+                    *center,
+                    *center,
+                    2 * *radius_nm + *width_nm,
+                    exp,
+                    outer,
+                    holes,
+                    false,
+                )
+            } else {
+                let check_ring = |ring: &[Point]| {
+                    let n = ring.len();
+                    (0..n).any(|i| {
+                        track_near_circle(
+                            ring[i],
+                            ring[(i + 1) % n],
+                            0,
+                            exp,
+                            *center,
+                            *radius_nm,
+                            *width_nm,
+                            false,
+                            false,
+                        )
+                    })
+                };
+                check_ring(outer)
+                    || holes.iter().any(|h| check_ring(h))
+                    || [
+                        [center[0] + *radius_nm, center[1]],
+                        [center[0] - *radius_nm, center[1]],
+                        [center[0], center[1] + *radius_nm],
+                        [center[0], center[1] - *radius_nm],
+                    ]
+                    .into_iter()
+                    .any(|pt| point_in_polygon_with_holes(pt, outer, holes))
+            }
+        }
+        GraphicShape::Polygon {
+            outer: mo,
+            holes: mh,
+            width_nm,
+            filled,
+        } => {
+            let check_m_ring = |ring: &[Point]| {
+                let n = ring.len();
+                (0..n).any(|i| {
+                    track_near_filled_polygon(
+                        ring[i],
+                        ring[(i + 1) % n],
+                        *width_nm,
+                        exp,
+                        outer,
+                        holes,
+                        false,
+                    )
+                })
+            };
+            if check_m_ring(mo) || mh.iter().any(|h| check_m_ring(h)) {
+                return true;
+            }
+            if *filled {
+                if filled_polygons_overlap(mo, mh, outer, holes) {
+                    return true;
+                }
+                let check_poly_ring = |ring: &[Point]| {
+                    let n = ring.len();
+                    (0..n).any(|i| {
+                        track_near_filled_polygon(
+                            ring[i],
+                            ring[(i + 1) % n],
+                            *width_nm,
+                            exp,
+                            mo,
+                            mh,
+                            false,
+                        )
+                    })
+                };
+                return check_poly_ring(outer) || holes.iter().any(|h| check_poly_ring(h));
+            }
+            false
+        }
+    }
+}
+
+pub fn mask_overlaps_graphic(m: &MaskAperture, g: &CopperGraphic) -> bool {
+    let exp = m.expansion_nm.max(0);
+    match &g.shape {
+        GraphicShape::Segment {
+            start,
+            end,
+            width_nm,
+        } => track_near_mask(*start, *end, *width_nm, 0, m, false),
+        GraphicShape::Arc {
+            start,
+            mid,
+            end,
+            width_nm,
+        } => {
+            let (chords, sag) = arc_to_conservative_chords(*start, *mid, *end);
+            chords
+                .windows(2)
+                .any(|w| track_near_mask(w[0], w[1], *width_nm + 2 * sag, 0, m, false))
+        }
+        GraphicShape::Circle {
+            center,
+            radius_nm,
+            width_nm,
+            filled: true,
+        } => track_near_mask(*center, *center, 2 * *radius_nm + *width_nm, 0, m, false),
+        GraphicShape::Circle {
+            center,
+            radius_nm,
+            width_nm,
+            filled: false,
+        } => match &m.shape {
+            GraphicShape::Segment {
+                start,
+                end,
+                width_nm: mw,
+            } => track_near_circle(
+                *start, *end, *mw, exp, *center, *radius_nm, *width_nm, false, false,
+            ),
+            GraphicShape::Arc {
+                start,
+                mid,
+                end,
+                width_nm: mw,
+            } => {
+                let (chords, sag) = arc_to_conservative_chords(*start, *mid, *end);
+                chords.windows(2).any(|w| {
+                    track_near_circle(
+                        w[0],
+                        w[1],
+                        *mw,
+                        exp + sag,
+                        *center,
+                        *radius_nm,
+                        *width_nm,
+                        false,
+                        false,
+                    )
+                })
+            }
+            GraphicShape::Circle {
+                center: mc,
+                radius_nm: mr,
+                width_nm: mw,
+                filled: true,
+            } => track_near_circle(
+                *mc,
+                *mc,
+                2 * *mr + *mw,
+                exp,
+                *center,
+                *radius_nm,
+                *width_nm,
+                false,
+                false,
+            ),
+            GraphicShape::Circle {
+                center: mc,
+                radius_nm: mr,
+                width_nm: mw,
+                filled: false,
+            } => unfilled_circles_near(*mc, *mr, *mw, *center, *radius_nm, *width_nm, exp, false),
+            GraphicShape::Polygon {
+                outer,
+                holes,
+                width_nm: mw,
+                filled,
+            } => {
+                let check_ring = |ring: &[Point]| {
+                    let n = ring.len();
+                    (0..n).any(|i| {
+                        track_near_circle(
+                            ring[i],
+                            ring[(i + 1) % n],
+                            *mw,
+                            exp,
+                            *center,
+                            *radius_nm,
+                            *width_nm,
+                            false,
+                            false,
+                        )
+                    })
+                };
+                check_ring(outer)
+                    || holes.iter().any(|h| check_ring(h))
+                    || (*filled
+                        && [
+                            [center[0] + *radius_nm, center[1]],
+                            [center[0] - *radius_nm, center[1]],
+                            [center[0], center[1] + *radius_nm],
+                            [center[0], center[1] - *radius_nm],
+                        ]
+                        .into_iter()
+                        .any(|pt| point_in_polygon_with_holes(pt, outer, holes)))
+            }
+        },
+        GraphicShape::Polygon {
+            outer,
+            holes,
+            width_nm,
+            filled,
+        } => {
+            let check_ring = |ring: &[Point]| {
+                let n = ring.len();
+                (0..n).any(|i| track_near_mask(ring[i], ring[(i + 1) % n], *width_nm, 0, m, false))
+            };
+            check_ring(outer)
+                || holes.iter().any(|h| check_ring(h))
+                || (*filled && mask_overlaps_filled_polygon(m, outer, holes))
+        }
+    }
+}
+
+pub fn mask_apertures_overlap(a: &MaskAperture, b: &MaskAperture, web_nm: i64) -> bool {
+    let mut grown = a.clone();
+    grown.expansion_nm = a.expansion_nm.max(0) + b.expansion_nm.max(0) + web_nm.max(0);
+    let g = CopperGraphic {
+        id: String::new(),
+        net: 0,
+        layer: b.layer.clone(),
+        shape: b.shape.clone(),
+    };
+    mask_overlaps_graphic(&grown, &g)
 }
 
 pub fn point_in_pad(pt: Point, p: &Pad) -> bool {

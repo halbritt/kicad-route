@@ -598,6 +598,7 @@ fn simple_polygon_drill_and_mask_exact_boundaries() {
     let mask = MaskAperture {
         id: "10000000-0000-4000-8000-000000000001".into(),
         net: None,
+        group_id: None,
         layer: "F.Mask".into(),
         shape: GraphicShape::Segment {
             start: [0, 0],

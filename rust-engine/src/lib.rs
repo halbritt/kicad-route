@@ -22,6 +22,13 @@ use spatial::{
 use state::CopperStore;
 use std::ops::ControlFlow;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StaticMaskOccupancy {
+    Empty,
+    Single(u32),
+    Multi,
+}
+
 pub struct Engine {
     input: Input,
     layer_names: Vec<String>,
@@ -39,6 +46,11 @@ pub struct Engine {
     spoke_corridor_spatial: Vec<StaticSpatialIndex<SpokeCorridorGeom>>,
     spoke_corridors: Vec<zones::SpokeCorridor>,
     mask_spatial: [StaticSpatialIndex<MaskGeom>; 2],
+    mask_aperture_idx: [Vec<usize>; 2],
+    mask_static_nets: Vec<StaticMaskOccupancy>,
+    mask_aabbs: Vec<CopperAabb>,
+    mask_group_id: Vec<usize>,
+    mask_groups: Vec<Vec<usize>>,
     max_mask_expansion: i64,
     work: budget::WorkBudget,
     last_negotiation_stats: Option<negotiate::NegotiationStats>,
@@ -145,6 +157,213 @@ fn seg_aabb(a: Point, b: Point, radius: i64) -> CopperAabb {
         [a[0].min(b[0]) - radius, a[1].min(b[1]) - radius],
         [a[0].max(b[0]) + radius, a[1].max(b[1]) + radius],
     ))
+}
+
+fn compute_static_mask_occupancy(
+    input: &Input,
+    layer_names: &[String],
+    m: &MaskAperture,
+    m_aabb: CopperAabb,
+) -> StaticMaskOccupancy {
+    let cu_layer = if m.layer == "F.Mask" {
+        "F.Cu"
+    } else if m.layer == "B.Mask" {
+        "B.Cu"
+    } else {
+        return StaticMaskOccupancy::Empty;
+    };
+    let mut occ = match m.net {
+        Some(0) => StaticMaskOccupancy::Multi,
+        Some(n) => StaticMaskOccupancy::Single(n),
+        None => StaticMaskOccupancy::Empty,
+    };
+    if occ == StaticMaskOccupancy::Multi {
+        return occ;
+    }
+    let Some(l_idx) = layer_names.iter().position(|l| l == cu_layer) else {
+        return occ;
+    };
+    let record_net = |occ: &mut StaticMaskOccupancy, net: u32| {
+        if net == 0 {
+            *occ = StaticMaskOccupancy::Multi;
+        } else {
+            *occ = match *occ {
+                StaticMaskOccupancy::Empty => StaticMaskOccupancy::Single(net),
+                StaticMaskOccupancy::Single(k) if k == net => StaticMaskOccupancy::Single(k),
+                _ => StaticMaskOccupancy::Multi,
+            };
+        }
+    };
+    for pad in &input.pads {
+        let on_layer = if pad.layers.is_empty() {
+            cu_layer == input.layer
+        } else {
+            pad.layers.iter().any(|l| l == cu_layer)
+        };
+        if on_layer
+            && CopperAabb::from_bounds(pad.copper_bounds()).overlaps(m_aabb)
+            && geometry::mask_overlaps_pad(m, pad)
+        {
+            record_net(&mut occ, pad.net);
+            if occ == StaticMaskOccupancy::Multi {
+                return occ;
+            }
+        }
+    }
+    for g in &input.graphics {
+        if g.layer == cu_layer
+            && CopperAabb::from_bounds(g.copper_bounds()).overlaps(m_aabb)
+            && geometry::mask_overlaps_graphic(m, g)
+        {
+            record_net(&mut occ, g.net);
+            if occ == StaticMaskOccupancy::Multi {
+                return occ;
+            }
+        }
+    }
+    for t in &input.tracks {
+        if t.layer == cu_layer
+            && CopperAabb::from_bounds(t.copper_bounds()).overlaps(m_aabb)
+            && geometry::track_near_mask(t.start, t.end, t.width_nm, 0, m, false)
+        {
+            record_net(&mut occ, t.net);
+            if occ == StaticMaskOccupancy::Multi {
+                return occ;
+            }
+        }
+    }
+    for v in &input.vias {
+        let s_idx = layer_names.iter().position(|l| l == &v.start_layer);
+        let e_idx = layer_names.iter().position(|l| l == &v.end_layer);
+        let spans = match (s_idx, e_idx) {
+            (Some(s), Some(e)) => l_idx >= s.min(e) && l_idx <= s.max(e),
+            _ => false,
+        };
+        let r = (v.diameter_nm + 1) / 2;
+        if spans
+            && CopperAabb::from_bounds(([v.at[0] - r, v.at[1] - r], [v.at[0] + r, v.at[1] + r]))
+                .overlaps(m_aabb)
+            && geometry::track_near_mask(v.at, v.at, v.diameter_nm, 0, m, false)
+        {
+            record_net(&mut occ, v.net);
+            if occ == StaticMaskOccupancy::Multi {
+                return occ;
+            }
+        }
+    }
+    for z in &input.zones {
+        if z.refillable || !z.filled {
+            continue;
+        }
+        for lf in &z.layer_fills {
+            if lf.layer != cu_layer {
+                continue;
+            }
+            for poly in &lf.polygons {
+                if ring_aabb(&poly.outer).overlaps(m_aabb)
+                    && geometry::mask_overlaps_filled_polygon(m, &poly.outer, &poly.holes)
+                {
+                    record_net(&mut occ, z.net);
+                    if occ == StaticMaskOccupancy::Multi {
+                        return occ;
+                    }
+                }
+            }
+        }
+    }
+    occ
+}
+
+fn merge_mask_occ(a: StaticMaskOccupancy, b: StaticMaskOccupancy) -> StaticMaskOccupancy {
+    match (a, b) {
+        (StaticMaskOccupancy::Empty, x) | (x, StaticMaskOccupancy::Empty) => x,
+        (StaticMaskOccupancy::Single(x), StaticMaskOccupancy::Single(y)) if x == y => {
+            StaticMaskOccupancy::Single(x)
+        }
+        _ => StaticMaskOccupancy::Multi,
+    }
+}
+
+fn group_mask_components(
+    apertures: &[MaskAperture],
+    aabbs: &[CopperAabb],
+    occ: &mut [StaticMaskOccupancy],
+    web_nm: i64,
+) -> (Vec<usize>, Vec<Vec<usize>>) {
+    let n = apertures.len();
+    if n == 0 {
+        return (Vec::new(), Vec::new());
+    }
+    let mut parent: Vec<usize> = (0..n).collect();
+    fn find(parent: &mut [usize], mut x: usize) -> usize {
+        while parent[x] != x {
+            parent[x] = parent[parent[x]];
+            x = parent[x];
+        }
+        x
+    }
+    let union = |parent: &mut [usize], a: usize, b: usize| {
+        let ra = find(parent, a);
+        let rb = find(parent, b);
+        if ra != rb {
+            parent[rb] = ra;
+        }
+    };
+    let web = web_nm.max(0);
+    let mut by_group: std::collections::BTreeMap<(&str, &str), usize> =
+        std::collections::BTreeMap::new();
+    for (i, ap) in apertures.iter().enumerate() {
+        if let Some(gid) = ap.group_id.as_deref() {
+            if let Some(&first) = by_group.get(&(ap.layer.as_str(), gid)) {
+                union(&mut parent, first, i);
+            } else {
+                by_group.insert((ap.layer.as_str(), gid), i);
+            }
+        }
+    }
+    for layer in ["F.Mask", "B.Mask"] {
+        let mut idxs: Vec<usize> = (0..n).filter(|&i| apertures[i].layer == layer).collect();
+        idxs.sort_by_key(|&i| (aabbs[i].min[0], aabbs[i].min[1], i));
+        for pos in 0..idxs.len() {
+            let i = idxs[pos];
+            let max_x = aabbs[i].max[0].saturating_add(web);
+            for &j in &idxs[(pos + 1)..] {
+                if aabbs[j].min[0] > max_x {
+                    break;
+                }
+                if aabbs[j].min[1] <= aabbs[i].max[1].saturating_add(web)
+                    && aabbs[i].min[1] <= aabbs[j].max[1].saturating_add(web)
+                    && find(&mut parent, i) != find(&mut parent, j)
+                    && geometry::mask_apertures_overlap(&apertures[i], &apertures[j], web)
+                {
+                    union(&mut parent, i, j);
+                }
+            }
+        }
+    }
+    let mut root_to_gid = vec![usize::MAX; n];
+    let mut group_id = vec![0usize; n];
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut group_occ: Vec<StaticMaskOccupancy> = Vec::new();
+    for i in 0..n {
+        let r = find(&mut parent, i);
+        let gid = if root_to_gid[r] == usize::MAX {
+            let g = groups.len();
+            root_to_gid[r] = g;
+            groups.push(Vec::new());
+            group_occ.push(StaticMaskOccupancy::Empty);
+            g
+        } else {
+            root_to_gid[r]
+        };
+        group_id[i] = gid;
+        groups[gid].push(i);
+        group_occ[gid] = merge_mask_occ(group_occ[gid], occ[i]);
+    }
+    for i in 0..n {
+        occ[i] = group_occ[group_id[i]];
+    }
+    (group_id, groups)
 }
 
 impl Engine {
@@ -535,9 +754,27 @@ impl Engine {
             .collect();
 
         let mut mask_items: [Vec<(u32, u32, CopperAabb, MaskGeom)>; 2] = [Vec::new(), Vec::new()];
-        let mut mask_ord = [0u32; 2];
+        let mut mask_aperture_idx: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
+        let mask_aabbs: Vec<CopperAabb> = input
+            .mask_apertures
+            .iter()
+            .map(|m| CopperAabb::from_bounds(m.copper_bounds()))
+            .collect();
+        let mut mask_static_nets: Vec<StaticMaskOccupancy> = input
+            .mask_apertures
+            .iter()
+            .zip(mask_aabbs.iter())
+            .map(|(m, &m_aabb)| compute_static_mask_occupancy(&input, &layer_names, m, m_aabb))
+            .collect();
+        let (mask_group_id, mask_groups) = group_mask_components(
+            &input.mask_apertures,
+            &mask_aabbs,
+            &mut mask_static_nets,
+            input.rules.solder_mask_min_width_nm,
+        );
         let mut max_mask_expansion = 0i64;
         for (m_idx, m) in input.mask_apertures.iter().enumerate() {
+            let occ = mask_static_nets[m_idx];
             let m_slot = if m.layer == "F.Mask" {
                 0
             } else if m.layer == "B.Mask" {
@@ -546,17 +783,24 @@ impl Engine {
                 continue;
             };
             max_mask_expansion = max_mask_expansion.max(m.expansion_nm);
-            let m_net = m.net.unwrap_or(0);
+            let m_net = match occ {
+                StaticMaskOccupancy::Single(k) => k,
+                StaticMaskOccupancy::Empty | StaticMaskOccupancy::Multi => 0,
+            };
             let exp = m.expansion_nm as i32;
+            let mut push_mask = |aabb: CopperAabb, geom: MaskGeom| {
+                let ord =
+                    u32::try_from(mask_aperture_idx[m_slot].len()).expect("bounded mask count");
+                mask_aperture_idx[m_slot].push(m_idx);
+                mask_items[m_slot].push((ord, m_net, aabb, geom));
+            };
             match &m.shape {
                 GraphicShape::Segment {
                     start,
                     end,
                     width_nm,
                 } => {
-                    mask_items[m_slot].push((
-                        mask_ord[m_slot],
-                        m_net,
+                    push_mask(
                         seg_aabb(*start, *end, (*width_nm + 1) / 2),
                         MaskGeom::Segment {
                             a: i32_pt(*start),
@@ -564,8 +808,7 @@ impl Engine {
                             width: *width_nm as i32,
                             expansion: exp,
                         },
-                    ));
-                    mask_ord[m_slot] += 1;
+                    );
                 }
                 GraphicShape::Arc {
                     start,
@@ -578,9 +821,7 @@ impl Engine {
                     let eff_w_i32 = try_i32(eff_w)?;
                     let rad = (eff_w + 1) / 2;
                     for w in chords.windows(2) {
-                        mask_items[m_slot].push((
-                            mask_ord[m_slot],
-                            m_net,
+                        push_mask(
                             seg_aabb(w[0], w[1], rad),
                             MaskGeom::Segment {
                                 a: try_i32_pt(w[0])?,
@@ -588,8 +829,7 @@ impl Engine {
                                 width: eff_w_i32,
                                 expansion: exp,
                             },
-                        ));
-                        mask_ord[m_slot] += 1;
+                        );
                     }
                 }
                 GraphicShape::Circle {
@@ -599,9 +839,7 @@ impl Engine {
                     filled,
                 } => {
                     let r = radius_nm + (width_nm + 1) / 2;
-                    mask_items[m_slot].push((
-                        mask_ord[m_slot],
-                        m_net,
+                    push_mask(
                         CopperAabb::from_bounds((
                             [center[0] - r, center[1] - r],
                             [center[0] + r, center[1] + r],
@@ -613,8 +851,7 @@ impl Engine {
                             expansion: exp,
                             filled: *filled,
                         },
-                    ));
-                    mask_ord[m_slot] += 1;
+                    );
                 }
                 GraphicShape::Polygon {
                     outer,
@@ -623,16 +860,13 @@ impl Engine {
                     filled,
                 } => {
                     if *filled {
-                        mask_items[m_slot].push((
-                            mask_ord[m_slot],
-                            m_net,
+                        push_mask(
                             ring_aabb(outer),
                             MaskGeom::FilledPolygon {
                                 mask_idx: m_idx as u32,
                                 expansion: exp,
                             },
-                        ));
-                        mask_ord[m_slot] += 1;
+                        );
                     }
                     let rad = (*width_nm + 1) / 2;
                     for ring in std::iter::once(outer).chain(holes.iter()) {
@@ -640,9 +874,7 @@ impl Engine {
                         for i in 0..n {
                             let a = ring[i];
                             let b = ring[(i + 1) % n];
-                            mask_items[m_slot].push((
-                                mask_ord[m_slot],
-                                m_net,
+                            push_mask(
                                 seg_aabb(a, b, rad),
                                 MaskGeom::Segment {
                                     a: i32_pt(a),
@@ -650,8 +882,7 @@ impl Engine {
                                     width: *width_nm as i32,
                                     expansion: exp,
                                 },
-                            ));
-                            mask_ord[m_slot] += 1;
+                            );
                         }
                     }
                 }
@@ -688,6 +919,11 @@ impl Engine {
             spoke_corridor_spatial,
             spoke_corridors,
             mask_spatial,
+            mask_aperture_idx,
+            mask_static_nets,
+            mask_aabbs,
+            mask_group_id,
+            mask_groups,
             max_mask_expansion,
             work,
             last_negotiation_stats: None,
@@ -1024,8 +1260,8 @@ impl Engine {
             return Ok(false);
         }
 
-        let mask_pad_clr = if r.solder_mask_to_copper_clearance_nm > 0 {
-            r.solder_mask_expansion_nm + r.solder_mask_to_copper_clearance_nm
+        let mask_pad_clr = if layer_name == "F.Cu" || layer_name == "B.Cu" {
+            r.solder_mask_expansion_nm.max(0) + r.solder_mask_to_copper_clearance_nm.max(0)
         } else {
             0
         };
@@ -1322,6 +1558,22 @@ impl Engine {
         if hole_flow.is_break() {
             return Ok(false);
         }
+        if !self.edge_clears_artwork(net, layer_idx, a, b, width_nm)? {
+            return Ok(false);
+        }
+        self.edge_clears_mask(net, layer_idx, a, b, width_nm)
+    }
+
+    pub(crate) fn edge_clears_artwork(
+        &self,
+        net: u32,
+        layer_idx: usize,
+        a: Point,
+        b: Point,
+        width_nm: i64,
+    ) -> Result<bool, Failure> {
+        let layer_name = &self.layer_names[layer_idx];
+        let swept = SweptAabb::swept(a, b, width_nm, self.effective_rules.max_pair_clearance_nm);
         let art_flow = self.artwork_spatial[layer_idx].visit_matching(
             swept,
             Some(net),
@@ -1384,92 +1636,221 @@ impl Engine {
                 Ok(ControlFlow::Continue(()))
             },
         )?;
-        if art_flow.is_break() {
-            return Ok(false);
-        }
-        let mask_slot = if layer_name == "F.Cu" {
-            Some(0usize)
-        } else if layer_name == "B.Cu" {
-            Some(1usize)
-        } else {
-            None
-        };
-        if let Some(ms) = mask_slot {
-            if r.solder_mask_to_copper_clearance_nm > 0 {
-                let mask_swept = SweptAabb::swept(
+        Ok(!art_flow.is_break())
+    }
+
+    fn geom_hits_mask(
+        mask_apertures: &[MaskAperture],
+        a: Point,
+        b: Point,
+        width_nm: i64,
+        to_cu: i64,
+        geom: &MaskGeom,
+    ) -> bool {
+        match *geom {
+            MaskGeom::Segment {
+                a: sa,
+                b: sb,
+                width,
+                expansion,
+            } => {
+                let clr = to_cu + i64::from(expansion);
+                geometry::segments_near(
+                    a,
+                    b,
+                    [i64::from(sa[0]), i64::from(sa[1])],
+                    [i64::from(sb[0]), i64::from(sb[1])],
+                    i128::from(width_nm) + i128::from(width) + 2 * i128::from(clr),
+                    false,
+                )
+            }
+            MaskGeom::Circle {
+                center,
+                radius,
+                width,
+                expansion,
+                filled,
+            } => {
+                let clr = to_cu + i64::from(expansion);
+                geometry::track_near_circle(
                     a,
                     b,
                     width_nm,
-                    r.solder_mask_to_copper_clearance_nm + self.max_mask_expansion,
-                );
-                let mask_flow = self.mask_spatial[ms].visit_matching(
-                    mask_swept,
-                    Some(net),
-                    &self.work,
-                    |_, geom| {
-                        self.work.charge(1)?;
-                        let hit = match *geom {
-                            MaskGeom::Segment {
-                                a: sa,
-                                b: sb,
-                                width,
-                                expansion,
-                            } => {
-                                let clr =
-                                    r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
-                                geometry::segments_near(
-                                    a,
-                                    b,
-                                    [i64::from(sa[0]), i64::from(sa[1])],
-                                    [i64::from(sb[0]), i64::from(sb[1])],
-                                    i128::from(width_nm) + i128::from(width) + 2 * i128::from(clr),
-                                    false,
-                                )
-                            }
-                            MaskGeom::Circle {
-                                center,
-                                radius,
-                                width,
-                                expansion,
-                                filled,
-                            } => {
-                                let clr =
-                                    r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
-                                geometry::track_near_circle(
-                                    a,
-                                    b,
-                                    width_nm,
-                                    clr,
-                                    [i64::from(center[0]), i64::from(center[1])],
-                                    i64::from(radius),
-                                    i64::from(width),
-                                    filled,
-                                    false,
-                                )
-                            }
-                            MaskGeom::FilledPolygon { mask_idx, .. } => {
-                                if let GraphicShape::Polygon { outer, holes, .. } =
-                                    &self.input.mask_apertures[mask_idx as usize].shape
-                                {
-                                    geometry::point_in_polygon_with_holes(a, outer, holes)
-                                        || geometry::point_in_polygon_with_holes(b, outer, holes)
-                                } else {
-                                    false
-                                }
-                            }
-                        };
-                        if hit {
-                            return Ok(ControlFlow::Break(()));
-                        }
-                        Ok(ControlFlow::Continue(()))
-                    },
-                )?;
-                if mask_flow.is_break() {
-                    return Ok(false);
+                    clr,
+                    [i64::from(center[0]), i64::from(center[1])],
+                    i64::from(radius),
+                    i64::from(width),
+                    filled,
+                    false,
+                )
+            }
+            MaskGeom::FilledPolygon { mask_idx, .. } => {
+                if let GraphicShape::Polygon { outer, holes, .. } =
+                    &mask_apertures[mask_idx as usize].shape
+                {
+                    geometry::point_in_polygon_with_holes(a, outer, holes)
+                        || geometry::point_in_polygon_with_holes(b, outer, holes)
+                } else {
+                    false
                 }
             }
         }
-        Ok(true)
+    }
+
+    fn generated_other_net_touches_mask(
+        &self,
+        net: u32,
+        layer_idx: usize,
+        m_idx: usize,
+    ) -> Result<bool, Failure> {
+        let net_filter = (net != 0).then_some(net);
+        let layer_bit = 1u32 << layer_idx;
+        for &member_idx in &self.mask_groups[self.mask_group_id[m_idx]] {
+            let m = &self.input.mask_apertures[member_idx];
+            let aabb = self.mask_aabbs[member_idx];
+            let query = SweptAabb {
+                min: [i128::from(aabb.min[0]), i128::from(aabb.min[1])],
+                max: [i128::from(aabb.max[0]), i128::from(aabb.max[1])],
+            };
+            let trk_flow = self.copper.visit_generated_layer_candidates(
+                layer_idx,
+                query,
+                net_filter,
+                &self.work,
+                |other_net, t| {
+                    if other_net == net && net != 0 {
+                        return Ok(ControlFlow::Continue(()));
+                    }
+                    if geometry::track_near_mask(t.start, t.end, t.width_nm, 0, m, false) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+            if trk_flow.is_break() {
+                return Ok(true);
+            }
+            let via_flow = self.copper.visit_generated_via_candidates(
+                query,
+                net_filter,
+                &self.work,
+                |via, v_mask| {
+                    if (v_mask & layer_bit) == 0 || (via.net == net && net != 0) {
+                        return Ok(ControlFlow::Continue(()));
+                    }
+                    if geometry::track_near_mask(via.at, via.at, via.diameter_nm, 0, m, false) {
+                        return Ok(ControlFlow::Break(()));
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+            if via_flow.is_break() {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    pub(crate) fn edge_clears_mask(
+        &self,
+        net: u32,
+        layer_idx: usize,
+        a: Point,
+        b: Point,
+        width_nm: i64,
+    ) -> Result<bool, Failure> {
+        let layer_name = &self.layer_names[layer_idx];
+        let ms = if layer_name == "F.Cu" {
+            0usize
+        } else if layer_name == "B.Cu" {
+            1usize
+        } else {
+            return Ok(true);
+        };
+        if self.mask_aperture_idx[ms].is_empty() {
+            return Ok(true);
+        }
+        let to_cu = self.input.rules.solder_mask_to_copper_clearance_nm.max(0);
+        let mask_swept = SweptAabb::swept(a, b, width_nm, to_cu + self.max_mask_expansion);
+        let mask_flow = self.mask_spatial[ms].visit_matching(
+            mask_swept,
+            Some(net),
+            &self.work,
+            |ordinal, geom| {
+                self.work.charge(1)?;
+                if !Self::geom_hits_mask(&self.input.mask_apertures, a, b, width_nm, to_cu, geom) {
+                    return Ok(ControlFlow::Continue(()));
+                }
+                if to_cu > 0 {
+                    return Ok(ControlFlow::Break(()));
+                }
+                let m_idx = self.mask_aperture_idx[ms][ordinal as usize];
+                let allowed_static = match self.mask_static_nets[m_idx] {
+                    StaticMaskOccupancy::Empty => true,
+                    StaticMaskOccupancy::Single(n) => net != 0 && n == net,
+                    StaticMaskOccupancy::Multi => false,
+                };
+                if !allowed_static {
+                    return Ok(ControlFlow::Break(()));
+                }
+                if self.generated_other_net_touches_mask(net, layer_idx, m_idx)? {
+                    self.last_block_generated.set(true);
+                    return Ok(ControlFlow::Break(()));
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        Ok(!mask_flow.is_break())
+    }
+
+    pub(crate) fn via_clears_mask_layer(
+        &self,
+        net: u32,
+        l_idx: usize,
+        at: Point,
+        diam: i64,
+    ) -> Result<bool, Failure> {
+        self.edge_clears_mask(net, l_idx, at, at, diam)
+    }
+
+    pub(crate) fn mask_apertures_hit(
+        &self,
+        layer_idx: usize,
+        a: Point,
+        b: Point,
+        width_nm: i64,
+        out: &mut Vec<usize>,
+    ) -> Result<(), Failure> {
+        out.clear();
+        if self.input.mask_apertures.is_empty() {
+            return Ok(());
+        }
+        let layer_name = &self.layer_names[layer_idx];
+        let ms = if layer_name == "F.Cu" {
+            0usize
+        } else if layer_name == "B.Cu" {
+            1usize
+        } else {
+            return Ok(());
+        };
+        if self.mask_aperture_idx[ms].is_empty() {
+            return Ok(());
+        }
+        let mask_swept = SweptAabb::swept(a, b, width_nm, self.max_mask_expansion);
+        let _ = self.mask_spatial[ms].visit_matching(
+            mask_swept,
+            None,
+            &self.work,
+            |ordinal, geom| {
+                self.work.charge(1)?;
+                if Self::geom_hits_mask(&self.input.mask_apertures, a, b, width_nm, 0, geom) {
+                    let m_idx = self.mask_aperture_idx[ms][ordinal as usize];
+                    out.push(self.mask_group_id[m_idx]);
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        Ok(())
     }
 
     pub(crate) fn edge_clears_same_net_vias(
@@ -1725,22 +2106,26 @@ impl Engine {
                 }
             }
         }
-        let mask_pad_clr = if r.solder_mask_to_copper_clearance_nm > 0 {
-            r.solder_mask_expansion_nm + r.solder_mask_to_copper_clearance_nm
-        } else {
-            0
-        };
+        let mask_pad_clr =
+            r.solder_mask_expansion_nm.max(0) + r.solder_mask_to_copper_clearance_nm.max(0);
+        let any_outer_layer = (start_idx..=end_idx)
+            .any(|idx| matches!(self.layer_names[idx].as_str(), "F.Cu" | "B.Cu"));
         let max_copper_query_clr = self
             .effective_rules
             .max_pair_clearance_nm
             .max(self.max_pad_local_clearance_nm)
             .max(self.max_zone_local_clearance_nm)
             .max(self.effective_rules.max_hole_clearance_nm)
-            .max(mask_pad_clr);
+            .max(if any_outer_layer { mask_pad_clr } else { 0 });
 
         for l_idx in start_idx..=end_idx {
             let layer_name = &self.layer_names[l_idx];
             let layer_slice = std::slice::from_ref(layer_name);
+            let layer_mask_pad_clr = if layer_name == "F.Cu" || layer_name == "B.Cu" {
+                mask_pad_clr
+            } else {
+                0
+            };
             let ko_swept = SweptAabb::swept(at, at, diam, 0);
             let ko_flow = self.keepout_spatial[l_idx].visit_matching(
                 ko_swept,
@@ -1954,7 +2339,7 @@ impl Engine {
                             layer_name,
                             pad.local_clearance_nm,
                         )
-                        .max(mask_pad_clr);
+                        .max(layer_mask_pad_clr);
                     let p_layers = self.pad_layers_owned(pad);
                     let hole_clr = self.effective_rules.pair_hole_clearance(
                         net,
@@ -2138,86 +2523,8 @@ impl Engine {
             if art_flow.is_break() {
                 return Ok(None);
             }
-            let mask_slot = if layer_name == "F.Cu" {
-                Some(0usize)
-            } else if layer_name == "B.Cu" {
-                Some(1usize)
-            } else {
-                None
-            };
-            if let Some(ms) = mask_slot {
-                if r.solder_mask_to_copper_clearance_nm > 0 {
-                    let mask_swept = SweptAabb::swept(
-                        at,
-                        at,
-                        diam,
-                        r.solder_mask_to_copper_clearance_nm + self.max_mask_expansion,
-                    );
-                    let mask_flow = self.mask_spatial[ms].visit_matching(
-                        mask_swept,
-                        Some(net),
-                        &self.work,
-                        |_, geom| {
-                            self.work.charge(1)?;
-                            let hit = match *geom {
-                                MaskGeom::Segment {
-                                    a: sa,
-                                    b: sb,
-                                    width,
-                                    expansion,
-                                } => {
-                                    let clr =
-                                        r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
-                                    geometry::segments_near(
-                                        at,
-                                        at,
-                                        [i64::from(sa[0]), i64::from(sa[1])],
-                                        [i64::from(sb[0]), i64::from(sb[1])],
-                                        i128::from(diam) + i128::from(width) + 2 * i128::from(clr),
-                                        false,
-                                    )
-                                }
-                                MaskGeom::Circle {
-                                    center,
-                                    radius,
-                                    width,
-                                    expansion,
-                                    filled,
-                                } => {
-                                    let clr =
-                                        r.solder_mask_to_copper_clearance_nm + i64::from(expansion);
-                                    geometry::track_near_circle(
-                                        at,
-                                        at,
-                                        diam,
-                                        clr,
-                                        [i64::from(center[0]), i64::from(center[1])],
-                                        i64::from(radius),
-                                        i64::from(width),
-                                        filled,
-                                        false,
-                                    )
-                                }
-                                MaskGeom::FilledPolygon { mask_idx, .. } => {
-                                    if let GraphicShape::Polygon { outer, holes, .. } =
-                                        &self.input.mask_apertures[mask_idx as usize].shape
-                                    {
-                                        geometry::point_in_polygon_with_holes(at, outer, holes)
-                                    } else {
-                                        false
-                                    }
-                                }
-                            };
-                            if hit {
-                                return Ok(ControlFlow::Break(()));
-                            }
-                            Ok(ControlFlow::Continue(()))
-                        },
-                    )?;
-                    if mask_flow.is_break() {
-                        return Ok(None);
-                    }
-                }
+            if !self.via_clears_mask_layer(net, l_idx, at, diam)? {
+                return Ok(None);
             }
         }
 

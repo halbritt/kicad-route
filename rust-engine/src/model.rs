@@ -275,9 +275,9 @@ pub struct CopperGraphic {
     pub layer: String,
     pub shape: GraphicShape,
 }
-impl CopperGraphic {
+impl GraphicShape {
     pub fn copper_bounds(&self) -> (Point, Point) {
-        match &self.shape {
+        match self {
             GraphicShape::Segment {
                 start,
                 end,
@@ -339,16 +339,30 @@ impl CopperGraphic {
         }
     }
 }
+impl CopperGraphic {
+    pub fn copper_bounds(&self) -> (Point, Point) {
+        self.shape.copper_bounds()
+    }
+}
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct MaskAperture {
     pub id: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub net: Option<u32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub group_id: Option<String>,
     pub layer: String,
     pub shape: GraphicShape,
     #[serde(default, skip_serializing_if = "is_zero_i64")]
     pub expansion_nm: i64,
+}
+impl MaskAperture {
+    pub fn copper_bounds(&self) -> (Point, Point) {
+        let (lo, hi) = self.shape.copper_bounds();
+        let exp = self.expansion_nm.max(0);
+        ([lo[0] - exp, lo[1] - exp], [hi[0] + exp, hi[1] + exp])
+    }
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -1519,6 +1533,7 @@ impl Input {
         for m in &self.mask_apertures {
             if !canonical_uuid(&m.id)
                 || !ids.insert(&m.id)
+                || m.group_id.as_deref().is_some_and(|g| !canonical_uuid(g))
                 || m.net.is_some_and(|n| n != 0 && !nets.contains(&n))
                 || !(0..=MAX_NM).contains(&m.expansion_nm)
             {

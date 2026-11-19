@@ -4425,3 +4425,316 @@ fn tier1_detour_around_non_rippable_tier0_exceeding_trial_cap_succeeds() {
         }
     }
 }
+
+#[test]
+fn diff_pair_zero_mask_clearance_detours_around_static_gnd_mask_aperture() {
+    let mut input = base_diff_input(&["DP_P", "DP_N"]);
+    if let Some(opts) = input.routing_options.as_mut() {
+        opts.pair_layers = vec!["F.Cu".into()];
+    }
+    input.nets.push(Net {
+        id: 3,
+        name: "GND".into(),
+    });
+    input
+        .pads
+        .push(pad(10, 3, [25_000_000, 15_000_000], &["F.Cu"]));
+    let mask = MaskAperture {
+        id: uuid(100),
+        net: None,
+        group_id: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [24_000_000, 9_000_000],
+                [26_000_000, 9_000_000],
+                [26_000_000, 16_000_000],
+                [24_000_000, 16_000_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+        expansion_nm: 0,
+    };
+    input.mask_apertures.push(mask.clone());
+    let out = kicad_route_engine::run(input);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(!out.added_tracks.is_empty());
+    for t in &out.added_tracks {
+        assert!(
+            !kicad_route_engine::geometry::track_near_mask(
+                t.start, t.end, t.width_nm, 0, &mask, false
+            ),
+            "track {t:?} bridged GND F.Mask aperture"
+        );
+    }
+}
+
+#[test]
+fn diff_pair_zero_mask_clearance_blocks_coupled_self_bridge_over_empty_aperture() {
+    let mut input = base_diff_input(&["DP_P", "DP_N"]);
+    let mask = MaskAperture {
+        id: uuid(101),
+        net: None,
+        group_id: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [24_000_000, 9_500_000],
+                [26_000_000, 9_500_000],
+                [26_000_000, 12_000_000],
+                [24_000_000, 12_000_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+        expansion_nm: 0,
+    };
+    input.mask_apertures.push(mask.clone());
+    let out = kicad_route_engine::run(input);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    let pos_hits = out.added_tracks.iter().any(|t| {
+        t.net == 1
+            && kicad_route_engine::geometry::track_near_mask(
+                t.start, t.end, t.width_nm, 0, &mask, false,
+            )
+    });
+    let neg_hits = out.added_tracks.iter().any(|t| {
+        t.net == 2
+            && kicad_route_engine::geometry::track_near_mask(
+                t.start, t.end, t.width_nm, 0, &mask, false,
+            )
+    });
+    assert!(
+        !(pos_hits && neg_hits),
+        "DP_P and DP_N must never both cross the same F.Mask aperture"
+    );
+}
+
+#[test]
+fn diff_pair_zero_mask_clearance_allows_single_leg_pad_mask_aperture() {
+    let mut input = base_diff_input(&["DP_P", "DP_N"]);
+    // F.Mask aperture covers ONLY DP_P's start pad at (10M, 10M).
+    let mask = MaskAperture {
+        id: uuid(102),
+        net: None,
+        group_id: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [9_500_000, 9_500_000],
+                [10_500_000, 9_500_000],
+                [10_500_000, 10_500_000],
+                [9_500_000, 10_500_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+        expansion_nm: 0,
+    };
+    input.mask_apertures.push(mask);
+    let out = kicad_route_engine::run(input);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(out.added_tracks.iter().any(|t| t.net == 1));
+    assert!(out.added_tracks.iter().any(|t| t.net == 2));
+}
+
+#[test]
+fn diff_pair_zero_mask_clearance_enforces_pad_solder_mask_expansion() {
+    let mut input = base_diff_input(&["DP_P", "DP_N"]);
+    input.layers = vec!["F.Cu".into(), "In1.Cu".into(), "B.Cu".into()];
+    input.rules.solder_mask_expansion_nm = 400_000;
+    input.rules.solder_mask_to_copper_clearance_nm = 0;
+    input.rules.clearance_nm = 200_000;
+    if let Some(bds) = input.board_design_settings.as_mut() {
+        bds.solder_mask_expansion_nm = 400_000;
+    }
+    input.nets.push(Net {
+        id: 3,
+        name: "GND".into(),
+    });
+    // Place GND pad at y=10.75M (center between 10M and 11.5M) on F.Cu and In1.Cu.
+    // Pad radius=150k, track half-width=125k -> copper gap is 750k - 275k = 475k? Use radius 400k ->
+    // copper gap = 750k - 400k - 125k = 225k (>200k copper, <400k mask expansion!).
+    let mut gnd = pad(10, 3, [25_000_000, 10_750_000], &["F.Cu", "In1.Cu"]);
+    gnd.shape = Shape::Circle { radius_nm: 400_000 };
+    input.pads.push(gnd);
+    let out = kicad_route_engine::run(input.clone());
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    // On F.Cu, no diff-pair track center may come within 400k + 400k + 125k = 925k of (25M, 10.75M).
+    for t in out.added_tracks.iter().filter(|t| t.layer == "F.Cu") {
+        assert!(
+            !kicad_route_engine::geometry::point_near_segment(
+                [25_000_000, 10_750_000],
+                t.start,
+                t.end,
+                i128::from(t.width_nm) + 2 * 400_000 + 2 * 400_000,
+                false
+            ),
+            "F.Cu track {t:?} violated GND pad solder_mask_expansion"
+        );
+    }
+}
+
+#[test]
+fn diff_pair_wider_than_default_width_respects_mask_aperture_both_clearances() {
+    for to_cu in [0i64, 100_000] {
+        let mut input = base_diff_input(&["DP_P", "DP_N"]);
+        input.rules.solder_mask_to_copper_clearance_nm = to_cu;
+        if let Some(bds) = input.board_design_settings.as_mut() {
+            bds.solder_mask_to_copper_clearance_nm = to_cu;
+            bds.netclasses[1].diff_pair_width_nm = 500_000;
+        }
+        input.nets.push(Net {
+            id: 3,
+            name: "GND".into(),
+        });
+        input
+            .pads
+            .push(pad(10, 3, [25_000_000, 15_000_000], &["F.Cu"]));
+        // Place an F.Mask aperture whose boundary at y=9.78M is cleared by default_w=250k (gap=95k)
+        // when to_cu=0, or within 100k of default_w, and ALSO blocks wider width=500k (half-width 250k)!
+        let mask = MaskAperture {
+            id: uuid(103),
+            net: None,
+            group_id: None,
+            layer: "F.Mask".into(),
+            shape: GraphicShape::Polygon {
+                outer: vec![
+                    [24_000_000, 9_800_000],
+                    [26_000_000, 9_800_000],
+                    [26_000_000, 16_000_000],
+                    [24_000_000, 16_000_000],
+                ],
+                holes: Vec::new(),
+                width_nm: 0,
+                filled: true,
+            },
+            expansion_nm: 0,
+        };
+        input.mask_apertures.push(mask.clone());
+        let out = kicad_route_engine::run(input);
+        assert_eq!(
+            out.status,
+            Status::Complete,
+            "to_cu={to_cu}: {:?}",
+            out.reason
+        );
+        for t in &out.added_tracks {
+            assert_eq!(t.width_nm, 500_000);
+            assert!(
+                !kicad_route_engine::geometry::track_near_mask(
+                    t.start, t.end, t.width_nm, to_cu, &mask, false
+                ),
+                "to_cu={to_cu}: wide track {t:?} violated mask clearance"
+            );
+        }
+    }
+}
+
+#[test]
+fn diff_pair_coupled_vias_and_meander_avoid_mask_bridge() {
+    let mut input = base_diff_input(&["DP_P", "DP_N"]);
+    input.nets.push(Net {
+        id: 3,
+        name: "GND".into(),
+    });
+    // Force layer transition from F.Cu (start pads) to B.Cu (end pads) with F.Cu keepout in middle.
+    input.pads[1].layers = vec!["B.Cu".into()];
+    input.pads[3].layers = vec!["B.Cu".into()];
+    input
+        .pads
+        .push(pad(10, 3, [25_000_000, 15_000_000], &["F.Cu", "B.Cu"]));
+    input.rule_areas.push(RuleArea {
+        id: uuid(104),
+        name: None,
+        layers: vec!["F.Cu".into()],
+        outer: vec![
+            [18_000_000, 0],
+            [32_000_000, 0],
+            [32_000_000, 40_000_000],
+            [18_000_000, 40_000_000],
+        ],
+        holes: Vec::new(),
+        extra_polygons: Vec::new(),
+        no_tracks: true,
+        no_vias: true,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    });
+    let f_mask = MaskAperture {
+        id: uuid(105),
+        net: None,
+        group_id: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [14_000_000, 9_000_000],
+                [16_000_000, 9_000_000],
+                [16_000_000, 16_000_000],
+                [14_000_000, 16_000_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+        expansion_nm: 0,
+    };
+    let b_mask = MaskAperture {
+        id: uuid(106),
+        net: None,
+        group_id: None,
+        layer: "B.Mask".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [24_000_000, 9_000_000],
+                [26_000_000, 9_000_000],
+                [26_000_000, 16_000_000],
+                [24_000_000, 16_000_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+        expansion_nm: 0,
+    };
+    input
+        .mask_apertures
+        .extend([f_mask.clone(), b_mask.clone()]);
+    if let Some(opts) = input.routing_options.as_mut() {
+        opts.intra_match = true;
+        opts.length_match_tolerance_nm = Some(50_000);
+        opts.meander_amplitude_nm = Some(2_000_000);
+    }
+    let out = kicad_route_engine::run(input);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert!(!out.added_vias.is_empty());
+    for v in &out.added_vias {
+        assert!(!kicad_route_engine::geometry::track_near_mask(
+            v.at,
+            v.at,
+            v.diameter_nm,
+            0,
+            &f_mask,
+            false
+        ));
+        assert!(!kicad_route_engine::geometry::track_near_mask(
+            v.at,
+            v.at,
+            v.diameter_nm,
+            0,
+            &b_mask,
+            false
+        ));
+    }
+    for t in &out.added_tracks {
+        let mask = if t.layer == "F.Cu" { &f_mask } else { &b_mask };
+        assert!(!kicad_route_engine::geometry::track_near_mask(
+            t.start, t.end, t.width_nm, 0, mask, false
+        ));
+    }
+}

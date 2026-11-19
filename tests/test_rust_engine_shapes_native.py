@@ -885,6 +885,19 @@ def test_native_solder_mask_min_width_without_copper_clearance_routes_over_mask_
     assert plan["added_tracks"]
     assert data["rules"]["solder_mask_min_width_nm"] == 200000
 
+    # Same U_MASK 2-net footprint with positive solder_mask_to_copper_clearance=100k also connects Pad 1 cleanly.
+    pos_board = pcbnew.LoadBoard(str(native_board))
+    pos_board.GetDesignSettings().m_SolderMaskToCopperClearance = 100_000
+    pos_path = tmp_path / "umask-clr100k.kicad_pcb"
+    save(pos_path, pos_board)
+    pos_dir = tmp_path / "umask-clr100k-run"
+    pos_dir.mkdir()
+    _, pos_plan, pos_out = _route_and_verify_drc(pos_path, pos_dir, expected_opens_before=2)
+    assert pos_plan["added_tracks"]
+    pos_drc = bridge.native_violations(pos_out, pos_dir / "umask-drc.json")
+    assert pos_drc["unconnected_items"] == []
+    assert not any(v["type"] == "solder_mask_bridge" for v in pos_drc["violations"])
+
     # Verify load_supported (apply_plan) and export_board agree on F.Mask Bezier even when mask rules are 0.
     board2 = pcbnew.LoadBoard(str(native_board))
     ds2 = board2.GetDesignSettings()

@@ -1323,6 +1323,7 @@ fn m3_1_concave_outline_cutout_arc_graphic_and_mask_web_enforce_legality() {
     i.mask_apertures.push(MaskAperture {
         id: id(21),
         net: None,
+        group_id: None,
         layer: "F.Mask".into(),
         shape: GraphicShape::Segment {
             start: [28, 60],
@@ -1420,6 +1421,7 @@ fn m3_1_major_arc_exceeding_bounds_refuses_cleanly_without_panic() {
     m.mask_apertures.push(MaskAperture {
         id: id(41),
         net: None,
+        group_id: None,
         layer: "F.Mask".into(),
         shape: GraphicShape::Arc {
             start: [0, 0],
@@ -1635,6 +1637,7 @@ fn m3_1_solder_mask_min_width_without_copper_clearance_allows_fcu_tracks() {
     i.mask_apertures.push(MaskAperture {
         id: id(60),
         net: None,
+        group_id: None,
         layer: "F.Mask".into(),
         shape: GraphicShape::Polygon {
             outer: vec![
@@ -4319,4 +4322,436 @@ fn m3_3_spoke_corridor_avoids_foreign_hole_and_graphic() {
     inp.holes.clear();
     inp.graphics.clear();
     assert_eq!(run(inp).status, Status::Complete);
+}
+
+#[test]
+fn m5_2_1_zero_to_cu_mask_apertures_block_cross_net_bridges_tracks_and_vias() {
+    // Challenge 1: when solder_mask_to_copper_clearance_nm == 0, an F.Mask or B.Mask
+    // aperture exposing GND (net 2) or generated copper must block SIG (net 1) tracks & vias.
+    let mut i = base();
+    i.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [20_000_000, 20_000_000],
+    };
+    i.rules = Rules {
+        width_nm: 250_000,
+        clearance_nm: 250_000,
+        grid_nm: 250_000,
+        edge_clearance_nm: 500_000,
+        hole_clearance_nm: 250_000,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 0,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.nets.push(Net {
+        id: 2,
+        name: "GND".into(),
+    });
+    i.pads[0].at = [5_000_000, 10_000_000];
+    i.pads[0].layers = vec!["F.Cu".into()];
+    i.pads[1].at = [15_000_000, 10_000_000];
+    i.pads[1].layers = vec!["F.Cu".into()];
+    i.pads.push(Pad {
+        id: id(10),
+        net: 2,
+        at: [10_000_000, 12_000_000],
+        shape: Shape::Rect {
+            half_size_nm: [500_000, 500_000],
+        },
+        drill: None,
+        layers: vec!["F.Cu".into()],
+        local_clearance_nm: None,
+        zone_connection: Default::default(),
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
+    });
+    i.mask_apertures.push(MaskAperture {
+        id: id(11),
+        net: None,
+        group_id: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [9_000_000, 9_500_000],
+                [11_000_000, 9_500_000],
+                [11_000_000, 12_500_000],
+                [9_000_000, 12_500_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+        expansion_nm: 0,
+    });
+    // Also place a B.Mask expanded circle over a B.Cu GND pad at y=10M? Use a separate B.Mask
+    // segment at x=10M, y=5..8M with expansion_nm=300_000 and B.Cu GND pad at (10M, 6M).
+    i.pads.push(Pad {
+        id: id(12),
+        net: 2,
+        at: [10_000_000, 6_000_000],
+        shape: Shape::Rect {
+            half_size_nm: [400_000, 400_000],
+        },
+        drill: None,
+        layers: vec!["B.Cu".into()],
+        local_clearance_nm: None,
+        zone_connection: Default::default(),
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
+    });
+    i.mask_apertures.push(MaskAperture {
+        id: id(13),
+        net: None,
+        group_id: None,
+        layer: "B.Mask".into(),
+        shape: GraphicShape::Segment {
+            start: [10_000_000, 5_500_000],
+            end: [10_000_000, 7_500_000],
+            width_nm: 200_000,
+        },
+        expansion_nm: 300_000,
+    });
+    let mut e = Engine::new(i.clone()).unwrap();
+    // Crossing F.Mask aperture on F.Cu is blocked; via inside F.Mask aperture is blocked;
+    // detour on F.Cu at y=7M is legal (B.Mask only affects B.Cu).
+    assert!(!e
+        .legal_edge(1, [5_000_000, 10_000_000], [15_000_000, 10_000_000])
+        .unwrap());
+    assert!(e
+        .legal_edge(1, [5_000_000, 7_000_000], [15_000_000, 7_000_000])
+        .unwrap());
+    let out = e.route_all();
+    assert!(out.is_ok(), "{out:?}");
+    let tracks: Vec<_> = e.copper().generated().cloned().collect();
+    assert!(!tracks.is_empty());
+    // Net 1 (SIG) tracks must stay clear of F.Mask / B.Mask apertures (which expose net 2 GND pads).
+    assert!(tracks.iter().any(|t| t.net == 1));
+    for t in tracks.iter().filter(|t| t.net == 1) {
+        if t.layer == "F.Cu" {
+            assert!(!kicad_route_engine::geometry::track_near_mask(
+                t.start,
+                t.end,
+                t.width_nm,
+                0,
+                &i.mask_apertures[0],
+                false
+            ));
+        } else if t.layer == "B.Cu" {
+            assert!(!kicad_route_engine::geometry::track_near_mask(
+                t.start,
+                t.end,
+                t.width_nm,
+                0,
+                &i.mask_apertures[1],
+                false
+            ));
+        }
+    }
+    // Single-layer F.Cu board must detour around the F.Mask aperture on F.Cu.
+    let mut single = i.clone();
+    single.layers.clear();
+    single.pads.pop();
+    single.mask_apertures.pop();
+    let mut es = Engine::new(single.clone()).unwrap();
+    es.route_all().unwrap();
+    let single_tracks: Vec<_> = es.copper().generated().cloned().collect();
+    assert!(single_tracks
+        .iter()
+        .any(|t| t.start[1] != 10_000_000 || t.end[1] != 10_000_000));
+    for t in &single_tracks {
+        assert!(!kicad_route_engine::geometry::track_near_mask(
+            t.start,
+            t.end,
+            t.width_nm,
+            0,
+            &single.mask_apertures[0],
+            false
+        ));
+    }
+
+    // Empty F.Mask aperture allows net 1 alone, then blocks net 2 once net 1 generates copper over it.
+    let mut g = base();
+    g.bounds = Bounds {
+        min: [0, 0],
+        max: [20_000_000, 20_000_000],
+    };
+    g.rules = i.rules;
+    g.nets.push(Net {
+        id: 2,
+        name: "SIG2".into(),
+    });
+    g.pads[0].at = [5_000_000, 10_000_000];
+    g.pads[1].at = [15_000_000, 10_000_000];
+    g.pads.push(Pad {
+        id: id(20),
+        net: 2,
+        at: [10_000_000, 5_000_000],
+        shape: Shape::Circle { radius_nm: 300_000 },
+        drill: None,
+        layers: vec!["F.Cu".into()],
+        local_clearance_nm: None,
+        zone_connection: Default::default(),
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
+    });
+    g.pads.push(Pad {
+        id: id(21),
+        net: 2,
+        at: [10_000_000, 15_000_000],
+        shape: Shape::Circle { radius_nm: 300_000 },
+        drill: None,
+        layers: vec!["F.Cu".into()],
+        local_clearance_nm: None,
+        zone_connection: Default::default(),
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
+    });
+    g.mask_apertures.push(MaskAperture {
+        id: id(22),
+        net: None,
+        group_id: None,
+        layer: "F.Mask".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![
+                [9_000_000, 8_000_000],
+                [11_000_000, 8_000_000],
+                [11_000_000, 12_000_000],
+                [9_000_000, 12_000_000],
+            ],
+            holes: Vec::new(),
+            width_nm: 0,
+            filled: true,
+        },
+        expansion_nm: 0,
+    });
+    let mut eg = Engine::new(g.clone()).unwrap();
+    assert!(eg
+        .legal_edge(1, [5_000_000, 10_000_000], [15_000_000, 10_000_000])
+        .unwrap());
+    eg.route(1, 50_000).unwrap();
+    // Now net 1 has generated tracks across the empty F.Mask aperture, so net 2 must be blocked at y=9M (away from net 1's copper at y=10M) and detour.
+    assert!(!eg
+        .legal_edge(2, [8_000_000, 8_500_000], [12_000_000, 8_500_000])
+        .unwrap());
+    eg.route(2, 50_000).unwrap();
+    assert!(!eg.copper().generated().any(|t| t.net == 2
+        && kicad_route_engine::geometry::track_near_mask(
+            t.start,
+            t.end,
+            t.width_nm,
+            0,
+            &g.mask_apertures[0],
+            false
+        )));
+}
+
+#[test]
+fn m5_2_1_zero_to_cu_pad_solder_mask_expansion_enforced_outer_only() {
+    // Challenge 2: solder_mask_expansion_nm=350k with to_cu=0 must enforce mask_pad_clr=350k on F.Cu/B.Cu
+    // and 0 on inner layers (In1.Cu), plus propagate minimums when effective_rules is supplied directly.
+    let mut i = base();
+    i.layers = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    i.bounds = Bounds {
+        min: [0, 0],
+        max: [20_000_000, 20_000_000],
+    };
+    i.rules = Rules {
+        width_nm: 250_000,
+        clearance_nm: 250_000,
+        grid_nm: 250_000,
+        edge_clearance_nm: 500_000,
+        hole_clearance_nm: 250_000,
+        same_net_hole_clearance_nm: 0,
+        solder_mask_expansion_nm: 350_000,
+        solder_mask_min_width_nm: 0,
+        solder_mask_to_copper_clearance_nm: 0,
+    };
+    i.nets.push(Net {
+        id: 2,
+        name: "GND".into(),
+    });
+    i.pads[0].at = [5_000_000, 10_000_000];
+    i.pads[0].layers = vec![
+        "F.Cu".into(),
+        "In1.Cu".into(),
+        "In2.Cu".into(),
+        "B.Cu".into(),
+    ];
+    i.pads[0].drill = Some(DrillShape::Circle {
+        diameter_nm: 300_000,
+    });
+    i.pads[0].shape = Shape::Circle { radius_nm: 500_000 };
+    i.pads[1].at = [15_000_000, 10_000_000];
+    i.pads[1].layers = i.pads[0].layers.clone();
+    i.pads[1].drill = Some(DrillShape::Circle {
+        diameter_nm: 300_000,
+    });
+    i.pads[1].shape = Shape::Circle { radius_nm: 500_000 };
+    // GND pad at (10M, 10.95M) on F.Cu, In1.Cu, B.Cu: gap to y=10M is 325k (>250k copper, <350k mask).
+    i.pads.push(Pad {
+        id: id(30),
+        net: 2,
+        at: [10_000_000, 10_950_000],
+        shape: Shape::Rect {
+            half_size_nm: [500_000, 500_000],
+        },
+        drill: None,
+        layers: vec!["F.Cu".into(), "In1.Cu".into(), "B.Cu".into()],
+        local_clearance_nm: None,
+        zone_connection: Default::default(),
+        thermal_gap_nm: None,
+        thermal_spoke_width_nm: None,
+        thermal_spoke_angle_mdeg: None,
+        orientation_mdeg: 0,
+        footprint_ref: None,
+        pad_number: None,
+        fromto_id: None,
+    });
+    let e = Engine::new(i.clone()).unwrap();
+    // F.Cu edge at y=10M must be blocked by mask_pad_clr=350k (325k < 350k).
+    assert!(!e
+        .legal_edge(1, [5_000_000, 10_000_000], [15_000_000, 10_000_000])
+        .unwrap());
+    // Detour at y=9.75M has gap 575k >= 350k -> legal on F.Cu.
+    assert!(e
+        .legal_edge(1, [5_000_000, 9_750_000], [15_000_000, 9_750_000])
+        .unwrap());
+
+    // Block F.Cu and B.Cu corridor around x=8..12M so router must use In1.Cu at y=10M (325k > 250k).
+    let mut inner_test = i.clone();
+    for (k, lname) in ["F.Cu", "B.Cu"].into_iter().enumerate() {
+        inner_test.rule_areas.push(RuleArea {
+            id: id(40 + k as u64),
+            name: None,
+            layers: vec![lname.into()],
+            outer: vec![
+                [8_000_000, 0],
+                [12_000_000, 0],
+                [12_000_000, 20_000_000],
+                [8_000_000, 20_000_000],
+            ],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        });
+    }
+    let out_inner = run(inner_test);
+    assert_eq!(out_inner.status, Status::Complete, "{:?}", out_inner.reason);
+    assert!(out_inner
+        .added_tracks
+        .iter()
+        .any(|t| t.layer == "In1.Cu" || t.layer == "In2.Cu"));
+
+    // Verify rules.rs effective_rules path preserves solder_mask_expansion_nm when input.rules is omitted.
+    let mut eff = kicad_route_engine::rules::EffectiveRules::from_uniform_rules(i.rules, &i.nets);
+    eff.minimums.solder_mask_expansion_nm = 350_000;
+    let mut val = serde_json::to_value(&i).unwrap();
+    val.as_object_mut().unwrap().remove("rules");
+    val.as_object_mut().unwrap().insert(
+        "effective_rules".into(),
+        serde_json::to_value(&eff).unwrap(),
+    );
+    let from_eff: Input = serde_json::from_value(val).unwrap();
+    let e_eff = Engine::new(from_eff).unwrap();
+    assert!(!e_eff
+        .legal_edge(1, [5_000_000, 10_000_000], [15_000_000, 10_000_000])
+        .unwrap());
+}
+
+#[test]
+fn m5_2_1_umask_single_net_aperture_allows_owner_even_with_positive_to_cu() {
+    for to_cu in [0, 100_000] {
+        let mut i = base();
+        i.bounds = Bounds {
+            min: [0, 0],
+            max: [20_000_000, 20_000_000],
+        };
+        i.rules = Rules {
+            width_nm: 250_000,
+            clearance_nm: 250_000,
+            grid_nm: 250_000,
+            edge_clearance_nm: 500_000,
+            hole_clearance_nm: 250_000,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 200_000,
+            solder_mask_to_copper_clearance_nm: to_cu,
+        };
+        i.nets.push(Net {
+            id: 2,
+            name: "GND".into(),
+        });
+        i.pads[0].at = [5_000_000, 10_000_000];
+        i.pads[0].shape = Shape::Rect {
+            half_size_nm: [250_000, 250_000],
+        };
+        i.pads[1].at = [15_000_000, 10_000_000];
+        i.pads[1].shape = Shape::Rect {
+            half_size_nm: [250_000, 250_000],
+        };
+        // Unowned F.Mask aperture (net: None, as exported for a 2-net footprint) covers ONLY Pad 1 (net 1).
+        i.mask_apertures.push(MaskAperture {
+            id: id(60),
+            net: None,
+            group_id: None,
+            layer: "F.Mask".into(),
+            shape: GraphicShape::Polygon {
+                outer: vec![
+                    [4_600_000, 9_600_000],
+                    [5_400_000, 9_600_000],
+                    [5_400_000, 10_400_000],
+                    [4_600_000, 10_400_000],
+                ],
+                holes: Vec::new(),
+                width_nm: 0,
+                filled: true,
+            },
+            expansion_nm: 0,
+        });
+        let e = Engine::new(i.clone()).unwrap();
+        assert!(e
+            .legal_edge(1, [5_000_000, 10_000_000], [5_500_000, 10_000_000])
+            .unwrap());
+        assert!(!e
+            .legal_edge(2, [4_000_000, 10_000_000], [6_000_000, 10_000_000])
+            .unwrap());
+        let out = run(i);
+        assert_eq!(
+            out.status,
+            Status::Complete,
+            "to_cu={to_cu}: {:?}",
+            out.reason
+        );
+    }
 }

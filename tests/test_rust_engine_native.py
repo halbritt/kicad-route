@@ -3265,5 +3265,369 @@ def test_solder_mask_non_shape_drawings_and_arc_poly_fail_closed_with_zero_mask_
     )
 
 
+@pytest.mark.parametrize('case', [
+    'board_f_rect', 'board_f_poly', 'board_f_segment', 'board_f_text',
+    'board_b_rect', 'fp_b_rect', 'fp_b_text',
+])
+def test_solder_mask_zero_to_copper_shape_and_text_detour_and_drc(tmp_path, guarded_cli, case):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000, 'edge_clearance_nm': 500_000}
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(rules))
+    src = _make_mask_probe_board(tmp_path / f'{case}.kicad_pcb', mask_min_width=0, mask_to_copper=0)
+    board = pcbnew.LoadBoard(str(src))
+    is_b = '_b_' in case
+    if is_b:
+        b_ls = pcbnew.LSET()
+        b_ls.AddLayer(pcbnew.B_Cu)
+        b_ls.AddLayer(pcbnew.B_Mask)
+        for fp in board.GetFootprints():
+            for p in fp.Pads():
+                p.SetLayerSet(b_ls)
+    g1 = next(fp for fp in board.GetFootprints() if fp.GetReference() == 'J3')
+    mask_layer = pcbnew.B_Mask if is_b else pcbnew.F_Mask
+    owner = g1 if case.startswith('fp_') else board
+    if case.endswith('_rect'):
+        s = pcbnew.PCB_SHAPE(owner)
+        s.SetLayer(mask_layer)
+        s.SetShape(pcbnew.SHAPE_T_RECT)
+        s.SetFilled(True)
+        s.SetWidth(0)
+        s.SetStart(pcbnew.VECTOR2I(9_000_000, 9_500_000))
+        s.SetEnd(pcbnew.VECTOR2I(11_000_000, 12_500_000))
+        owner.Add(s)
+    elif case.endswith('_poly'):
+        s = pcbnew.PCB_SHAPE(owner)
+        s.SetLayer(mask_layer)
+        s.SetShape(pcbnew.SHAPE_T_POLY)
+        s.SetFilled(True)
+        s.SetWidth(0)
+        ps = s.GetPolyShape()
+        oi = ps.NewOutline()
+        for px, py in [(9_000_000, 9_500_000), (11_000_000, 9_500_000),
+                       (11_000_000, 12_500_000), (9_000_000, 12_500_000)]:
+            ps.Append(px, py, oi)
+        owner.Add(s)
+    elif case.endswith('_segment'):
+        s = pcbnew.PCB_SHAPE(owner)
+        s.SetLayer(mask_layer)
+        s.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        s.SetStart(pcbnew.VECTOR2I(10_000_000, 9_500_000))
+        s.SetEnd(pcbnew.VECTOR2I(10_000_000, 12_500_000))
+        s.SetWidth(1_000_000)
+        owner.Add(s)
+    else:
+        t = pcbnew.PCB_TEXT(owner)
+        t.SetLayer(mask_layer)
+        t.SetText('MASK')
+        t.SetPosition(pcbnew.VECTOR2I(10_000_000, 11_000_000))
+        t.SetTextSize(pcbnew.VECTOR2I(2_000_000, 3_000_000))
+        t.SetTextThickness(400_000)
+        if is_b:
+            t.SetMirrored(True)
+        owner.Add(t)
+    assert pcbnew.SaveBoard(str(src), board)
+    out = tmp_path / f'{case}_routed.kicad_pcb'
+    res = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
+    assert res.returncode == 0, (case, res.stdout, res.stderr)
+    drc = bridge.native_violations(out, tmp_path / f'{case}_drc.json')
+    assert drc['unconnected_items'] == [] and drc['violations'] == [], (case, drc)
+
+
+def test_solder_mask_expansion_zero_to_copper_detour_and_drc(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000, 'edge_clearance_nm': 500_000}
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(rules))
+    src = _make_mask_probe_board(tmp_path / 'mask_exp.kicad_pcb', mask_min_width=0, mask_to_copper=0)
+    board = pcbnew.LoadBoard(str(src))
+    ds = board.GetDesignSettings()
+    ds.m_SolderMaskExpansion = 350_000
+    g1 = next(fp for fp in board.GetFootprints() if fp.GetReference() == 'J3')
+    g1.SetPosition(pcbnew.VECTOR2I(10_000_000, 10_950_000))
+    next(iter(g1.Pads())).SetPosition(pcbnew.VECTOR2I(10_000_000, 10_950_000))
+    # Also verify PCB_SHAPE mask aperture exports expansion_nm=350_000 while PCB_TEXT keeps 0.
+    s = pcbnew.PCB_SHAPE(board)
+    s.SetLayer(pcbnew.F_Mask)
+    s.SetShape(pcbnew.SHAPE_T_RECT)
+    s.SetFilled(True)
+    s.SetWidth(0)
+    s.SetStart(pcbnew.VECTOR2I(14_000_000, 14_000_000))
+    s.SetEnd(pcbnew.VECTOR2I(16_000_000, 15_000_000))
+    board.Add(s)
+    t = pcbnew.PCB_TEXT(board)
+    t.SetLayer(pcbnew.F_Mask)
+    t.SetText('T')
+    t.SetPosition(pcbnew.VECTOR2I(15_000_000, 17_000_000))
+    t.SetTextSize(pcbnew.VECTOR2I(500_000, 500_000))
+    t.SetTextThickness(100_000)
+    board.Add(t)
+    assert pcbnew.SaveBoard(str(src), board)
+
+    snap = bridge.export_snapshot(src, rules=rules)
+    shape_exps = {ma['shape']['kind']: ma.get('expansion_nm', 0) for ma in snap['mask_apertures']}
+    assert shape_exps['polygon'] == 350_000
+    assert shape_exps['segment'] == 0
+
+    out = tmp_path / 'mask_exp_routed.kicad_pcb'
+    res = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
+    assert res.returncode == 0, (res.stdout, res.stderr)
+    drc = bridge.native_violations(out, tmp_path / 'mask_exp_drc.json')
+    assert drc['unconnected_items'] == [] and drc['violations'] == [], drc
+
+
+def test_solder_mask_allow_bridges_in_fps_and_unrepresented_mask_gaps_fail_closed(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000, 'edge_clearance_nm': 500_000}
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(rules))
+    base_src = _make_mask_probe_board(tmp_path / 'base_gaps.kicad_pcb', mask_min_width=0, mask_to_copper=0)
+
+    # 1. m_AllowSoldermaskBridgesInFPs=True does NOT bypass fp visible PCB_FIELD or fp F.Mask shape checks.
+    fp_bridges_src = tmp_path / 'allow_in_fps_field.kicad_pcb'
+    b1 = pcbnew.LoadBoard(str(base_src))
+    b1.GetDesignSettings().m_AllowSoldermaskBridgesInFPs = True
+    g1 = next(fp for fp in b1.GetFootprints() if fp.GetReference() == 'J3')
+    ref = g1.Reference()
+    ref.SetLayer(pcbnew.F_Mask)
+    ref.SetPosition(pcbnew.VECTOR2I(10_000_000, 11_000_000))
+    ref.SetTextSize(pcbnew.VECTOR2I(2_000_000, 2_000_000))
+    ref.SetTextThickness(300_000)
+    ref.SetVisible(True)
+    assert pcbnew.SaveBoard(str(fp_bridges_src), b1)
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, fp_bridges_src, rules, rules_path, tmp_path, 'allow_in_fps_field', 'footprint solder-mask fields',
+    )
+
+    ref.SetVisible(False)
+    ms = pcbnew.PCB_SHAPE(g1)
+    ms.SetLayer(pcbnew.F_Mask)
+    ms.SetShape(pcbnew.SHAPE_T_RECT)
+    ms.SetFilled(True)
+    ms.SetWidth(0)
+    ms.SetStart(pcbnew.VECTOR2I(9_000_000, 9_500_000))
+    ms.SetEnd(pcbnew.VECTOR2I(11_000_000, 12_500_000))
+    g1.Add(ms)
+    fp_shape_src = tmp_path / 'allow_in_fps_shape.kicad_pcb'
+    assert pcbnew.SaveBoard(str(fp_shape_src), b1)
+    fp_shape_out = tmp_path / 'allow_in_fps_shape_routed.kicad_pcb'
+    res_fp = run([str(engine), 'route-native', str(fp_shape_src), str(fp_shape_out), '--rules', str(rules_path)], check=False)
+    assert res_fp.returncode == 0, (res_fp.stdout, res_fp.stderr)
+    drc_fp = bridge.native_violations(fp_shape_out, tmp_path / 'allow_in_fps_drc.json')
+    assert drc_fp['unconnected_items'] == [] and drc_fp['violations'] == [], drc_fp
+
+    # 2. Copper PCB_SHAPE.SetHasSolderMask(True) and PCB_SHAPE.SetLocalSolderMaskMargin fail closed.
+    b2 = pcbnew.LoadBoard(str(base_src))
+    cu_sm = pcbnew.PCB_SHAPE(b2)
+    cu_sm.SetLayer(pcbnew.F_Cu)
+    cu_sm.SetShape(pcbnew.SHAPE_T_RECT)
+    cu_sm.SetFilled(True)
+    cu_sm.SetStart(pcbnew.VECTOR2I(9_000_000, 5_000_000))
+    cu_sm.SetEnd(pcbnew.VECTOR2I(11_000_000, 6_000_000))
+    cu_sm.SetHasSolderMask(True)
+    b2.Add(cu_sm)
+    cu_sm_src = tmp_path / 'cu_has_sm.kicad_pcb'
+    assert pcbnew.SaveBoard(str(cu_sm_src), b2)
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, cu_sm_src, rules, rules_path, tmp_path, 'cu_has_sm', 'solder-mask openings',
+    )
+
+    b3 = pcbnew.LoadBoard(str(base_src))
+    next(fp for fp in b3.GetFootprints() if fp.GetReference() == 'J3').Pads()[0].SetLocalSolderMaskMargin(0)
+    ms_local_src = tmp_path / 'pad_zero_sm_margin.kicad_pcb'
+    assert pcbnew.SaveBoard(str(ms_local_src), b3)
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, ms_local_src, rules, rules_path, tmp_path, 'pad_zero_sm_margin', 'solder-mask margins',
+    )
+
+    # 3. Untented via / m_TentViasFront=False / mismatched pad mask layer / degenerate 3-collinear gr_poly fail closed.
+    b4 = pcbnew.LoadBoard(str(base_src))
+    b4.GetDesignSettings().m_TentViasFront = False
+    tent_src = tmp_path / 'untented_board.kicad_pcb'
+    assert pcbnew.SaveBoard(str(tent_src), b4)
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, tent_src, rules, rules_path, tmp_path, 'untented_board', 'untented vias',
+    )
+
+    b5 = pcbnew.LoadBoard(str(base_src))
+    v = pcbnew.PCB_VIA(b5)
+    v.SetPosition(pcbnew.VECTOR2I(3_000_000, 3_000_000))
+    v.SetWidth(600_000)
+    v.SetDrill(300_000)
+    v.SetNetCode(2)
+    v.SetFrontTentingMode(pcbnew.TENTING_MODE_NOT_TENTED)
+    b5.Add(v)
+    via_untent_src = tmp_path / 'via_untented.kicad_pcb'
+    assert pcbnew.SaveBoard(str(via_untent_src), b5)
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, via_untent_src, rules, rules_path, tmp_path, 'via_untented', 'untented vias',
+    )
+
+    b6 = pcbnew.LoadBoard(str(base_src))
+    bad_pad = next(fp for fp in b6.GetFootprints() if fp.GetReference() == 'J3').Pads()[0]
+    bad_ls = pcbnew.LSET()
+    bad_ls.AddLayer(pcbnew.F_Cu)
+    bad_ls.AddLayer(pcbnew.B_Mask)
+    bad_pad.SetLayerSet(bad_ls)
+    bad_pad_src = tmp_path / 'pad_mismatch_mask.kicad_pcb'
+    assert pcbnew.SaveBoard(str(bad_pad_src), b6)
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, bad_pad_src, rules, rules_path, tmp_path, 'pad_mismatch_mask', 'must match its copper layer',
+    )
+
+    collinear_src = tmp_path / 'collinear_fmask_poly.kicad_pcb'
+    collinear_sexpr = (
+        '  (gr_poly\n    (pts (xy 1 1) (xy 2 1) (xy 3 1))\n'
+        '    (stroke (width 0.1) (type solid))\n    (fill yes)\n    (layer "F.Mask")\n  )\n'
+    )
+    collinear_src.write_text(base_src.read_text().replace('\n)', '\n' + collinear_sexpr + ')'))
+    _assert_fail_closed_export_apply_and_cli(
+        run, engine, collinear_src, rules, rules_path, tmp_path, 'collinear_poly', 'empty polygon graphic',
+    )
+
+    # 4. NPTH with UnplatedHoleMask() and m_SolderMaskExpansion=450k exports mask apertures and routes DRC-clean.
+    b7 = pcbnew.LoadBoard(str(base_src))
+    b7.GetDesignSettings().m_SolderMaskExpansion = 450_000
+    mh_fp = pcbnew.FOOTPRINT(b7)
+    mh_fp.SetReference('MH1')
+    mh_fp.SetPosition(pcbnew.VECTOR2I(10_000_000, 10_000_000))
+    mh_fp.Reference().SetVisible(False)
+    mh_fp.Value().SetVisible(False)
+    b7.Add(mh_fp)
+    mh = pcbnew.PAD(mh_fp)
+    mh.SetNumber('1')
+    mh.SetAttribute(pcbnew.PAD_ATTRIB_NPTH)
+    mh.SetLayerSet(mh.UnplatedHoleMask())
+    mh.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+    mh.SetSize(pcbnew.VECTOR2I(400_000, 400_000))
+    mh.SetDrillShape(pcbnew.PAD_DRILL_SHAPE_CIRCLE)
+    mh.SetDrillSize(pcbnew.VECTOR2I(400_000, 400_000))
+    mh.SetPosition(mh_fp.GetPosition())
+    mh_fp.Add(mh)
+    npth_src = tmp_path / 'npth_mask.kicad_pcb'
+    assert pcbnew.SaveBoard(str(npth_src), b7)
+    npth_snap = bridge.export_snapshot(npth_src, rules=rules)
+    assert sorted(ma['layer'] for ma in npth_snap['mask_apertures']) == ['B.Mask', 'F.Mask']
+    assert all(ma.get('expansion_nm') == 450_000 for ma in npth_snap['mask_apertures'])
+    npth_out = tmp_path / 'npth_mask_routed.kicad_pcb'
+    res_npth = run([str(engine), 'route-native', str(npth_src), str(npth_out), '--rules', str(rules_path)], check=False)
+    assert res_npth.returncode == 0, (res_npth.stdout, res_npth.stderr)
+    drc_npth = bridge.native_violations(npth_out, tmp_path / 'npth_mask_drc.json')
+    assert drc_npth['unconnected_items'] == [] and drc_npth['violations'] == [], drc_npth
+
+
+def test_native_diff_pair_zero_mask_rules_and_expansion_detour_drc(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+
+    def _make_dp_board(path: Path, *, expansion_nm: int):
+        board = pcbnew.BOARD()
+        board.SetCopperLayerCount(2)
+        ds = board.GetDesignSettings()
+        ds.m_SolderMaskExpansion = expansion_nm
+        ds.m_SolderMaskMinWidth = 0
+        ds.m_SolderMaskToCopperClearance = 0
+        board.Add(pcbnew.NETINFO_ITEM(board, 'DP_P', 1))
+        board.Add(pcbnew.NETINFO_ITEM(board, 'DP_N', 2))
+        board.Add(pcbnew.NETINFO_ITEM(board, 'GND', 3))
+        for a, b in [((0, 0), (40_000_000, 0)), ((40_000_000, 0), (40_000_000, 30_000_000)),
+                     ((40_000_000, 30_000_000), (0, 30_000_000)), ((0, 30_000_000), (0, 0))]:
+            edge = pcbnew.PCB_SHAPE(board)
+            edge.SetShape(pcbnew.SHAPE_T_SEGMENT)
+            edge.SetLayer(pcbnew.Edge_Cuts)
+            edge.SetStart(pcbnew.VECTOR2I(*a))
+            edge.SetEnd(pcbnew.VECTOR2I(*b))
+            edge.SetWidth(50_000)
+            board.Add(edge)
+        ls = pcbnew.LSET()
+        ls.AddLayer(pcbnew.F_Cu)
+        ls.AddLayer(pcbnew.F_Mask)
+        pad_dy = 1_000_000 if expansion_nm > 0 else 300_000
+        for idx, (x, y, nc) in enumerate([
+            (8_000_000, 15_000_000 - pad_dy, 1), (8_000_000, 15_000_000 + pad_dy, 2),
+            (32_000_000, 15_000_000 - pad_dy, 1), (32_000_000, 15_000_000 + pad_dy, 2),
+        ], 1):
+            fp = pcbnew.FOOTPRINT(board)
+            fp.SetReference(f'D{idx}')
+            fp.SetPosition(pcbnew.VECTOR2I(x, y))
+            fp.Reference().SetVisible(False)
+            fp.Value().SetVisible(False)
+            board.Add(fp)
+            p = pcbnew.PAD(fp)
+            p.SetNumber('1')
+            p.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+            p.SetLayerSet(ls)
+            p.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+            p.SetSize(pcbnew.VECTOR2I(350_000, 350_000))
+            p.SetPosition(fp.GetPosition())
+            p.SetNetCode(nc)
+            fp.Add(p)
+        gnd_fp = pcbnew.FOOTPRINT(board)
+        gnd_fp.SetReference('G1')
+        gnd_fp.SetPosition(pcbnew.VECTOR2I(20_000_000, 15_000_000 if expansion_nm > 0 else 18_000_000))
+        gnd_fp.Reference().SetVisible(False)
+        gnd_fp.Value().SetVisible(False)
+        board.Add(gnd_fp)
+        gp = pcbnew.PAD(gnd_fp)
+        gp.SetNumber('1')
+        gp.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        gp.SetLayerSet(ls)
+        gp.SetShape(pcbnew.PAD_SHAPE_RECT)
+        gp.SetSize(pcbnew.VECTOR2I(400_000, 400_000))
+        gp.SetPosition(gnd_fp.GetPosition())
+        gp.SetNetCode(3)
+        gnd_fp.Add(gp)
+        if expansion_nm == 0:
+            # 1) F.Mask rect bridging GND & centerline; 2) empty F.Mask rect along centerline (self-bridge hazard).
+            for (x0, y0, x1, y1) in [
+                (15_000_000, 14_000_000, 17_000_000, 18_500_000),
+                (23_000_000, 14_200_000, 25_000_000, 15_800_000),
+            ]:
+                ms = pcbnew.PCB_SHAPE(board)
+                ms.SetLayer(pcbnew.F_Mask)
+                ms.SetShape(pcbnew.SHAPE_T_RECT)
+                ms.SetFilled(True)
+                ms.SetWidth(0)
+                ms.SetStart(pcbnew.VECTOR2I(x0, y0))
+                ms.SetEnd(pcbnew.VECTOR2I(x1, y1))
+                board.Add(ms)
+        assert pcbnew.SaveBoard(str(path), board)
+        pro_path = path.with_suffix('.kicad_pro')
+        pro_path.write_text(json.dumps({
+            'meta': {'filename': pro_path.name, 'version': 1},
+            'board': {'design_settings': {'rules': {
+                'solder_mask_bridge': 'error',
+                'solder_mask_expansion': expansion_nm / 1_000_000.0,
+                'solder_mask_min_width': 0.0,
+                'solder_mask_to_copper_clearance': 0.0,
+            }}},
+            'net_settings': {
+                'classes': [
+                    {'name': 'Default', 'clearance': 0.2, 'track_width': 0.25,
+                     'via_diameter': 0.6, 'via_drill': 0.3},
+                    {'name': 'DIFF', 'clearance': 0.2, 'track_width': 0.25,
+                     'diff_pair_width': 0.25, 'diff_pair_gap': 0.35,
+                     'diff_pair_via_gap': 0.25, 'via_diameter': 0.6, 'via_drill': 0.3},
+                ],
+                'netclass_assignments': {'DP_P': ['DIFF'], 'DP_N': ['DIFF']},
+            },
+        }))
+
+    for tag, exp_nm in [('zero_to_cu_apertures', 0), ('pad_expansion_350k', 350_000)]:
+        src = tmp_path / f'dp_{tag}.kicad_pcb'
+        out = tmp_path / f'dp_{tag}_routed.kicad_pcb'
+        _make_dp_board(src, expansion_nm=exp_nm)
+        res = run([
+            str(engine), 'route-native', str(src), str(out),
+            '--diff-pairs', 'auto', '--pair-layers', 'F.Cu',
+        ], check=False)
+        assert res.returncode == 0, (tag, res.stdout, res.stderr)
+        drc = bridge.native_violations(out, tmp_path / f'dp_{tag}_drc.json')
+        assert drc['unconnected_items'] == [] and drc['violations'] == [], (tag, drc)
+
+
 
 
