@@ -41,6 +41,15 @@ routing, net classes, supported custom rules, fills, keepouts, negotiation
 and pair tuning. The measurements there give the board, rules and revision
 for each result.
 
+When routing resolves differential pairs, the result lists their net IDs and
+names in `diff_pairs`. A `coupled` disposition identifies both legs routed as
+a pair unit. An `existing` disposition identifies connectivity already present
+in the input. Each row includes the net class, design width and gap and, when
+requested, the solved impedance plan. These are routing parameters. Native
+measurements on the saved board separately establish the actual width, gap
+and length of the copper. The native operation report carries the same rows in
+`routing.diff_pairs`.
+
 ### Optional single-ended bus routing
 
 With `routing_options.bus`, the engine looks for adjacent terminal banks among

@@ -919,6 +919,9 @@ pub struct RoutedPair {
     pub class_name: String,
     pub width_nm: i64,
     pub gap_nm: i64,
+    pub class_width_nm: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub impedance: Option<crate::diff_pair::ImpedancePlan>,
     pub disposition: PairDisposition,
 }
 

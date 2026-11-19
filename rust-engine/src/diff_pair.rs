@@ -18,7 +18,7 @@ use crate::negotiate::{
     BlockedFrontier, CongestionHistory, RouteUnitAdapter, TrialBudget, UnitRouteError, UnitSpec,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ImpedancePlan {
     pub target_ohm: f64,
     pub tolerance_pct: f64,

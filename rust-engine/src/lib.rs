@@ -3411,6 +3411,8 @@ impl Engine {
                     pos_name: pair.pos_name.clone(),
                     neg_name: pair.neg_name.clone(),
                     class_name: pair.class_name.clone(),
+                    class_width_nm: pair.class_width_nm,
+                    impedance: pair.impedance.clone(),
                     width_nm: pair.width_nm,
                     gap_nm: pair.gap_nm,
                     disposition: match (pos, neg) {
