@@ -2804,11 +2804,55 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
     let mut saw_protect = false;
     let mut last_variadic_target: Option<&'static str> = None;
     let mut after_double_dash = false;
+    let flush_variadic_positionals =
+        |last_variadic_target: &mut Option<&'static str>,
+         positional: &mut Vec<PathBuf>,
+         routing_options: &mut crate::model::RoutingOptions| {
+            let Some(target) = last_variadic_target.take() else {
+                return;
+            };
+            if positional.len() >= 2 {
+                return;
+            }
+            let target_vec: Option<&mut Vec<String>> = match target {
+                "pair_layers" => Some(&mut routing_options.pair_layers),
+                "nets" => Some(&mut routing_options.net_filters),
+                "group" => routing_options
+                    .length_match_groups
+                    .last_mut()
+                    .map(|g| &mut g.members),
+                _ => None,
+            };
+            if let Some(items) = target_vec {
+                let needed = 2 - positional.len();
+                let max_take = needed.min(items.len().saturating_sub(1));
+                let mut k = 0usize;
+                while k < max_take
+                    && items[items.len() - 1 - k]
+                        .to_ascii_lowercase()
+                        .ends_with(".kicad_pcb")
+                {
+                    k += 1;
+                }
+                if k > 0 {
+                    let start = items.len() - k;
+                    let stolen: Vec<String> = items.drain(start..).collect();
+                    for s in stolen {
+                        positional.push(PathBuf::from(s));
+                    }
+                }
+            }
+        };
 
     let mut i = 0;
     while i < args.len() {
         let arg = &args[i];
         if !after_double_dash && arg == "--" {
+            flush_variadic_positionals(
+                &mut last_variadic_target,
+                &mut positional,
+                &mut routing_options,
+            );
             after_double_dash = true;
             i += 1;
             continue;
@@ -2816,6 +2860,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
         if !after_double_dash {
             if let Some(s) = arg.to_str() {
                 if s.starts_with('-') {
+                    flush_variadic_positionals(
+                        &mut last_variadic_target,
+                        &mut positional,
+                        &mut routing_options,
+                    );
                     let (flag, inline) = match s.split_once('=') {
                         Some((f, v)) => (f, Some(v)),
                         None => (s, None),
@@ -2995,8 +3044,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             saw_length_match_tolerance = true;
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let mm = parse_f64_flag(&val, flag, false)?;
-                            routing_options.length_match_tolerance_nm =
-                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            let nm = f64_scaled_to_i64(mm, 1_000_000.0, flag)?;
+                            if mm > 0.0 && nm == 0 {
+                                return Err(format!("{flag} non-zero values must be >= 1 nm"));
+                            }
+                            routing_options.length_match_tolerance_nm = Some(nm);
                             last_variadic_target = None;
                         }
                         "--meander-amplitude" => {
@@ -3006,8 +3058,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             saw_meander_amplitude = true;
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let mm = parse_f64_flag(&val, flag, true)?;
-                            routing_options.meander_amplitude_nm =
-                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            let nm = f64_scaled_to_i64(mm, 1_000_000.0, flag)?;
+                            if nm <= 0 {
+                                return Err(format!("{flag} must be >= 1 nm"));
+                            }
+                            routing_options.meander_amplitude_nm = Some(nm);
                             last_variadic_target = None;
                         }
                         "--length-match-group" => {
@@ -3069,8 +3124,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             saw_group_match_tolerance = true;
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let mm = parse_f64_flag(&val, flag, false)?;
-                            routing_options.group_match_tolerance_nm =
-                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            let nm = f64_scaled_to_i64(mm, 1_000_000.0, flag)?;
+                            if mm > 0.0 && nm == 0 {
+                                return Err(format!("{flag} non-zero values must be >= 1 nm"));
+                            }
+                            routing_options.group_match_tolerance_nm = Some(nm);
                             last_variadic_target = None;
                         }
                         "--group-delay-tolerance" => {
@@ -3080,8 +3138,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             saw_group_delay_tolerance = true;
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let ps = parse_f64_flag(&val, flag, false)?;
-                            routing_options.group_delay_tolerance_as =
-                                Some(f64_scaled_to_i64(ps, 1_000_000.0, flag)?);
+                            let as_val = f64_scaled_to_i64(ps, 1_000_000.0, flag)?;
+                            if ps > 0.0 && as_val == 0 {
+                                return Err(format!("{flag} non-zero values must be >= 1 as"));
+                            }
+                            routing_options.group_delay_tolerance_as = Some(as_val);
                             last_variadic_target = None;
                         }
                         "--group-meander-amplitude" => {
@@ -3091,8 +3152,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             saw_group_meander_amplitude = true;
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let mm = parse_f64_flag(&val, flag, true)?;
-                            routing_options.group_meander_amplitude_nm =
-                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            let nm = f64_scaled_to_i64(mm, 1_000_000.0, flag)?;
+                            if nm <= 0 {
+                                return Err(format!("{flag} must be >= 1 nm"));
+                            }
+                            routing_options.group_meander_amplitude_nm = Some(nm);
                             last_variadic_target = None;
                         }
                         "--group-meander-spacing" => {
@@ -3144,8 +3208,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             saw_impedance_uncoupled = true;
                             let val = take_flag_value(args, &mut i, inline, flag)?;
                             let mm = parse_f64_flag(&val, flag, false)?;
-                            routing_options.impedance_uncoupled_nm =
-                                Some(f64_scaled_to_i64(mm, 1_000_000.0, flag)?);
+                            let nm = f64_scaled_to_i64(mm, 1_000_000.0, flag)?;
+                            if mm > 0.0 && nm == 0 {
+                                return Err(format!("{flag} non-zero values must be >= 1 nm"));
+                            }
+                            routing_options.impedance_uncoupled_nm = Some(nm);
                             last_variadic_target = None;
                         }
                         "--ac-couple-chain-json" => {
@@ -3232,31 +3299,11 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
         i += 1;
     }
 
-    if positional.len() < 2 {
-        let needed = 2 - positional.len();
-        let target_vec: Option<&mut Vec<String>> = match last_variadic_target {
-            Some("pair_layers") => Some(&mut routing_options.pair_layers),
-            Some("nets") => Some(&mut routing_options.net_filters),
-            Some("group") => routing_options
-                .length_match_groups
-                .last_mut()
-                .map(|g| &mut g.members),
-            _ => None,
-        };
-        if let Some(items) = target_vec {
-            if items.len() > needed
-                && items[items.len() - needed..]
-                    .iter()
-                    .all(|s| s.to_ascii_lowercase().ends_with(".kicad_pcb"))
-            {
-                let start = items.len() - needed;
-                let stolen: Vec<String> = items.drain(start..).collect();
-                for s in stolen {
-                    positional.push(PathBuf::from(s));
-                }
-            }
-        }
-    }
+    flush_variadic_positionals(
+        &mut last_variadic_target,
+        &mut positional,
+        &mut routing_options,
+    );
 
     if positional.len() != 2 {
         return Err(format!(

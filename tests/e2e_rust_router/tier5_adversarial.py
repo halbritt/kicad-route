@@ -252,6 +252,26 @@ def t5_03(ctx: DriverContext) -> dict[str, Any]:
     p_dru = ctx.native_driver.run_native(bundle_dru.pcb_path, out_dru)
     assert p_dru.returncode == 2, f"expected exit 2 on rule_compile_error, got {p_dru.returncode}: {p_dru.stderr}"
     assert not out_dru.exists()
+
+    # R2-GAP-04: ignored track_dangling / via_dangling fail closed in both route-native and verify_routed_board
+    for chk in ("track_dangling", "via_dangling"):
+        b_dang = BoardBuilder(copper_layers=2, seed=5003)
+        b_dang.set_rect_outline(0, 0, 25_000_000, 15_000_000)
+        for idx, x in enumerate((4_000_000, 21_000_000), 1):
+            fp = b_dang.add_footprint(f"J{idx}", (x, 7_500_000))
+            b_dang.add_pad(fp, "1", "SIG", (x, 7_500_000), size_nm=(800_000, 800_000))
+        b_dang.set_project_rules(rule_severities={chk: "ignore"})
+        bundle_dang = b_dang.save(ctx.work_dir / f"{chk}_src")
+        out_dang = ctx.work_dir / "out" / f"{chk}.kicad_pcb"
+        p_dang = ctx.native_driver.run_native(bundle_dang.pcb_path, out_dang)
+        assert p_dang.returncode == 2, f"expected exit 2 on ignored {chk}, got {p_dang.returncode}: {p_dang.stderr}"
+        assert not out_dang.exists()
+        try:
+            verify_routed_board(bundle_dang.pcb_path, out_clean)
+            raise AssertionError(f"verify_routed_board must reject {chk}=ignore")
+        except AssertionError as exc:
+            assert chk in str(exc), str(exc)
+
     return {"ign_rc": p_ign.returncode, "dru_rc": p_dru.returncode}
 
 
@@ -371,15 +391,27 @@ def t5_06(ctx: DriverContext) -> dict[str, Any]:
     for idx, x in enumerate((10_000_000, 30_000_000), 1):
         fp = b.add_footprint(f"JN1_{idx}", (x, 10_000_000))
         b.add_pad(fp, "1", "N1", (x, 10_000_000), size_nm=(400_000, 400_000), layers=[pn.F_Cu])
-    for idx, x in enumerate((10_000_000, 30_120_000), 1):
+    for idx, x in enumerate((10_000_000, 30_200_000), 1):
         fp = b.add_footprint(f"JN2_{idx}", (x, 15_000_000))
         b.add_pad(fp, "1", "N2", (x, 15_000_000), size_nm=(400_000, 400_000), layers=[pn.F_Cu])
-    b.set_project_rules({"min_copper_edge_clearance": 0.2})
+    b.set_project_rules(
+        {"min_copper_edge_clearance": 0.2, "min_track_width": 0.15, "min_clearance": 0.15},
+        classes=[{
+            "name": "Default",
+            "priority": 0,
+            "clearance": 0.15,
+            "track_width": 0.15,
+            "via_diameter": 0.6,
+            "via_drill": 0.3,
+            "microvia_diameter": 0.3,
+            "microvia_drill": 0.15,
+        }],
+    )
     bundle = b.save(ctx.work_dir / "src")
     bh = snapshot_source_dir(bundle.directory)
     rules_path = write_json_file(
         ctx.work_dir / "rules.json",
-        {**STD_RULES, "width_nm": 200_000, "clearance_nm": 200_000, "grid_nm": 200_000},
+        {**STD_RULES, "width_nm": 150_000, "clearance_nm": 150_000, "grid_nm": 100_000},
     )
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
@@ -394,17 +426,39 @@ def t5_06(ctx: DriverContext) -> dict[str, Any]:
             "--group-match-tolerance",
             "0.05",
             "--group-meander-amplitude",
-            "0.05",
+            "0.11",
         ],
     )
     assert p.returncode == 0, f"T5-06 failed: {p.stderr}"
     metrics = assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
     bd = pn.LoadBoard(str(out_pcb))
-    for tr in bd.GetTracks():
-        if tr.GetNetname() == "N1":
-            exc = max(abs(int(tr.GetStart().y) - 10_000_000), abs(int(tr.GetEnd().y) - 10_000_000))
-            assert exc <= 50_000, f"meander excursion {exc} nm exceeded 50_000 nm ceiling"
-    return metrics
+    n1_tracks = [tr for tr in bd.GetTracks() if tr.GetNetname() == "N1"]
+    assert len(n1_tracks) > 1, f"expected real meander segments on N1, got {len(n1_tracks)}"
+    max_exc = 0
+    for tr in n1_tracks:
+        exc = max(abs(int(tr.GetStart().y) - 10_000_000), abs(int(tr.GetEnd().y) - 10_000_000))
+        assert exc <= 110_000, f"meander excursion {exc} nm exceeded 110_000 nm ceiling"
+        max_exc = max(max_exc, exc)
+    assert max_exc > 0, "expected non-zero meander excursion on N1"
+
+    out_fail_pcb = ctx.work_dir / "out" / "routed_fail.kicad_pcb"
+    p_fail = ctx.native_driver.run_native(
+        bundle.pcb_path,
+        out_fail_pcb,
+        rules_path=rules_path,
+        extra_args=[
+            "--length-match-group",
+            "N1",
+            "N2",
+            "--group-match-tolerance",
+            "0.05",
+            "--group-meander-amplitude",
+            "0.05",
+        ],
+    )
+    assert p_fail.returncode == 3, f"expected fail-closed exit 3 for 0.05mm amplitude, got {p_fail.returncode}: {p_fail.stderr}"
+    assert not out_fail_pcb.exists()
+    return {**metrics, "n1_segments": len(n1_tracks), "max_excursion_nm": max_exc, "small_amp_rc": p_fail.returncode}
 
 
 @register_test(

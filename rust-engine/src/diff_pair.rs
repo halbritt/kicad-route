@@ -5422,6 +5422,10 @@ fn validate_and_build_coupled_solution(
             }
         }
     }
+    if pair.impedance.is_none() {
+        coalesce_collinear_net_tracks(&mut p_tracks, &pos_pads, &vias);
+        coalesce_collinear_net_tracks(&mut n_tracks, &neg_pads, &vias);
+    }
     tracks = p_tracks;
     tracks.extend(n_tracks);
     let mut all_pair_tracks: Vec<Track> = engine
@@ -5435,6 +5439,69 @@ fn validate_and_build_coupled_solution(
         return Ok(None);
     }
     Ok(Some(CoupledSolution { tracks, vias }))
+}
+
+fn coalesce_collinear_net_tracks(
+    tracks: &mut Vec<Track>,
+    pads: &[&crate::model::Pad],
+    vias: &[Via],
+) {
+    loop {
+        let mut merged = false;
+        'outer: for i in 0..tracks.len() {
+            for j in (i + 1)..tracks.len() {
+                if tracks[i].layer != tracks[j].layer
+                    || tracks[i].width_nm != tracks[j].width_nm
+                    || tracks[i].locked != tracks[j].locked
+                {
+                    continue;
+                }
+                let a = &tracks[i];
+                let b = &tracks[j];
+                let pair_pts = if a.end == b.start {
+                    Some((a.start, a.end, b.end))
+                } else if a.end == b.end {
+                    Some((a.start, a.end, b.start))
+                } else if a.start == b.start {
+                    Some((a.end, a.start, b.end))
+                } else if a.start == b.end {
+                    Some((a.end, a.start, b.start))
+                } else {
+                    None
+                };
+                let Some((p0, shared, p2)) = pair_pts else {
+                    continue;
+                };
+                if p0 == p2
+                    || pads.iter().any(|p| p.at == shared)
+                    || vias.iter().any(|v| v.net == a.net && v.at == shared)
+                {
+                    continue;
+                }
+                let touches = tracks
+                    .iter()
+                    .filter(|t| t.layer == a.layer && (t.start == shared || t.end == shared))
+                    .count();
+                if touches != 2 {
+                    continue;
+                }
+                let dx1 = i128::from(shared[0] - p0[0]);
+                let dy1 = i128::from(shared[1] - p0[1]);
+                let dx2 = i128::from(p2[0] - shared[0]);
+                let dy2 = i128::from(p2[1] - shared[1]);
+                if dx1 * dy2 == dy1 * dx2 && dx1 * dx2 + dy1 * dy2 > 0 {
+                    tracks[i].start = p0;
+                    tracks[i].end = p2;
+                    tracks.remove(j);
+                    merged = true;
+                    break 'outer;
+                }
+            }
+        }
+        if !merged {
+            break;
+        }
+    }
 }
 #[allow(clippy::too_many_arguments)]
 fn astar_coupled_centerline(
@@ -6005,6 +6072,25 @@ fn route_single_diff_pair_inner(
             Status::Unroutable,
             format!(
                 "differential pair ({:?}, {:?}) is incomplete under --protect",
+                pair.pos_name, pair.neg_name
+            ),
+        )));
+    }
+    let has_input_copper = engine
+        .copper
+        .input()
+        .iter()
+        .any(|t| t.net == pair.pos_net || t.net == pair.neg_net)
+        || engine
+            .copper
+            .input_vias()
+            .iter()
+            .any(|v| v.net == pair.pos_net || v.net == pair.neg_net);
+    if has_input_copper {
+        return Err(UnitRouteError::Fatal(Failure::new(
+            Status::Unroutable,
+            format!(
+                "differential pair ({:?}, {:?}) has pre-existing input copper on an incomplete pair",
                 pair.pos_name, pair.neg_name
             ),
         )));
@@ -7863,7 +7949,7 @@ fn match_net_in_pair_to_target(
         let Some((ux, uy)) = dir_unit_f64(p_at, p_join) else {
             continue;
         };
-        if max_h <= 10_000.0 || seg_len < ((3 * cand.width_nm).max(750_000)) as f64 {
+        if max_h <= 10_000.0 || seg_len < ((3 * cand.width_nm).max(300_000)) as f64 {
             continue;
         }
         // Rank outward normal first (away from partner tracks)
@@ -7920,7 +8006,7 @@ fn match_net_in_pair_to_target(
             if max_add + (tol_nm as f64) < needed {
                 continue;
             }
-            let mut lo = (0.85 * cand.width_nm as f64).min(max_h).max(10_000.0);
+            let mut lo = 10_000.0_f64.min(max_h);
             let mut hi = max_h;
             for _ in 0..32 {
                 let mid_h = 0.5 * (lo + hi);

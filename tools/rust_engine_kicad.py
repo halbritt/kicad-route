@@ -93,6 +93,8 @@ CRITICAL_PHYSICAL_DRC_CHECKS = frozenset({
     'starved_thermal',
     'unconnected_items',
     'connection_width',
+    'track_dangling',
+    'via_dangling',
 })
 
 
@@ -2028,7 +2030,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     if pro_text is not None:
         try:
             pro_doc = json.loads(pro_text)
-            ds_doc = pro_doc.get('board', {}).get('design_settings', {})
+            board_doc = pro_doc.get('board') if isinstance(pro_doc, dict) else None
+            ds_doc = board_doc.get('design_settings', {}) if isinstance(board_doc, dict) else None
             if isinstance(ds_doc, dict):
                 rules_doc = ds_doc.get('rules', {})
                 if isinstance(rules_doc, dict):
@@ -2755,15 +2758,16 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         pro_bytes, dru_bytes = resolve_sidecars(source)
         drc_pro_bytes = pro_bytes
         if pro_bytes is not None:
-            try:
-                pro_doc = json.loads(pro_bytes.decode('utf-8'))
-                if isinstance(pro_doc, dict):
-                    ds_doc = pro_doc.get('board', {}).get('design_settings')
+            pro_doc = json.loads(pro_bytes.decode('utf-8'))
+            if isinstance(pro_doc, dict):
+                board_doc = pro_doc.get('board')
+                if 'board' in pro_doc and not isinstance(board_doc, dict):
+                    raise ValueError('.kicad_pro board must be an object')
+                if isinstance(board_doc, dict):
+                    ds_doc = board_doc.get('design_settings')
                     if isinstance(ds_doc, dict) and ds_doc.get('drc_exclusions'):
                         ds_doc['drc_exclusions'] = []
                         drc_pro_bytes = json.dumps(pro_doc).encode('utf-8')
-            except (UnicodeDecodeError, ValueError):
-                pass
         if drc_pro_bytes is not None:
             temporary.with_suffix('.kicad_pro').write_bytes(drc_pro_bytes)
         if dru_bytes is not None:

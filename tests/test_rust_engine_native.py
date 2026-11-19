@@ -4111,7 +4111,7 @@ def test_zone_layer_fills_skips_collinear_rings(tmp_path, monkeypatch):
     assert sum(1 for _, skipped in collinear_results if not skipped) >= 2
 
 
-def test_tier5_native_drc_rejects_ignored_clearance_exclusions_and_rule_compile_error(tmp_path, guarded_cli):
+def test_tier5_native_drc_rejects_ignored_clearance_exclusions_and_rule_compile_error(tmp_path, guarded_cli, monkeypatch):
     run, _ = guarded_cli
     engine = _built_rust_engine(run)
     rules_path = tmp_path / 'rules.json'
@@ -4206,12 +4206,12 @@ def test_tier5_native_drc_rejects_ignored_clearance_exclusions_and_rule_compile_
     assert r_dru.returncode == 2, (r_dru.returncode, r_dru.stdout, r_dru.stderr)
     assert not out_dru.exists()
 
-    # 3. Direct apply_plan with bad track clearance fails even if drc_exclusions is present in .kicad_pro
+    # 3. Direct apply_plan strips drc_exclusions before DRC and rejects bad track clearance
     src_excl = tmp_path / 'excl' / 'board.kicad_pcb'
     _build_two_pad_board(src_excl, gap_violation=True)
     src_excl.with_suffix('.kicad_pro').write_text(json.dumps({
         'meta': {'version': 3},
-        'board': {'design_settings': {'drc_exclusions': ['clearance|0|0|0']}},
+        'board': {'design_settings': {'drc_exclusions': [['clearance|1|2|3', ''], 'clearance|0|0|0']}},
     }))
     req_excl = bridge.export_board(src_excl, {'width_nm': 200_000, 'clearance_nm': 200_000, 'grid_nm': 200_000, 'edge_clearance_nm': 500_000})
     req_excl_bytes = json.dumps(req_excl, separators=(',', ':')).encode('utf-8')
@@ -4231,8 +4231,76 @@ def test_tier5_native_drc_rejects_ignored_clearance_exclusions_and_rule_compile_
         'expanded_states': 0,
         'work_used': 0,
     }
-    with pytest.raises(bridge.NativeValidationError, match='candidate introduces native DRC violations'):
-        bridge.apply_plan(src_excl, plan_excl, tmp_path / 'excl' / 'out.kicad_pcb', expected_request=req_excl_bytes)
+    staged_exclusions_seen = []
+    real_native_violations = bridge.native_violations
+
+    def _spy_native_violations(path, report, **kwargs):
+        pro_file = Path(path).with_suffix('.kicad_pro')
+        if pro_file.exists():
+            staged_exclusions_seen.append(
+                json.loads(pro_file.read_text(encoding='utf-8'))['board']['design_settings']['drc_exclusions']
+            )
+        return real_native_violations(path, report, **kwargs)
+
+    with monkeypatch.context() as mp:
+        mp.setattr(bridge, 'native_violations', _spy_native_violations)
+        with pytest.raises(bridge.NativeValidationError, match='candidate introduces native DRC violations'):
+            bridge.apply_plan(src_excl, plan_excl, tmp_path / 'excl' / 'out.kicad_pcb', expected_request=req_excl_bytes)
+    assert staged_exclusions_seen and all(ex == [] for ex in staged_exclusions_seen)
+
+    # 4. R2-GAP-04: ignored track_dangling / via_dangling fail closed in apply_plan
+    for chk in ('track_dangling', 'via_dangling'):
+        src_dang = tmp_path / f'dang_{chk}' / 'board.kicad_pcb'
+        _build_two_pad_board(src_dang, gap_violation=False)
+        src_dang.with_suffix('.kicad_pro').write_text(json.dumps({
+            'meta': {'version': 3},
+            'board': {'design_settings': {'rule_severities': {chk: 'ignore'}}},
+        }))
+        req_dang = bridge.export_board(src_dang, {'width_nm': 200_000, 'clearance_nm': 200_000, 'grid_nm': 200_000, 'edge_clearance_nm': 500_000})
+        req_dang_bytes = json.dumps(req_dang, separators=(',', ':')).encode('utf-8')
+        plan_dang = {
+            'version': 3,
+            'status': 'complete',
+            'request_sha256': hashlib.sha256(req_dang_bytes).hexdigest(),
+            'source_id': hashlib.sha256(src_dang.read_bytes()).hexdigest(),
+            'added_tracks': [{
+                'id': '10000000-0000-4000-8000-000000000904',
+                'net': 1, 'layer': 'F.Cu',
+                'start': [2_000_000, 6_000_000], 'end': [18_000_000, 6_000_000],
+                'width_nm': 200_000, 'locked': False,
+            }],
+            'added_vias': [],
+            'removed_track_ids': [],
+            'expanded_states': 0,
+            'work_used': 0,
+        }
+        with pytest.raises(bridge.NativeValidationError, match=chk):
+            bridge.apply_plan(src_dang, plan_dang, tmp_path / f'dang_{chk}' / 'out.kicad_pcb', expected_request=req_dang_bytes)
+
+    # 5. R2-GAP-01: "board": null in .kicad_pro fails cleanly with ValueError (never AttributeError)
+    src_null = tmp_path / 'board_null' / 'board.kicad_pcb'
+    _build_two_pad_board(src_null, gap_violation=False)
+    src_null.with_suffix('.kicad_pro').write_text(json.dumps({'meta': {'version': 3}, 'board': None}))
+    req_null = bridge.export_board(src_null, {'width_nm': 200_000, 'clearance_nm': 200_000, 'grid_nm': 200_000, 'edge_clearance_nm': 500_000})
+    req_null_bytes = json.dumps(req_null, separators=(',', ':')).encode('utf-8')
+    plan_null = {
+        'version': 3,
+        'status': 'complete',
+        'request_sha256': hashlib.sha256(req_null_bytes).hexdigest(),
+        'source_id': hashlib.sha256(src_null.read_bytes()).hexdigest(),
+        'added_tracks': [{
+            'id': '10000000-0000-4000-8000-000000000905',
+            'net': 1, 'layer': 'F.Cu',
+            'start': [2_000_000, 6_000_000], 'end': [18_000_000, 6_000_000],
+            'width_nm': 200_000, 'locked': False,
+        }],
+        'added_vias': [],
+        'removed_track_ids': [],
+        'expanded_states': 0,
+        'work_used': 0,
+    }
+    with pytest.raises(ValueError, match='board must be an object'):
+        bridge.apply_plan(src_null, plan_null, tmp_path / 'board_null' / 'out.kicad_pcb', expected_request=req_null_bytes)
 
 
 def test_tier5_symlinked_board_preserves_target_sidecars_and_fifo_fails_fast(tmp_path):

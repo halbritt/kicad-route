@@ -1378,6 +1378,12 @@ fn cli_refuses_sub_nm_ac_flags_and_short_ac_chain_with_exit_8() {
     for (idx, extra) in [
         vec!["--ac-match-tolerance", "1e-7"],
         vec!["--ac-meander-amplitude", "1e-7"],
+        vec!["--meander-amplitude", "1e-7"],
+        vec!["--group-meander-amplitude", "1e-7"],
+        vec!["--length-match-tolerance", "1e-7"],
+        vec!["--group-match-tolerance", "1e-7"],
+        vec!["--group-delay-tolerance", "1e-7"],
+        vec!["--impedance-uncoupled", "1e-7"],
         vec!["--ac-couple-chain-json", "[]"],
         vec!["--ac-couple-chain-json", "[\"C1\"]"],
     ]
@@ -1403,6 +1409,137 @@ fn cli_refuses_sub_nm_ac_flags_and_short_ac_chain_with_exit_8() {
         );
         assert!(!poison_marker.exists());
     }
+
+    // Zero tolerance remains legal (does not trigger usage refusal)
+    let out_zero = ws.path("out_zero.kicad_pcb");
+    let res_zero = Command::new(engine_bin())
+        .args(["route-native"])
+        .arg(&source)
+        .arg(&out_zero)
+        .arg("--native-bridge")
+        .arg(&poison_bridge)
+        .args(["--length-match-tolerance", "0"])
+        .output()
+        .unwrap();
+    assert_eq!(res_zero.status.code(), Some(7));
+    assert!(poison_marker.exists());
+}
+
+#[test]
+fn route_native_variadic_then_single_flag_preserves_source_and_output_order() {
+    use kicad_route_engine::orchestration::parse_cli_args;
+    use std::ffi::OsString;
+
+    let to_os = |v: &[&str]| -> Vec<OsString> { v.iter().map(OsString::from).collect() };
+
+    let cfg1 = parse_cli_args(&to_os(&[
+        "--pair-layers",
+        "F.Cu",
+        "B.Cu",
+        "src.kicad_pcb",
+        "--rules",
+        "rules.json",
+        "out.kicad_pcb",
+    ]))
+    .unwrap();
+    assert_eq!(cfg1.source, PathBuf::from("src.kicad_pcb"));
+    assert_eq!(cfg1.output, PathBuf::from("out.kicad_pcb"));
+    assert_eq!(cfg1.routing_options.pair_layers, vec!["F.Cu", "B.Cu"]);
+    assert_eq!(cfg1.rules, Some(PathBuf::from("rules.json")));
+
+    let cfg2 = parse_cli_args(&to_os(&[
+        "--nets",
+        "SIG_A",
+        "in.kicad_pcb",
+        "out.kicad_pcb",
+        "--rules",
+        "rules.json",
+        "--native-bridge",
+        "br.py",
+    ]))
+    .unwrap();
+    assert_eq!(cfg2.source, PathBuf::from("in.kicad_pcb"));
+    assert_eq!(cfg2.output, PathBuf::from("out.kicad_pcb"));
+    assert_eq!(cfg2.routing_options.net_filters, vec!["SIG_A"]);
+
+    let cfg3 = parse_cli_args(&to_os(&[
+        "in.kicad_pcb",
+        "--nets",
+        "SIG_A",
+        "out.kicad_pcb",
+        "--timeout-ms",
+        "15000",
+        "--native-bridge",
+        "br.py",
+    ]))
+    .unwrap();
+    assert_eq!(cfg3.source, PathBuf::from("in.kicad_pcb"));
+    assert_eq!(cfg3.output, PathBuf::from("out.kicad_pcb"));
+    assert_eq!(cfg3.routing_options.net_filters, vec!["SIG_A"]);
+    assert_eq!(cfg3.timeout_ms, 15000);
+
+    let cfg4 = parse_cli_args(&to_os(&[
+        "--length-match-group",
+        "N1",
+        "N2",
+        "src.kicad_pcb",
+        "--protect",
+        "human",
+        "out.kicad_pcb",
+    ]))
+    .unwrap();
+    assert_eq!(cfg4.source, PathBuf::from("src.kicad_pcb"));
+    assert_eq!(cfg4.output, PathBuf::from("out.kicad_pcb"));
+    assert_eq!(
+        cfg4.routing_options.length_match_groups[0].members,
+        vec!["N1", "N2"]
+    );
+
+    assert!(parse_cli_args(&to_os(&[
+        "--pair-layers",
+        "src.kicad_pcb",
+        "--rules",
+        "rules.json",
+        "out.kicad_pcb",
+    ]))
+    .is_err());
+
+    // Real binary check: operation-result records exact source/destination order without swapping
+    let ws = Workspace::new("variadic-order-cli");
+    let source = ws.write("src.kicad_pcb", b"(kicad_pcb)");
+    let rules = ws.write(
+        "rules.json",
+        br#"{"width_nm":200000,"clearance_nm":200000,"grid_nm":200000,"edge_clearance_nm":200000}"#,
+    );
+    let out_pcb = ws.path("out.kicad_pcb");
+    let op_json = ws.path("op.json");
+    let poison_bridge = write_stub_bridge(
+        &ws,
+        "poison.py",
+        "import sys\nsys.stderr.write('BRIDGE_CALLED\\n')\nsys.exit(99)\n",
+    );
+    let res = Command::new(engine_bin())
+        .args(["route-native", "--pair-layers", "F.Cu", "B.Cu"])
+        .arg(&source)
+        .arg("--rules")
+        .arg(&rules)
+        .arg(&out_pcb)
+        .arg("--native-bridge")
+        .arg(&poison_bridge)
+        .arg("--operation-result")
+        .arg(&op_json)
+        .output()
+        .unwrap();
+    assert_eq!(res.status.code(), Some(7));
+    let op: Value = serde_json::from_slice(&fs::read(&op_json).unwrap()).unwrap();
+    assert_eq!(
+        op["source"]["original_path"].as_str().unwrap(),
+        source.to_str().unwrap()
+    );
+    assert_eq!(
+        op["publication"]["destination_path"].as_str().unwrap(),
+        out_pcb.to_str().unwrap()
+    );
 }
 
 #[test]

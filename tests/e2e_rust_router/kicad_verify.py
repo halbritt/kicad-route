@@ -45,6 +45,8 @@ CRITICAL_PHYSICAL_DRC_CHECKS: tuple[str, ...] = (
     "starved_thermal",
     "unconnected_items",
     "connection_width",
+    "track_dangling",
+    "via_dangling",
 )
 
 

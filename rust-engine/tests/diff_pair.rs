@@ -5187,3 +5187,119 @@ fn ac_chain_three_pair_multipass_under_dru_skew_cap() {
         );
     }
 }
+
+#[test]
+fn human_diff_unlocked_pre_routed_leg_fails_closed() {
+    use kicad_route_engine::model::Status;
+    let mk_input = |both_routed: bool, full_p: bool, mode: ProtectMode| {
+        let mut inp = base_diff_input(&["DP_P", "DP_N"]);
+        inp.pads[0].at = [5_000_000, 10_000_000];
+        inp.pads[1].at = [20_000_000, 10_000_000];
+        inp.pads[2].at = [5_000_000, 10_400_000];
+        inp.pads[3].at = [20_000_000, 10_400_000];
+        inp.rules.width_nm = 200_000;
+        inp.rules.clearance_nm = 150_000;
+        inp.rules.grid_nm = 200_000;
+        inp.tracks.push(Track {
+            id: uuid(920),
+            net: 1,
+            start: [5_000_000, 10_000_000],
+            end: if full_p {
+                [20_000_000, 10_000_000]
+            } else {
+                [10_000_000, 10_000_000]
+            },
+            width_nm: 200_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        });
+        if both_routed {
+            inp.tracks.push(Track {
+                id: uuid(921),
+                net: 2,
+                start: [5_000_000, 10_400_000],
+                end: [20_000_000, 10_400_000],
+                width_nm: 200_000,
+                locked: false,
+                layer: "F.Cu".into(),
+            });
+        }
+        inp.routing_options = Some(RoutingOptions {
+            diff_pairs_mode: Some(DiffPairsMode::Auto),
+            protect_mode: Some(mode),
+            ..Default::default()
+        });
+        inp
+    };
+
+    for (mode, full_p) in [
+        (ProtectMode::Human, true),
+        (ProtectMode::Human, false),
+        (ProtectMode::Locked, true),
+        (ProtectMode::None, true),
+    ] {
+        let out = kicad_route_engine::run(mk_input(false, full_p, mode));
+        assert_eq!(
+            out.status,
+            Status::Unroutable,
+            "mode={mode:?}, full_p={full_p}: {:?}",
+            out.reason
+        );
+        assert!(
+            out.added_tracks.is_empty() && out.added_vias.is_empty(),
+            "mode={mode:?}, full_p={full_p} emitted duplicate/partial copper: {:?}",
+            out.added_tracks
+        );
+    }
+
+    // Positive control: fully pre-routed unlocked pair completes without duplicating copper
+    let out_both = kicad_route_engine::run(mk_input(true, true, ProtectMode::Human));
+    assert_eq!(out_both.status, Status::Complete, "{:?}", out_both.reason);
+    assert!(out_both.added_tracks.is_empty());
+}
+
+#[test]
+fn dp_pad_1mm_short_escape_vbump_matches_within_tolerance() {
+    use kicad_route_engine::model::Status;
+    let mut inp = base_diff_input(&["DP_P", "DP_N"]);
+    inp.pads[0].at = [5_000_000, 10_000_000];
+    inp.pads[1].at = [6_000_000, 10_000_000];
+    inp.pads[2].at = [5_000_000, 10_400_000];
+    inp.pads[3].at = [6_025_000, 10_400_000];
+    inp.rules.width_nm = 200_000;
+    inp.rules.clearance_nm = 150_000;
+    inp.rules.grid_nm = 200_000;
+    if let Some(bds) = inp.board_design_settings.as_mut() {
+        bds.default_clearance_nm = 150_000;
+        bds.default_track_width_nm = 200_000;
+        for nc in &mut bds.netclasses {
+            nc.clearance_nm = 150_000;
+            nc.track_width_nm = 200_000;
+            nc.diff_pair_width_nm = 200_000;
+            nc.diff_pair_gap_nm = 200_000;
+        }
+    }
+    inp.routing_options = Some(RoutingOptions {
+        diff_pairs_mode: Some(DiffPairsMode::Auto),
+        intra_match: true,
+        length_match_tolerance_nm: Some(10_000),
+        meander_amplitude_nm: Some(500_000),
+        ..Default::default()
+    });
+    let out = kicad_route_engine::run(inp);
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    let len_of = |net: u32| -> f64 {
+        out.added_tracks
+            .iter()
+            .filter(|t| t.net == net)
+            .map(|t| ((t.end[0] - t.start[0]) as f64).hypot((t.end[1] - t.start[1]) as f64))
+            .sum()
+    };
+    let skew = (len_of(1) - len_of(2)).abs();
+    assert!(
+        skew <= 10_500.0,
+        "expected matched DP_P/DP_N skew <= 10_000 nm, got {skew} (P={}, N={})",
+        len_of(1),
+        len_of(2)
+    );
+}
