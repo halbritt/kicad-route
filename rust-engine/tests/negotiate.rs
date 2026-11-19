@@ -1299,3 +1299,43 @@ fn small_budget_unblocked_second_net_is_not_halved_by_trial_cap() {
     assert_eq!(out.status, Status::Complete);
     verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
 }
+
+#[test]
+fn budget_80000_unblocked_second_net_does_not_exhaust_on_trial_cap() {
+    let mut i = base_input([3600, 2800], Vec::new());
+    i.max_expansions = 80_000;
+    i.limits.max_work = 50_000_000;
+    i.nets = vec![
+        Net {
+            id: 0,
+            name: String::new(),
+        },
+        Net {
+            id: 1,
+            name: "N1".into(),
+        },
+        Net {
+            id: 2,
+            name: "N2".into(),
+        },
+    ];
+    i.pads = vec![
+        pad(1, 1, [10, 10]),
+        pad(2, 1, [60, 10]),
+        pad(3, 2, [1800, 1100]),
+        pad(4, 2, [1800, 1700]),
+    ];
+    i.tracks = vec![wire(10, 0, [1000, 1400], [2600, 1400])];
+
+    let mut e = Engine::new(i.clone()).unwrap();
+    let exp = e
+        .route_all()
+        .expect("max_expansions=80_000 unblocked second net must not fail via wasted trial cap");
+    assert!(
+        exp > 40_000 && exp <= 80_000,
+        "expected (40_000..=80_000] expansions, got {exp}"
+    );
+    let out = run(i.clone());
+    assert_eq!(out.status, Status::Complete);
+    verify_disjoint_and_legal(&i, &out.added_tracks, &out.added_vias);
+}

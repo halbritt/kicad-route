@@ -1282,19 +1282,21 @@ fn target_escape_reachable(
                                     }
                                 }
                             }
-                            if l_count >= 2 && !visited.contains(&key) {
+                            if l_count >= 2 {
                                 via_buf.clear();
                                 blocked_via_spans.clear();
-                                push_legal_via_transitions_with_blocked(
-                                    engine,
-                                    net,
-                                    p,
-                                    l_idx,
-                                    via_cost,
-                                    &[],
-                                    &mut via_buf,
-                                    Some(&mut blocked_via_spans),
-                                )?;
+                                if !visited.contains(&key) {
+                                    push_legal_via_transitions_with_blocked(
+                                        engine,
+                                        net,
+                                        p,
+                                        l_idx,
+                                        via_cost,
+                                        &[],
+                                        &mut via_buf,
+                                        Some(&mut blocked_via_spans),
+                                    )?;
+                                }
                                 if engine.effective_rules.allow_blind_buried_vias && l_count >= 3 {
                                     let at_via_limit =
                                         engine.effective_rules.net(net).max_via_count.is_some_and(

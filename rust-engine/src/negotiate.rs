@@ -1052,7 +1052,7 @@ fn try_unit_with_cap(
             "total expansion budget exhausted",
         )));
     }
-    if let Some(cap) = trial_cap.filter(|&c| remaining > c) {
+    if let Some(cap) = trial_cap.filter(|&c| remaining > c.saturating_mul(2)) {
         let trial_limit = (*expanded).saturating_add(cap);
         match adapter.route_unit(engine, unit.id, history, trial_limit, expanded) {
             Ok(()) => return Ok(()),

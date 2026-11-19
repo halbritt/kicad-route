@@ -4211,3 +4211,259 @@ fn target_escape_reachable_probes_via_when_neighbor_attaches_in_pocket() {
         out.added_vias
     );
 }
+
+fn build_probe1b_4l_blind_buried_input(with_victim: bool) -> Input {
+    let sig_net = if with_victim { 2 } else { 1 };
+    let mut start_pad = pad(
+        1,
+        sig_net,
+        [5_000_000, 15_000_000],
+        Shape::Circle { radius_nm: 300_000 },
+    );
+    start_pad.layers = vec!["F.Cu".into(), "In2.Cu".into()];
+    let mut target_pad = pad(
+        2,
+        sig_net,
+        [40_000_000, 15_000_000],
+        Shape::Rect {
+            half_size_nm: [300_000, 200_000],
+        },
+    );
+    target_pad.layers = vec!["In1.Cu".into()];
+
+    let mut pads = vec![start_pad, target_pad];
+    let mut nets = vec![Net {
+        id: 0,
+        name: String::new(),
+    }];
+    if with_victim {
+        nets.push(Net {
+            id: 1,
+            name: "VIC".into(),
+        });
+        let mut vp1 = pad(
+            3,
+            1,
+            [30_000_000, 15_000_000],
+            Shape::Circle { radius_nm: 300_000 },
+        );
+        vp1.layers = vec!["In2.Cu".into()];
+        let mut vp2 = pad(
+            4,
+            1,
+            [45_000_000, 15_000_000],
+            Shape::Circle { radius_nm: 300_000 },
+        );
+        vp2.layers = vec!["In2.Cu".into()];
+        pads.push(vp1);
+        pads.push(vp2);
+    }
+    nets.push(Net {
+        id: sig_net,
+        name: "SIG".into(),
+    });
+
+    let wall_track = |tid: u64, layer: &str| Track {
+        id: id(tid),
+        net: 0,
+        layer: layer.into(),
+        start: [20_000_000, 2_000_000],
+        end: [20_000_000, 28_000_000],
+        width_nm: 200_000,
+        locked: true,
+    };
+    let tracks = vec![
+        wall_track(10, "F.Cu"),
+        wall_track(11, "In1.Cu"),
+        wall_track(12, "In2.Cu"),
+        wall_track(13, "B.Cu"),
+    ];
+
+    let mk_ra =
+        |rid: u64, layer: &str, min: Point, max: Point, no_tracks: bool, no_vias: bool| RuleArea {
+            id: id(rid),
+            name: None,
+            layers: vec![layer.into()],
+            outer: vec![min, [max[0], min[1]], max, [min[0], max[1]]],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks,
+            no_vias,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        };
+    // Box [40M, 15M] into a 1-cell In1.Cu pocket leaving legal_edge_on(sig_net, 1, p, p) == true,
+    // while disallowing B.Cu vias at [40M, 15M].
+    let rule_areas = vec![
+        mk_ra(
+            100,
+            "In1.Cu",
+            [40_350_000, 14_000_000],
+            [41_000_000, 16_000_000],
+            true,
+            true,
+        ),
+        mk_ra(
+            101,
+            "In1.Cu",
+            [39_000_000, 14_000_000],
+            [39_650_000, 16_000_000],
+            true,
+            true,
+        ),
+        mk_ra(
+            102,
+            "In1.Cu",
+            [39_000_000, 15_350_000],
+            [41_000_000, 16_000_000],
+            true,
+            true,
+        ),
+        mk_ra(
+            103,
+            "In1.Cu",
+            [39_000_000, 14_000_000],
+            [41_000_000, 14_650_000],
+            true,
+            true,
+        ),
+        mk_ra(
+            104,
+            "B.Cu",
+            [39_500_000, 14_500_000],
+            [40_500_000, 15_500_000],
+            false,
+            true,
+        ),
+    ];
+
+    let allow_blind_pro = serde_json::json!({
+        "meta": {"version": 3},
+        "board": {"design_settings": {"rules": {
+            "min_track_width": 0.2,
+            "min_clearance": 0.15,
+            "min_via_diameter": 0.4,
+            "min_through_hole_diameter": 0.2,
+            "allow_blind_buried_vias": true,
+            "allow_microvias": false
+        }}},
+        "net_settings": {"classes": [{
+            "name": "Default",
+            "track_width": 0.2,
+            "clearance": 0.15,
+            "via_diameter": 0.6,
+            "via_drill": 0.3
+        }]}
+    })
+    .to_string();
+    let custom_rules = "\
+(version 1)
+(rule \"no_0_1\" (condition \"!(A.Layer == 'In2.Cu')\") (constraint disallow via))
+(rule \"no_1_2\" (condition \"!(A.Layer == 'F.Cu')\") (constraint disallow via))
+";
+
+    Input {
+        version: INPUT_VERSION,
+        source_id: "f".repeat(64),
+        layer: "F.Cu".into(),
+        layers: vec![
+            "F.Cu".into(),
+            "In1.Cu".into(),
+            "In2.Cu".into(),
+            "B.Cu".into(),
+        ],
+        bounds: Bounds {
+            min: [0, 0],
+            max: [50_000_000, 30_000_000],
+        },
+        rules: Rules {
+            width_nm: 200_000,
+            clearance_nm: 150_000,
+            grid_nm: 500_000,
+            edge_clearance_nm: 200_000,
+            hole_clearance_nm: 150_000,
+            same_net_hole_clearance_nm: 0,
+            solder_mask_expansion_nm: 0,
+            solder_mask_min_width_nm: 0,
+            solder_mask_to_copper_clearance_nm: 0,
+        },
+        nets,
+        pads,
+        tracks,
+        vias: Vec::new(),
+        rule_areas,
+        max_expansions: 100_000,
+        limits: Limits::default(),
+        holes: Vec::new(),
+        board_outline: None,
+        graphics: Vec::new(),
+        mask_apertures: Vec::new(),
+        board_design_settings: None,
+        project_rules: Some(allow_blind_pro),
+        custom_rules: Some(custom_rules.into()),
+        effective_rules: None,
+        zones: Vec::new(),
+        components: Vec::new(),
+        stackup: Vec::new(),
+        routing_options: None,
+    }
+}
+
+#[test]
+fn target_escape_reachable_probes_interior_blind_buried_via_when_legal_edge_on_in_pocket() {
+    let inp = build_probe1b_4l_blind_buried_input(false);
+    let mut eng = Engine::new(inp.clone()).unwrap();
+    assert!(
+        eng.legal_edge_on(1, 1, [40_000_000, 15_000_000], [40_000_000, 15_000_000])
+            .unwrap(),
+        "precondition: [40M, 15M] itself must have legal_edge_on == true inside 1-cell pocket"
+    );
+    assert!(
+        eng.route_all().is_ok(),
+        "route_all must succeed via interior BlindBuried(0..=2) even when legal_edge_on == true"
+    );
+    let out = crate::run(inp);
+    assert_eq!(out.status, Status::Complete);
+    assert!(
+        out.added_vias.iter().any(|v| {
+            v.at == [40_000_000, 15_000_000]
+                && v.kind == ViaKind::BlindBuried
+                && v.start_layer == "F.Cu"
+                && v.end_layer == "In2.Cu"
+        }),
+        "expected BlindBuried(F.Cu..In2.Cu) via at [40M, 15M], got {:?}",
+        out.added_vias
+    );
+}
+
+#[test]
+fn target_escape_reachable_rips_victim_blocking_interior_blind_buried_via_in_pocket() {
+    let inp = build_probe1b_4l_blind_buried_input(true);
+    let mut eng = Engine::new(inp.clone()).unwrap();
+    assert!(
+        eng.route_all().is_ok(),
+        "route_all must rip In2.Cu victim and complete both nets via BlindBuried(0..=2)"
+    );
+    assert!(eng.copper().index_consistent());
+    let stats = eng
+        .last_negotiation_stats()
+        .expect("negotiation stats recorded");
+    assert!(
+        stats.units_ripped >= 1 && stats.rounds_committed >= 1,
+        "expected victim rip-up round to commit: {stats:?}"
+    );
+    let out = crate::run(inp);
+    assert_eq!(out.status, Status::Complete);
+    assert!(
+        out.added_vias.iter().any(|v| {
+            v.net == 2
+                && v.at == [40_000_000, 15_000_000]
+                && v.kind == ViaKind::BlindBuried
+                && v.start_layer == "F.Cu"
+                && v.end_layer == "In2.Cu"
+        }),
+        "expected SIG BlindBuried(F.Cu..In2.Cu) via at [40M, 15M], got {:?}",
+        out.added_vias
+    );
+}
