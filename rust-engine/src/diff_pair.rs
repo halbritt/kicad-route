@@ -7282,6 +7282,8 @@ fn apply_single_ended_meander(
     });
 
     let mut attempts = MeanderAttempts::default();
+    // Charge one work unit per wave per leg each time a prospective shape is built,
+    // including shapes rejected before copper legality or a transaction is reached.
     for cand in candidates {
         let seg_len = dist_f64(cand.start, cand.end);
         let spacing_nm = ((cand.width_nm as f64) * spacing_widths)
@@ -7408,6 +7410,7 @@ fn apply_single_ended_meander(
                     (-uy, ux, false),
                     (uy, -ux, false),
                 ] {
+                    engine.work.charge(n_waves as u64)?;
                     let Some((_, max_add)) = eval_added(n_waves, max_amp, nx, ny, alt, center_t)
                     else {
                         continue;
@@ -7422,12 +7425,14 @@ fn apply_single_ended_meander(
                     let mut hi = max_amp;
                     for _ in 0..32 {
                         let mid = 0.5 * (lo + hi);
+                        engine.work.charge(n_waves as u64)?;
                         match eval_added(n_waves, mid, nx, ny, alt, center_t) {
                             Some((_, add)) if add < needed_len_nm => lo = mid,
                             _ => hi = mid,
                         }
                     }
                     let mid_amp = 0.5 * (lo + hi);
+                    engine.work.charge(3 * n_waves as u64)?;
                     let best_clean = [hi, mid_amp, lo]
                         .into_iter()
                         .filter_map(|a| {
@@ -7542,9 +7547,11 @@ fn apply_single_ended_meander(
                             let new_len: f64 = clean.windows(2).map(|w| dist_f64(w[0], w[1])).sum();
                             Some((clean, new_len - seg_len))
                         };
+                        engine.work.charge(1)?;
                         let Some((_, add_max)) = eval_v_detour(amp_h) else {
                             continue;
                         };
+                        engine.work.charge(1)?;
                         let Some((_, add_min)) = eval_v_detour(max_half_span) else {
                             continue;
                         };
@@ -7557,12 +7564,14 @@ fn apply_single_ended_meander(
                         let mut hi_d = max_half_span;
                         for _ in 0..32 {
                             let mid_d = 0.5 * (lo_d + hi_d);
+                            engine.work.charge(1)?;
                             match eval_v_detour(mid_d) {
                                 Some((_, add)) if add > needed_len_nm => lo_d = mid_d,
                                 _ => hi_d = mid_d,
                             }
                         }
                         let mid_d = 0.5 * (lo_d + hi_d);
+                        engine.work.charge(3)?;
                         let best_clean = [lo_d, mid_d, hi_d]
                             .into_iter()
                             .filter_map(eval_v_detour)
@@ -7854,6 +7863,7 @@ fn apply_coupled_pair_meander(
                     (-uy, ux, false),
                     (uy, -ux, false),
                 ] {
+                    engine.work.charge(2 * n_waves as u64)?;
                     let Some((_, _, max_add)) =
                         eval_coupled(n_waves, max_amp, nx, ny, alt, allow_chamfer)
                     else {
@@ -7870,12 +7880,14 @@ fn apply_coupled_pair_meander(
                     let mut hi = max_amp;
                     for _ in 0..32 {
                         let mid = 0.5 * (lo + hi);
+                        engine.work.charge(2 * n_waves as u64)?;
                         match eval_coupled(n_waves, mid, nx, ny, alt, allow_chamfer) {
                             Some((_, _, add)) if add < needed_len_nm => lo = mid,
                             _ => hi = mid,
                         }
                     }
                     let mid_amp = 0.5 * (lo + hi);
+                    engine.work.charge(3 * 2 * n_waves as u64)?;
                     let best_coupled = [hi, mid_amp, lo]
                         .into_iter()
                         .filter_map(|a| eval_coupled(n_waves, a, nx, ny, alt, allow_chamfer))
@@ -8064,6 +8076,7 @@ fn apply_coupled_pair_meander(
                 vec![min_legal_h, 0.5 * (min_legal_h + max_amp), max_amp]
             };
             for alternating in [true, false] {
+                let wave_work = if alternating { 4 } else { 2 };
                 let max_half_span = if alternating {
                     max_half_span_alt
                 } else {
@@ -8135,9 +8148,11 @@ fn apply_coupled_pair_meander(
                                         + (n_new - dist_f64(na, nb)));
                                 Some((p_poly, n_poly, avg_add))
                             };
+                        engine.work.charge(wave_work)?;
                         let Some((_, _, add_max)) = eval_coupled_v(amp_h) else {
                             continue;
                         };
+                        engine.work.charge(wave_work)?;
                         let Some((_, _, add_min)) = eval_coupled_v(max_half_span) else {
                             continue;
                         };
@@ -8150,12 +8165,14 @@ fn apply_coupled_pair_meander(
                         let mut hi_d = max_half_span;
                         for _ in 0..32 {
                             let mid_d = 0.5 * (lo_d + hi_d);
+                            engine.work.charge(wave_work)?;
                             match eval_coupled_v(mid_d) {
                                 Some((_, _, add)) if add > needed_len_nm => lo_d = mid_d,
                                 _ => hi_d = mid_d,
                             }
                         }
                         let mid_d = 0.5 * (lo_d + hi_d);
+                        engine.work.charge(3 * wave_work)?;
                         let best_coupled = [lo_d, mid_d, hi_d]
                             .into_iter()
                             .filter_map(eval_coupled_v)
@@ -8490,6 +8507,7 @@ fn match_net_in_pair_to_target(
             .collect();
 
         for &(nx, ny) in &normals {
+            engine.work.charge(1)?;
             let (_, max_add) = eval_pad_bump(max_h, nx, ny);
             if max_add + (tol_nm as f64) < needed {
                 continue;
@@ -8498,12 +8516,14 @@ fn match_net_in_pair_to_target(
             let mut hi = max_h;
             for _ in 0..32 {
                 let mid_h = 0.5 * (lo + hi);
+                engine.work.charge(1)?;
                 if eval_pad_bump(mid_h, nx, ny).1 < needed {
                     lo = mid_h;
                 } else {
                     hi = mid_h;
                 }
             }
+            engine.work.charge(1)?;
             let (clean, _) = eval_pad_bump(0.5 * (lo + hi), nx, ny);
             if !same_net_meander_clear(cand, &clean, &other_same_net, 50_000) {
                 continue;

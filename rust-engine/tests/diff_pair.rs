@@ -5480,6 +5480,44 @@ fn small_delta_coupled_input(delta: i64) -> Input {
 }
 
 #[test]
+fn rejected_meander_shapes_consume_the_shared_work_budget() {
+    for mut input in [
+        small_delta_single_ended_input(20_000_000),
+        small_delta_coupled_input(20_000_000),
+    ] {
+        let run_with_amp = |mut input: Input, amplitude_nm: i64| {
+            input.routing_options.as_mut().unwrap().length_match_groups[0].meander_amplitude_nm =
+                Some(amplitude_nm);
+            kicad_route_engine::run(input)
+        };
+        // This board's 20 mm delta cannot fit. The amplitudes successively admit
+        // no waves, the 45-degree waves alone, and then the shallow detours too.
+        let no_trials = run_with_amp(input.clone(), 10_000);
+        let waves = run_with_amp(input.clone(), 50_000);
+        let shallow = run_with_amp(input.clone(), 500_000);
+        assert_eq!(no_trials.status, Status::Unroutable);
+        assert_eq!(waves.status, Status::Unroutable);
+        assert_eq!(shallow.status, Status::Unroutable);
+        assert!(waves.work_used > no_trials.work_used);
+        assert!(shallow.work_used > waves.work_used);
+        for (amplitude_nm, limit) in [
+            (50_000, no_trials.work_used + 1),
+            (500_000, waves.work_used + 1),
+        ] {
+            input.limits.max_work = limit;
+            let limited = run_with_amp(input.clone(), amplitude_nm);
+            assert_eq!(
+                limited.status,
+                Status::WorkExhausted,
+                "{:?}",
+                limited.reason
+            );
+            assert!(limited.added_tracks.is_empty() && limited.added_vias.is_empty());
+        }
+    }
+}
+
+#[test]
 fn meander_candidates_preserve_resource_failures_and_try_smaller_detours() {
     // The larger waves need more journal entries and copper items than the V-detour.
     for (input, journal_needed, item_floor) in [
