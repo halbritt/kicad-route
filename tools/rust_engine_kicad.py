@@ -907,8 +907,17 @@ def _check_graphic_drawing(drawing, *, context_label, layer=None):
         raise UnsupportedBoard(f'{context_label} Bezier curves are not represented')
     if drawing.IsHatchedFill():
         raise UnsupportedBoard(f'{context_label} hatched fill graphics are not represented')
-    if drawing.GetShape() == pcbnew.SHAPE_T_POLY:
-        _extract_graphic_poly_rings(drawing, context_label=context_label)
+    _extract_graphic_shapes(drawing, base_id=item_id(drawing), layer=effective_layer, context_label=context_label)
+
+
+def _check_arc_points(start, mid, end, *, context_label='arc graphic'):
+    if (
+        start == mid
+        or mid == end
+        or start == end
+        or (_cross(start, mid, end) == 0 and _dot(start, mid, end) <= 0)
+    ):
+        raise UnsupportedBoard(f'degenerate {context_label} is not represented')
 
 
 def _extract_poly_ring(poly):
@@ -924,6 +933,8 @@ def _extract_graphic_shapes(drawing, *, base_id, layer=None, context_label='grap
         raise UnsupportedBoard(f'{context_label} text box graphics are not represented')
     shape_t = drawing.GetShape()
     width_nm = int(drawing.GetWidth())
+    if width_nm < 0:
+        raise UnsupportedBoard(f'{context_label} negative-width graphic is not represented')
     filled = bool(drawing.IsSolidFill())
     if shape_t == pcbnew.SHAPE_T_SEGMENT:
         a, b = point(drawing.GetStart()), point(drawing.GetEnd())
@@ -931,23 +942,32 @@ def _extract_graphic_shapes(drawing, *, base_id, layer=None, context_label='grap
             return []
         return [(base_id, {'kind': 'segment', 'start': a, 'end': b, 'width_nm': width_nm})]
     if shape_t == pcbnew.SHAPE_T_ARC:
+        start, mid, end = point(drawing.GetStart()), point(drawing.GetArcMid()), point(drawing.GetEnd())
+        _check_arc_points(start, mid, end)
         return [(base_id, {
             'kind': 'arc',
-            'start': point(drawing.GetStart()),
-            'mid': point(drawing.GetArcMid()),
-            'end': point(drawing.GetEnd()),
+            'start': start,
+            'mid': mid,
+            'end': end,
             'width_nm': width_nm,
         })]
     if shape_t == pcbnew.SHAPE_T_CIRCLE:
+        center = point(drawing.GetCenter())
+        end = point(drawing.GetEnd())
+        radius_nm = int(drawing.GetRadius())
+        if radius_nm <= 0 or center == end:
+            raise UnsupportedBoard('degenerate circle graphic is not represented')
         return [(base_id, {
             'kind': 'circle',
-            'center': point(drawing.GetCenter()),
-            'radius_nm': int(drawing.GetRadius()),
+            'center': center,
+            'radius_nm': radius_nm,
             'width_nm': width_nm,
             'filled': filled,
         })]
     if shape_t == pcbnew.SHAPE_T_RECT:
         corners = _simplify_ring([point(p) for p in drawing.GetRectCorners()])
+        if len(corners) < 3 or _is_collinear_ring(corners):
+            raise UnsupportedBoard('degenerate rectangle graphic is not represented')
         area2 = sum(corners[i][0] * corners[(i + 1) % len(corners)][1]
                     - corners[(i + 1) % len(corners)][0] * corners[i][1]
                     for i in range(len(corners)))
@@ -1005,7 +1025,7 @@ def _extract_zone_polygons(zone, *, label: str):
         if not ring.IsClosed():
             raise UnsupportedBoard(f'{label} open outline is not represented')
         outer = _extract_poly_ring(ring)
-        if len(outer) < 3:
+        if len(outer) < 3 or _is_collinear_ring(outer):
             raise UnsupportedBoard(f'{label} outline polygon is degenerate')
         holes = []
         for h in range(outline.HoleCount(idx)):
@@ -1015,7 +1035,7 @@ def _extract_zone_polygons(zone, *, label: str):
             if not hr.IsClosed():
                 raise UnsupportedBoard(f'{label} open hole is not represented')
             hole = _extract_poly_ring(hr)
-            if len(hole) < 3:
+            if len(hole) < 3 or _is_collinear_ring(hole):
                 raise UnsupportedBoard(f'{label} hole polygon is degenerate')
             holes.append(hole)
         poly = {'outer': outer}
@@ -1240,6 +1260,8 @@ def load_supported(path: Path, *, project_path: Path | None = None):
         if type(track) is pcbnew.PCB_TRACK and track.GetLayer() in cu_set:
             continue
         if type(track) is pcbnew.PCB_ARC and track.GetLayer() in cu_set:
+            _check_arc_points(point(track.GetStart()), point(track.GetMid()), point(track.GetEnd()),
+                              context_label='copper arc')
             continue
         if type(track) is pcbnew.PCB_VIA:
             _extract_via(track, cu_layers, board)
@@ -1294,7 +1316,7 @@ def _board_bounds_and_outline(board):
     max_x = max_y = -10**12
     for i in range(outlines.OutlineCount()):
         outer = _extract_poly_ring(outlines.Outline(i))
-        if len(outer) < 3:
+        if len(outer) < 3 or _is_collinear_ring(outer):
             raise UnsupportedBoard('board outline polygon is degenerate')
         for x, y in outer:
             min_x, max_x = min(min_x, x), max(max_x, x)
@@ -1302,7 +1324,7 @@ def _board_bounds_and_outline(board):
         holes = []
         for h in range(outlines.HoleCount(i)):
             hole = _extract_poly_ring(outlines.Hole(i, h))
-            if len(hole) < 3:
+            if len(hole) < 3 or _is_collinear_ring(hole):
                 raise UnsupportedBoard('board outline hole polygon is degenerate')
             holes.append(hole)
         poly_obj = {'outer': outer}
@@ -1637,15 +1659,17 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             tracks.append(item)
         elif type(track) is pcbnew.PCB_ARC and track.GetLayer() in cu_set:
             layer_name = board.GetLayerName(track.GetLayer())
+            start, mid, end = point(track.GetStart()), point(track.GetMid()), point(track.GetEnd())
+            _check_arc_points(start, mid, end, context_label='copper arc')
             graphics.append({
                 'id': item_id(track),
                 'net': int(track.GetNetCode()),
                 'layer': layer_name,
                 'shape': {
                     'kind': 'arc',
-                    'start': point(track.GetStart()),
-                    'mid': point(track.GetMid()),
-                    'end': point(track.GetEnd()),
+                    'start': start,
+                    'mid': mid,
+                    'end': end,
                     'width_nm': int(track.GetWidth()),
                 },
             })

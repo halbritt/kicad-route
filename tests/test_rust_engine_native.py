@@ -3872,5 +3872,172 @@ def test_unfilled_collinear_gr_poly_fails_closed_while_5pt_collinear_edge_rect_r
         assert drc_ok['unconnected_items'] == [] and drc_ok['violations'] == [], (fill_flag, drc_ok)
 
 
+def test_degenerate_rect_circle_arc_and_zone_fail_closed_uniformly(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000, 'edge_clearance_nm': 500_000}
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(rules))
+    base_src = _make_mask_probe_board(tmp_path / 'base_degen.kicad_pcb', mask_min_width=0, mask_to_copper=0)
+    base_text = base_src.read_text()
+
+    def _with_board_sexpr(name: str, sexpr: str) -> Path:
+        p = tmp_path / f'{name}.kicad_pcb'
+        p.write_text(base_text.replace('\n)', '\n' + sexpr + ')'))
+        return p
+
+    def _with_fp_shape(name: str, *, shape_t: int, start, end, filled: bool, is_circle: bool = False) -> Path:
+        p = tmp_path / f'{name}.kicad_pcb'
+        b = pcbnew.LoadBoard(str(base_src))
+        fp = next(f for f in b.GetFootprints() if f.GetReference() == 'J3')
+        s = pcbnew.PCB_SHAPE(fp)
+        s.SetLayer(pcbnew.F_Mask)
+        s.SetShape(shape_t)
+        s.SetFilled(filled)
+        s.SetWidth(100_000)
+        if is_circle:
+            s.SetCenter(pcbnew.VECTOR2I(*start))
+            s.SetEnd(pcbnew.VECTOR2I(*end))
+        else:
+            s.SetStart(pcbnew.VECTOR2I(*start))
+            s.SetEnd(pcbnew.VECTOR2I(*end))
+        fp.Add(s)
+        assert pcbnew.SaveBoard(str(p), b)
+        return p
+
+    b_zhole = pcbnew.LoadBoard(str(base_src))
+    z_hole = pcbnew.ZONE(b_zhole)
+    z_hole.SetLayer(pcbnew.F_Cu)
+    ol = z_hole.Outline()
+    oi = ol.NewOutline()
+    for px, py in [(2_000_000, 14_000_000), (6_000_000, 14_000_000),
+                   (6_000_000, 18_000_000), (2_000_000, 18_000_000)]:
+        ol.Append(px, py, oi)
+    hi = ol.NewHole(oi)
+    for px, py in [(3_000_000, 15_000_000), (4_000_000, 15_000_000), (5_000_000, 15_000_000)]:
+        ol.Append(px, py, oi, hi)
+    b_zhole.Add(z_hole)
+    zone_hole_src = tmp_path / 'zone_collinear_hole.kicad_pcb'
+    assert pcbnew.SaveBoard(str(zone_hole_src), b_zhole)
+
+    cases = [
+        ('gr_rect_zh_f0', _with_board_sexpr('gr_rect_zh_f0',
+            '  (gr_rect (start 9 9) (end 11 9) (stroke (width 0.1) (type solid)) (fill no) (layer "F.Mask"))\n'),
+            'degenerate rectangle graphic', True),
+        ('gr_rect_zh_f1', _with_board_sexpr('gr_rect_zh_f1',
+            '  (gr_rect (start 9 9) (end 11 9) (stroke (width 0.1) (type solid)) (fill yes) (layer "F.Mask"))\n'),
+            'degenerate rectangle graphic', False),
+        ('gr_rect_zw_f0', _with_board_sexpr('gr_rect_zw_f0',
+            '  (gr_rect (start 9 9) (end 9 11) (stroke (width 0.1) (type solid)) (fill no) (layer "F.Mask"))\n'),
+            'degenerate rectangle graphic', False),
+        ('gr_rect_zw_f1', _with_board_sexpr('gr_rect_zw_f1',
+            '  (gr_rect (start 9 9) (end 9 11) (stroke (width 0.1) (type solid)) (fill yes) (layer "F.Mask"))\n'),
+            'degenerate rectangle graphic', False),
+        ('fp_rect_zh_f0', _with_fp_shape('fp_rect_zh_f0',
+            shape_t=pcbnew.SHAPE_T_RECT, start=(0, -1_000_000), end=(2_000_000, -1_000_000), filled=False),
+            'degenerate rectangle graphic', True),
+        ('fp_rect_zh_f1', _with_fp_shape('fp_rect_zh_f1',
+            shape_t=pcbnew.SHAPE_T_RECT, start=(0, -1_000_000), end=(2_000_000, -1_000_000), filled=True),
+            'degenerate rectangle graphic', False),
+        ('fp_rect_zw_f0', _with_fp_shape('fp_rect_zw_f0',
+            shape_t=pcbnew.SHAPE_T_RECT, start=(0, -1_000_000), end=(0, 1_000_000), filled=False),
+            'degenerate rectangle graphic', False),
+        ('fp_rect_zw_f1', _with_fp_shape('fp_rect_zw_f1',
+            shape_t=pcbnew.SHAPE_T_RECT, start=(0, -1_000_000), end=(0, 1_000_000), filled=True),
+            'degenerate rectangle graphic', False),
+        ('gr_circle_r0_f0', _with_board_sexpr('gr_circle_r0_f0',
+            '  (gr_circle (center 9 9) (end 9 9) (stroke (width 0.1) (type solid)) (fill no) (layer "F.Mask"))\n'),
+            'degenerate circle graphic', True),
+        ('gr_circle_r0_f1', _with_board_sexpr('gr_circle_r0_f1',
+            '  (gr_circle (center 9 9) (end 9 9) (stroke (width 0.1) (type solid)) (fill yes) (layer "F.Mask"))\n'),
+            'degenerate circle graphic', False),
+        ('fp_circle_r0_f0', _with_fp_shape('fp_circle_r0_f0',
+            shape_t=pcbnew.SHAPE_T_CIRCLE, start=(0, 0), end=(0, 0), filled=False, is_circle=True),
+            'degenerate circle graphic', False),
+        ('gr_arc_same_end', _with_board_sexpr('gr_arc_same_end',
+            '  (gr_arc (start 9 9) (mid 10 10) (end 9 9) (stroke (width 0.1) (type solid)) (layer "F.Mask"))\n'),
+            'degenerate arc graphic', True),
+        ('gr_arc_folded', _with_board_sexpr('gr_arc_folded',
+            '  (gr_arc (start 9 9) (mid 11 9) (end 10 9) (stroke (width 0.1) (type solid)) (layer "F.Mask"))\n'),
+            'degenerate arc graphic', False),
+        ('zone_collinear', _with_board_sexpr('zone_collinear',
+            '  (zone (net 0) (net_name "") (layer "F.Cu") (polygon (pts (xy 1 1) (xy 2 1) (xy 3 1))))\n'),
+            'copper zone outline polygon is degenerate', True),
+        ('zone_collinear_hole', zone_hole_src, 'copper zone hole polygon is degenerate', False),
+        ('rule_area_collinear', _with_board_sexpr('rule_area_collinear',
+            '  (zone (net 0) (net_name "") (layer "F.Cu")\n'
+            '    (keepout (tracks not_allowed) (vias allowed) (pads allowed) (copperpour allowed) (footprints allowed))\n'
+            '    (polygon (pts (xy 1 1) (xy 2 1) (xy 3 1))))\n'),
+            'rule area outline polygon is degenerate', False),
+    ]
+
+    req_bytes = json.dumps({'bounds': {'min': [0, 0], 'max': [20_000_000, 20_000_000]}}).encode('utf-8')
+    for tag, src_path, match, check_cli in cases:
+        with pytest.raises(bridge.UnsupportedBoard, match=match):
+            bridge.load_supported(src_path)
+        with pytest.raises(bridge.UnsupportedBoard, match=match):
+            bridge.export_snapshot(src_path, rules=rules)
+        plan = {
+            'version': bridge.RESULT_VERSION,
+            'source_id': hashlib.sha256(src_path.read_bytes()).hexdigest(),
+            'request_sha256': hashlib.sha256(req_bytes).hexdigest(),
+            'status': 'complete',
+            'added_tracks': [],
+            'added_vias': [],
+            'removed_track_ids': [],
+            'expanded_states': 0,
+            'work_used': 0,
+        }
+        apply_out = tmp_path / f'{tag}_apply.kicad_pcb'
+        with pytest.raises(bridge.UnsupportedBoard, match=match):
+            bridge.apply_plan(src_path, plan, apply_out, expected_request=req_bytes)
+        assert not apply_out.exists(), tag
+        if check_cli:
+            cli_out = tmp_path / f'{tag}_cli.kicad_pcb'
+            res_cli = run([str(engine), 'route-native', str(src_path), str(cli_out), '--rules', str(rules_path)], check=False)
+            assert res_cli.returncode == 2, (tag, res_cli.stdout, res_cli.stderr)
+            assert json.loads(res_cli.stderr.strip().splitlines()[-1])['status'] == 'unsupported', (tag, res_cli.stderr)
+            assert not cli_out.exists(), tag
+
+    # Positive control: normal gr_rect, fp_rect, and non-zero-radius gr_circle route cleanly.
+    pos_src = tmp_path / 'normal_rect_circle_pos.kicad_pcb'
+    b_pos = pcbnew.LoadBoard(str(base_src))
+    gr_r = pcbnew.PCB_SHAPE(b_pos)
+    gr_r.SetLayer(pcbnew.F_Mask)
+    gr_r.SetShape(pcbnew.SHAPE_T_RECT)
+    gr_r.SetFilled(False)
+    gr_r.SetWidth(100_000)
+    gr_r.SetStart(pcbnew.VECTOR2I(9_000_000, 13_000_000))
+    gr_r.SetEnd(pcbnew.VECTOR2I(11_000_000, 15_000_000))
+    b_pos.Add(gr_r)
+    gr_c = pcbnew.PCB_SHAPE(b_pos)
+    gr_c.SetLayer(pcbnew.F_Mask)
+    gr_c.SetShape(pcbnew.SHAPE_T_CIRCLE)
+    gr_c.SetFilled(False)
+    gr_c.SetWidth(100_000)
+    gr_c.SetCenter(pcbnew.VECTOR2I(15_000_000, 15_000_000))
+    gr_c.SetEnd(pcbnew.VECTOR2I(16_000_000, 15_000_000))
+    b_pos.Add(gr_c)
+    fp_j3 = next(f for f in b_pos.GetFootprints() if f.GetReference() == 'J3')
+    fp_r = pcbnew.PCB_SHAPE(fp_j3)
+    fp_r.SetLayer(pcbnew.F_Mask)
+    fp_r.SetShape(pcbnew.SHAPE_T_RECT)
+    fp_r.SetFilled(True)
+    fp_r.SetWidth(0)
+    fp_r.SetStart(pcbnew.VECTOR2I(9_500_000, 16_500_000))
+    fp_r.SetEnd(pcbnew.VECTOR2I(10_500_000, 17_500_000))
+    fp_j3.Add(fp_r)
+    assert pcbnew.SaveBoard(str(pos_src), b_pos)
+    bridge.load_supported(pos_src)
+    pos_snap = bridge.export_snapshot(pos_src, rules=rules)
+    assert len(pos_snap['mask_apertures']) == 3
+    pos_out = tmp_path / 'normal_rect_circle_routed.kicad_pcb'
+    res_pos = run([str(engine), 'route-native', str(pos_src), str(pos_out), '--rules', str(rules_path)], check=False)
+    assert res_pos.returncode == 0, (res_pos.stdout, res_pos.stderr)
+    drc_pos = bridge.native_violations(pos_out, tmp_path / 'normal_rect_circle_drc.json')
+    assert drc_pos['unconnected_items'] == [] and drc_pos['violations'] == [], drc_pos
+
+
+
 
 
