@@ -764,9 +764,50 @@ pub struct LengthMatchGroupSpec {
     pub meander_spacing_widths: Option<f64>,
 }
 
+/// Geometric preferences for single-ended nets. Distances are in nanometres.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct BusOptions {
+    pub detection_radius_nm: i64,
+    pub attraction_radius_nm: i64,
+    pub attraction_bonus: u32,
+    pub min_nets: usize,
+}
+
+impl Default for BusOptions {
+    fn default() -> Self {
+        Self {
+            detection_radius_nm: 5_000_000,
+            attraction_radius_nm: 5_000_000,
+            attraction_bonus: 5000,
+            min_nets: 2,
+        }
+    }
+}
+
+impl BusOptions {
+    pub fn validate(&self) -> Result<(), Failure> {
+        if self.detection_radius_nm < 1 || self.attraction_radius_nm < 1 {
+            return Err(Failure::new(
+                Status::Invalid,
+                "bus radii must be at least 1 nm",
+            ));
+        }
+        if self.min_nets < 2 {
+            return Err(Failure::new(
+                Status::Invalid,
+                "bus minimum group size must be at least two nets",
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RoutingOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bus: Option<BusOptions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub diff_pairs_mode: Option<DiffPairsMode>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -934,6 +975,13 @@ impl Input {
         compound_work: &crate::budget::WorkBudget,
     ) -> Result<(), Failure> {
         self.limits.validate()?;
+        if let Some(bus) = self
+            .routing_options
+            .as_ref()
+            .and_then(|options| options.bus)
+        {
+            bus.validate()?;
+        }
         if self.item_count() > self.limits.max_items {
             return Err(Failure::new(
                 Status::AdmissionExceeded,
