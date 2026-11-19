@@ -4038,7 +4038,7 @@ def test_degenerate_rect_circle_arc_and_zone_fail_closed_uniformly(tmp_path, gua
     assert drc_pos['unconnected_items'] == [] and drc_pos['violations'] == [], drc_pos
 
 
-def test_zone_layer_fills_skips_collinear_rings(tmp_path):
+def test_zone_layer_fills_skips_collinear_rings(tmp_path, monkeypatch):
     base_src = _make_mask_probe_board(tmp_path / 'base_fill.kicad_pcb', mask_min_width=0, mask_to_copper=0)
     b = pcbnew.LoadBoard(str(base_src))
     z = pcbnew.ZONE(b)
@@ -4053,6 +4053,10 @@ def test_zone_layer_fills_skips_collinear_rings(tmp_path):
     ci = fill.NewOutline()
     for px, py in [(3_000_000, 15_000_000), (4_000_000, 15_000_000), (5_000_000, 15_000_000)]:
         fill.Append(px, py, ci)
+    ch = fill.NewHole(ci)
+    for px, py in [(3_200_000, 15_200_000), (3_800_000, 15_200_000),
+                   (3_800_000, 15_800_000), (3_200_000, 15_800_000)]:
+        fill.Append(px, py, ci, ch)
     vi = fill.NewOutline()
     for px, py in [(2_000_000, 14_000_000), (6_000_000, 14_000_000),
                    (6_000_000, 18_000_000), (2_000_000, 18_000_000)]:
@@ -4060,9 +4064,35 @@ def test_zone_layer_fills_skips_collinear_rings(tmp_path):
     hi = fill.NewHole(vi)
     for px, py in [(3_000_000, 16_000_000), (4_000_000, 16_000_000), (5_000_000, 16_000_000)]:
         fill.Append(px, py, vi, hi)
+    hi2 = fill.NewHole(vi)
+    for px, py in [(3_500_000, 14_500_000), (4_500_000, 14_500_000),
+                   (4_500_000, 15_500_000), (3_500_000, 15_500_000)]:
+        fill.Append(px, py, vi, hi2)
     b.Add(z)
     fill_pcb = tmp_path / 'fill_collinear.kicad_pcb'
     assert pcbnew.SaveBoard(str(fill_pcb), b)
+    assert fill.OutlineCount() == 2
+    assert fill.HoleCount(vi) == 2
+
+    class _NoopZoneFiller:
+        def __init__(self, _board):
+            pass
+
+        def Fill(self, _zones):
+            return True
+
+    collinear_results = []
+    real_is_collinear = bridge._is_collinear_ring
+
+    def _spy_collinear(pts):
+        res = real_is_collinear(pts)
+        collinear_results.append((len(pts), res))
+        return res
+
+    monkeypatch.setattr(bridge.pcbnew, 'LoadBoard', lambda _p: b)
+    monkeypatch.setattr(bridge.pcbnew, 'ZONE_FILLER', _NoopZoneFiller)
+    monkeypatch.setattr(bridge, '_is_collinear_ring', _spy_collinear)
+
     rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000, 'edge_clearance_nm': 500_000}
     snap = bridge.export_snapshot(fill_pcb, rules=rules)
     assert len(snap['zones']) == 1
@@ -4070,8 +4100,15 @@ def test_zone_layer_fills_skips_collinear_rings(tmp_path):
     assert len(layer_fills) == 1
     polys = layer_fills[0]['polygons']
     assert len(polys) == 1
-    assert not bridge._is_collinear_ring(polys[0]['outer'])
-    assert 'holes' not in polys[0]
+    assert not real_is_collinear(polys[0]['outer'])
+    assert len(polys[0]['holes']) == 1
+    assert not real_is_collinear(polys[0]['holes'][0])
+    assert sorted(polys[0]['holes'][0]) == sorted([
+        [3_500_000, 14_500_000], [4_500_000, 14_500_000],
+        [4_500_000, 15_500_000], [3_500_000, 15_500_000],
+    ])
+    assert sum(1 for _, skipped in collinear_results if skipped) == 2
+    assert sum(1 for _, skipped in collinear_results if not skipped) >= 2
 
 
 

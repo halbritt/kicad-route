@@ -25,33 +25,27 @@ def sha256_file(path: Path) -> str:
 
 
 def parse_last_json_line(text: str) -> dict[str, Any] | None:
-    stripped_all = text.strip()
-    if stripped_all.startswith("{") and stripped_all.endswith("}"):
-        try:
-            parsed = json.loads(stripped_all)
-            if isinstance(parsed, dict):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-    for line in reversed(text.splitlines()):
-        stripped = line.strip()
-        if stripped.startswith("{") and stripped.endswith("}"):
-            try:
-                parsed = json.loads(stripped)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(parsed, dict):
-                return parsed
     decoder = json.JSONDecoder()
-    for idx in range(len(text) - 1, -1, -1):
-        if text[idx] == "{" and (idx == 0 or text[idx - 1] == "\n"):
-            try:
-                parsed, end = decoder.raw_decode(text, idx)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(parsed, dict) and not text[end:].strip():
-                return parsed
-    return None
+    last_obj: dict[str, Any] | None = None
+    idx = 0
+    n = len(text)
+    while idx < n:
+        brace = text.find("{", idx)
+        if brace == -1:
+            break
+        line_start = text.rfind("\n", 0, brace) + 1
+        if text[line_start:brace].strip():
+            idx = brace + 1
+            continue
+        try:
+            parsed, end = decoder.raw_decode(text, brace)
+        except json.JSONDecodeError:
+            idx = brace + 1
+            continue
+        if isinstance(parsed, dict):
+            last_obj = parsed
+        idx = end
+    return last_obj
 
 
 @dataclass(frozen=True)
