@@ -3,8 +3,10 @@
 from collections import Counter
 import hashlib
 import json
+import math
 import re
 import subprocess
+import sys
 import uuid
 
 import pcbnew
@@ -233,13 +235,155 @@ def test_native_rounded_back_copper_smd_pad_and_clearance_export_and_route(nativ
     assert output.is_file()
 
 
-def test_custom_pad_still_rejected(native_board):
-    board = pcbnew.LoadBoard(str(native_board))
-    pad = next(iter(board.GetPads()))
+def _custom_j1(board, vertices, *, angle=0, back=False, anchor=pcbnew.PAD_SHAPE_CIRCLE, stroke=0):
+    pad = next(p for p in board.GetPads() if p.GetParentFootprint().GetReference() == "J1")
+    footprint = pad.GetParentFootprint()
+    if back:
+        footprint.Flip(footprint.GetPosition(), pcbnew.FLIP_DIRECTION_LEFT_RIGHT)
+    layer = pcbnew.B_Cu if back else pcbnew.F_Cu
+    layers = pcbnew.LSET()
+    layers.AddLayer(layer)
+    layers.AddLayer(pcbnew.B_Mask if back else pcbnew.F_Mask)
+    pad.SetLayerSet(layers)
     pad.SetShape(pcbnew.PAD_SHAPE_CUSTOM)
+    pad.SetAnchorPadShape(layer, anchor)
+    pad.SetSize(pcbnew.VECTOR2I(200000, 200000))
+    pad.SetOrientationDegrees(angle)
+    if vertices:
+        pad.AddPrimitivePoly(layer, [pcbnew.VECTOR2I(x, y) for x, y in vertices], stroke, True)
+    return pad
+
+
+@pytest.mark.parametrize("back, angle, anchor", [
+    (False, 30, pcbnew.PAD_SHAPE_RECT),
+    (True, 90, pcbnew.PAD_SHAPE_CIRCLE),
+])
+def test_custom_convex_terminal_exact_copper_mask_rotation_and_native_route(
+    native_board, tmp_path, back, angle, anchor
+):
+    board = pcbnew.LoadBoard(str(native_board))
+    vertices = [(-500000, -400000), (300000, -400000), (900000, 0), (300000, 400000), (-500000, 400000)]
+    pad = _custom_j1(board, vertices, angle=angle, back=back, anchor=anchor)
+    pad.SetLocalClearance(350000)
     save(native_board, board)
-    with pytest.raises(bridge.UnsupportedBoard):
+    data, plan, output = _route_and_verify_drc(native_board, tmp_path)
+    exported = next(p for p in data["pads"] if p["footprint_ref"] == "J1")
+    assert exported["local_clearance_nm"] == 350000
+    assert exported.get("layers", ["F.Cu"]) == (["B.Cu"] if back else ["F.Cu"])
+    assert plan["added_tracks"]
+    if back:
+        assert plan["added_vias"]
+    cos, sin = math.cos(math.radians(angle)), math.sin(math.radians(angle))
+
+    def transform(x, y):
+        return (round(x * cos + y * sin) + pad.GetPosition().x,
+                round(-x * sin + y * cos) + pad.GetPosition().y)
+
+    shape = exported["shape"]
+    assert shape["kind"] == "convex_polygon" and shape["radius_nm"] == 0
+    assert set(map(tuple, shape["vertices"])) == {transform(*v) for v in vertices}
+    saved = pcbnew.LoadBoard(str(output))
+    native = next(p for p in saved.GetPads() if p.GetParentFootprint().GetReference() == "J1")
+    assert native.GetShape() == pcbnew.PAD_SHAPE_CUSTOM
+    copper, mask = (pcbnew.B_Cu, pcbnew.B_Mask) if back else (pcbnew.F_Cu, pcbnew.F_Mask)
+    assert set(native.GetLayerSet().Seq()) == {copper, mask}
+    for layer in (copper, mask):
+        effective = native.GetEffectiveShape(layer)
+        for x, y, inside in [(0, 0, True), (700000, 0, True), (1100000, 0, False), (700000, 350000, False)]:
+            assert bool(effective.Collide(pcbnew.VECTOR2I(*transform(x, y)))) == inside
+
+
+@pytest.mark.parametrize("geometry, vertices, stroke, invalid", [
+    ("concave", [(-300000, -300000), (600000, -300000), (600000, 0), (250000, 0),
+                 (250000, 200000), (600000, 200000), (600000, 400000), (-300000, 400000)], 0, False),
+    # The circular anchor protrudes 1 nm past the polygon's left edge.
+    ("partial", [(-99999, -200000), (500000, -200000), (500000, 200000), (-99999, 200000)], 0, False),
+    ("stroke", [(-300000, -300000), (600000, -300000), (600000, 300000), (-300000, 300000)], 40000, False),
+    ("disjoint", [(400000, 0), (800000, 0), (800000, 300000), (400000, 300000)], 0, True),
+])
+def test_custom_copper_refusal_matches_native_padstack_drc(native_board, tmp_path, geometry, vertices, stroke, invalid):
+    board = pcbnew.LoadBoard(str(native_board))
+    _custom_j1(board, vertices, stroke=stroke)
+    save(native_board, board)
+    report = bridge.native_violations(native_board, tmp_path / "input-drc.json")
+    split = [v for v in report["violations"] if v["type"] == "padstack_invalid" and "single polygon" in v["description"]]
+    assert bool(split) == invalid
+    rules = tmp_path / "rules.json"
+    rules.write_text(json.dumps(RULES))
+    request = tmp_path / "request.json"
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools/rust_engine_kicad.py"), "export", str(native_board),
+         str(request), "--rules", str(rules)], capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 2 and not request.exists()
+    failure = json.loads(result.stderr)
+    assert failure["status"] == ("invalid" if invalid else "unsupported")
+    reason = {"concave": "non-convex", "partial": "does not contain its entire anchor",
+              "stroke": "compound copper", "disjoint": r"padstack_invalid.*single polygon.*2 outlines"}[geometry]
+    assert re.search(rf"custom pad J1\.1: .*{reason}", failure["reason"])
+
+
+def test_custom_anchor_only_circle_and_missing_mask(native_board):
+    board = pcbnew.LoadBoard(str(native_board))
+    pad = _custom_j1(board, [])
+    save(native_board, board)
+    data = bridge.export_board(native_board, RULES, 100000)
+    assert next(p["shape"] for p in data["pads"] if p["footprint_ref"] == "J1") == {"kind": "circle", "radius_nm": 100000}
+    layers = pcbnew.LSET()
+    layers.AddLayer(pcbnew.F_Cu)
+    pad.SetLayerSet(layers)
+    save(native_board, board)
+    with pytest.raises(bridge.UnsupportedBoard, match=r"custom pad J1\.1: a solder-mask opening on the copper face"):
         bridge.export_board(native_board, RULES, 100000)
+
+
+@pytest.mark.parametrize("primitive", ["gr_arc", "gr_vector"])
+def test_custom_curve_and_thermal_proxy_keep_their_native_meaning(native_board, primitive):
+    board = pcbnew.LoadBoard(str(native_board))
+    pad = _custom_j1(board, [])
+    shape = pcbnew.PCB_SHAPE(pad)
+    if primitive == "gr_vector":
+        shape.SetShape(pcbnew.SHAPE_T_SEGMENT)
+        shape.SetStart(pcbnew.VECTOR2I(0, 0))
+        shape.SetEnd(pcbnew.VECTOR2I(200000, 300000))
+        shape.SetIsProxyItem(True)
+    else:
+        shape.SetShape(pcbnew.SHAPE_T_ARC)
+        shape.SetArcGeometry(pcbnew.VECTOR2I(0, 0), pcbnew.VECTOR2I(300000, -300000),
+                             pcbnew.VECTOR2I(600000, 0))
+        shape.SetWidth(100000)
+    pad.AddPrimitiveShape(pcbnew.F_Cu, shape)
+    save(native_board, board)
+    with pytest.raises(bridge.UnsupportedBoard, match=rf"custom pad J1\.1: native {primitive} primitive"):
+        bridge.export_board(native_board, RULES, 100000)
+
+
+def test_foreign_custom_copper_tip_forces_clearance_on_saved_route(native_board, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    for track in list(board.GetTracks()):
+        board.Remove(track)
+    # J1 becomes an obstacle. Its anchor misses the direct signal path by
+    # 1.4 mm, while the actual polygon tip crosses the path.
+    pad = _custom_j1(board, [(-300000, -1700000), (300000, -1700000),
+                             (300000, 200000), (-300000, 200000)])
+    pad.GetParentFootprint().SetPosition(pcbnew.VECTOR2I(10000000, 11500000))
+    pad.SetNetCode(0)
+    pad.SetLocalClearance(500000)
+    j2 = next(p for p in board.GetPads() if p.GetParentFootprint().GetReference() == "J2")
+    j3 = pcbnew.Cast_to_FOOTPRINT(j2.GetParentFootprint().Duplicate(False))
+    j3.SetReference("J3")
+    j3.SetPosition(pcbnew.VECTOR2I(3000000, 10000000))
+    board.Add(j3)
+    save(native_board, board)
+    assert pad.GetEffectiveShape(pcbnew.F_Cu).Collide(pcbnew.VECTOR2I(10000000, 10000000))
+    _, plan, output = _route_and_verify_drc(native_board, tmp_path)
+    assert plan["added_tracks"]
+    saved = pcbnew.LoadBoard(str(output))
+    obstacle = next(p for p in saved.GetPads() if p.GetParentFootprint().GetReference() == "J1")
+    copper = obstacle.GetEffectiveShape(pcbnew.F_Cu)
+    for track in saved.GetTracks():
+        if track.IsOnLayer(pcbnew.F_Cu):
+            assert not copper.Collide(track.GetEffectiveShape(pcbnew.F_Cu), 499999)
 
 
 @pytest.mark.parametrize(
