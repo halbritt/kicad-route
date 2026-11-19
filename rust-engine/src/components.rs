@@ -37,7 +37,16 @@ pub(crate) enum Copper<'a> {
         poly: &'a OutlinePolygon,
     },
 }
-impl Copper<'_> {
+impl<'a> Copper<'a> {
+    pub(crate) fn refillable_surface(self) -> Option<(usize, &'a str)> {
+        match self {
+            Self::ZoneFill {
+                layer_idx, zone, ..
+            } if zone.refillable => Some((layer_idx, zone.id.as_str())),
+            _ => None,
+        }
+    }
+
     pub(crate) fn copper_bounds(self) -> (Point, Point) {
         match self {
             Self::Pad(p) => p.copper_bounds(),

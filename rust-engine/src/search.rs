@@ -1,7 +1,7 @@
 use crate::budget::WorkBudget;
 use crate::components::{span_mask, Copper};
 use crate::geometry;
-use crate::model::{Failure, Point, Status, Track, Via, ViaKind};
+use crate::model::{Failure, OutlinePolygon, Point, Status, Track, Via, ViaKind};
 use crate::rules::EffectiveRules;
 use crate::Engine;
 use std::cmp::Reverse;
@@ -52,6 +52,55 @@ impl ConflictFilter {
             let dy = i128::from(p[1] - z.center[1]);
             dx * dx + dy * dy <= z.radius_sq_upper
         })
+    }
+}
+
+// A route that only grazes a refillable polygon with its rounded end cap can
+// lose the contact when KiCad refills. Cache scanlines once per component join
+// so even a narrow, off-grid region can receive a centerline landing.
+#[derive(Default)]
+struct FillLandings {
+    rows: HashMap<(*const OutlinePolygon, usize, i64), Vec<(i64, i64)>>,
+    entries: usize,
+}
+
+impl FillLandings {
+    fn on_segment(
+        &mut self,
+        poly: &OutlinePolygon,
+        a: Point,
+        b: Point,
+        work: &WorkBudget,
+    ) -> Result<Option<Point>, Failure> {
+        let axis = usize::from(a[0] == b[0] && a[1] != b[1]);
+        let line = a[1 - axis];
+        let key = (std::ptr::from_ref(poly), axis, line);
+        let ranges = match self.rows.entry(key) {
+            std::collections::hash_map::Entry::Occupied(row) => row.into_mut(),
+            std::collections::hash_map::Entry::Vacant(row) => {
+                let vertices = poly.outer.len() + poly.holes.iter().map(Vec::len).sum::<usize>();
+                work.charge(vertices as u64)?;
+                let ranges = geometry::fill_landing_ranges(poly, axis, line);
+                work.search_storage(self.entries + ranges.len() + 1)?;
+                self.entries += ranges.len() + 1;
+                row.insert(ranges)
+            }
+        };
+        let lo = a[axis].min(b[axis]);
+        let hi = a[axis].max(b[axis]);
+        // Ranges are sorted. Take the first range entered on the way to b.
+        // Prefer a full grid step, or the midpoint of a narrower crossing.
+        let first = ranges.partition_point(|&(_, r)| r < lo);
+        let last = ranges.partition_point(|&(l, _)| l <= hi);
+        if first >= last {
+            return Ok(None);
+        }
+        let (l, r) = ranges[if a[axis] <= b[axis] { first } else { last - 1 }];
+        let mut pt = b;
+        if !(l..=r).contains(&b[axis]) {
+            pt[axis] = l.max(lo) + (r.min(hi) - l.max(lo)) / 2;
+        }
+        Ok(Some(pt))
     }
 }
 
@@ -354,6 +403,49 @@ fn join_components_inner(
         failure.expanded_states = *expanded;
         return Err(failure);
     }
+    // A through-hole pad can reach an orphaned thermal island electrically
+    // while its spokes still lack a connection to the main fill on that face.
+    let mut source_layers = u32::MAX;
+    let mut fill_targets = Vec::new();
+    if engine
+        .input
+        .zones
+        .iter()
+        .any(|z| z.net == net && z.refillable && z.filled)
+    {
+        engine.work.charge(source.len() as u64)?;
+        let surfaces: BTreeSet<_> = source
+            .iter()
+            .filter_map(|c| c.refillable_surface())
+            .collect();
+        if !surfaces.is_empty() {
+            let mut common_layers = 0u32;
+            for group in targets {
+                engine.work.charge(group.len() as u64)?;
+                let mut fills = Vec::new();
+                for c in group {
+                    if let Some(key) = c.refillable_surface() {
+                        if surfaces.contains(&key) {
+                            common_layers |= 1u32 << key.0;
+                            fills.push(*c);
+                        }
+                    }
+                }
+                if !fills.is_empty() {
+                    fill_targets.push(fills);
+                }
+            }
+            if common_layers != 0 {
+                source_layers = common_layers;
+            }
+        }
+    }
+    let targets = if fill_targets.is_empty() {
+        targets
+    } else {
+        &fill_targets
+    };
+    let landings = std::cell::RefCell::new(FillLandings::default());
     let stackup = engine.all_layers_slice();
     let l_count = engine.layer_count();
     let via_cost = engine.effective_rules.via_cost.max(1);
@@ -366,7 +458,7 @@ fn join_components_inner(
         let c_mask = c.layer_mask(stackup);
         let anchors = c.anchors(engine.input.bounds.min, engine.input.rules.grid_nm);
         for l_idx in 0..l_count {
-            if (c_mask & (1u32 << l_idx)) == 0 {
+            if (c_mask & source_layers & (1u32 << l_idx)) == 0 {
                 continue;
             }
             let l_name = engine.layer_name(l_idx);
@@ -544,6 +636,20 @@ fn join_components_inner(
                 continue;
             }
             engine.work.charge(1)?;
+            if let Copper::ZoneFill { zone, poly, .. } = c {
+                if zone.refillable {
+                    if let Some(p) = landings.borrow_mut().on_segment(poly, a, b, &engine.work)? {
+                        if check_legal(p)? {
+                            let distance =
+                                |q: Point| ((q[0] - a[0]).abs() + (q[1] - a[1]).abs(), q);
+                            if nearest.is_none_or(|old| distance(p) < distance(old)) {
+                                nearest = Some(p);
+                            }
+                        }
+                    }
+                    continue;
+                }
+            }
             if let Some(p_first) =
                 c.attachment(a, b, net, width_nm, l_name, stackup, &engine.work)?
             {
@@ -924,6 +1030,18 @@ fn join_components_inner(
                         {
                             continue;
                         }
+                        if let Copper::ZoneFill { zone, poly, .. } = c {
+                            if zone.refillable {
+                                if landings
+                                    .borrow_mut()
+                                    .on_segment(poly, at, at, &engine.work)?
+                                    .is_some()
+                                {
+                                    return Ok(true);
+                                }
+                                continue;
+                            }
+                        }
                         if c.touches_route(&probe, stackup, &engine.work)? {
                             return Ok(true);
                         }
@@ -959,6 +1077,24 @@ fn join_components_inner(
                     };
                     let via_mask = span_mask(pv.start_layer as usize, pv.end_layer as usize);
                     for c in targets.iter().flatten() {
+                        if let Copper::ZoneFill {
+                            zone,
+                            poly,
+                            layer_idx,
+                        } = c
+                        {
+                            if zone.refillable {
+                                if (1u32 << layer_idx) & via_mask != 0
+                                    && landings
+                                        .borrow_mut()
+                                        .on_segment(poly, pv.at, pv.at, &engine.work)?
+                                        .is_some()
+                                {
+                                    return Ok(true);
+                                }
+                                continue;
+                            }
+                        }
                         if (c.layer_mask(stackup) & via_mask) != 0
                             && c.touches_via(&probe_via, stackup, &engine.work)?
                         {
