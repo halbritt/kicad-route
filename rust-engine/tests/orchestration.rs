@@ -1283,6 +1283,7 @@ fn m3_2_cli_help_optional_rules_project_mismatch_and_stderr_json() {
     assert_eq!(sub_help.status.code(), Some(0));
     let sub_txt = String::from_utf8_lossy(&sub_help.stdout);
     assert!(sub_txt.contains("[--rules") && sub_txt.contains("[--project"));
+    assert!(top_txt.contains(sub_txt.trim()));
 
     let source = ws.write("board.kicad_pcb", b"(kicad_pcb)");
     let other_proj = ws.write("other.kicad_pro", br#"{"meta":{"version":3}}"#);

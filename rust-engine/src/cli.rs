@@ -86,10 +86,8 @@ pub(crate) fn run_main(args: &[OsString]) -> u8 {
         .get(1)
         .is_some_and(|arg| arg == "--help" || arg == "-h")
     {
-        println!(
-            "usage: kicad-route-engine <INPUT.json> <OUTPUT.json>\n       kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--ac-couple-chain-json <JSON>] [--ac-match-tolerance <MM>] [--ac-meander-amplitude <MM>] [--protect <none|existing|human|locked>] [--nets <NET...>]"
-        );
-        return 0;
+        println!("usage: kicad-route-engine <INPUT.json> <OUTPUT.json>");
+        return kicad_route_engine::orchestration::run_cli(&args[1..2]);
     }
     if args.get(1).is_some_and(|arg| arg == "route-native") {
         return kicad_route_engine::orchestration::run_cli(&args[2..]);

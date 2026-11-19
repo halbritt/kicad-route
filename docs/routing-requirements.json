@@ -1819,7 +1819,7 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Verify a solvable external multilayer design under its original rules. At 36f7b11 the frozen One-Air-Max input stopped at native export on a custom pad. Native DRC identified four invalid split-outline pads and 316 unconnected items after refill.",
+      "next_action": "Verify a solvable external multilayer design under its original rules. Tigard fab revision 2 imports at 95b3968 and reaches the 100000-expansion budget without publication. The archived reference closes all 290 opens under its unchanged four-layer rules. One-Air-Max has four KiCad-invalid split-outline pads. The two-layer complex_hierarchy control closes all 87 opens and retains its original 68 warnings at c9e7d08.",
       "blocks_current_integration": false
     },
     {
@@ -1838,7 +1838,7 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Check each capability against a normal Rust entry point and saved-board measurements. T4-07 proves full connectivity on bus_routing. Optional geometric bus ordering remains unimplemented.",
+      "next_action": "Check each capability against a normal Rust entry point and saved-board measurements. The optional bus controls ordered D0 through D7 and excluded AUX on bus_routing at e2cf9ce. KiCad confirmed ten opens before routing, zero opens and zero violations afterward.",
       "blocks_current_integration": false
     },
     {
