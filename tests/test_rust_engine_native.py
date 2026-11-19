@@ -1810,6 +1810,67 @@ def _built_rust_engine(run):
     return ROOT / 'rust-engine/target/debug/kicad-route-engine'
 
 
+def test_native_route_preserves_stencil_only_smd_apertures(native_board, guarded_cli):
+    run, _ = guarded_cli
+    board = pcbnew.LoadBoard(str(native_board))
+    footprint = next(iter(board.GetFootprints()))
+    copper_ids = {bridge.item_id(pad) for pad in board.GetPads()}
+    stencil_layers = {}
+    for layer in (pcbnew.F_Paste, pcbnew.B_Paste):
+        pad = pcbnew.PAD(footprint)
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetShape(pcbnew.PAD_SHAPE_RECT)
+        pad.SetSize(pcbnew.VECTOR2I(700000, 800000))
+        pad.SetPosition(pcbnew.VECTOR2I(7000000, 10000000))
+        layers = pcbnew.LSET()
+        layers.AddLayer(layer)
+        pad.SetLayerSet(layers)
+        footprint.Add(pad)
+        stencil_layers[bridge.item_id(pad)] = [layer]
+    assert pcbnew.SaveBoard(str(native_board), board)
+    source_bytes = native_board.read_bytes()
+    request = bridge.export_board(native_board, RULES, 100000)
+    assert {pad['id'] for pad in request['pads']} == copper_ids
+    assert not request.get('mask_apertures')
+
+    rules = native_board.with_suffix('.json')
+    rules.write_text(json.dumps(RULES))
+    output = native_board.with_name('routed.kicad_pcb')
+    run([str(_built_rust_engine(run)), 'route-native', str(native_board), str(output),
+         '--rules', str(rules)])
+    saved = pcbnew.LoadBoard(str(output))
+    saved.BuildConnectivity()
+    assert saved.GetConnectivity().GetUnconnectedCount(False) == 0
+    saved_stencils = {bridge.item_id(p): p for p in saved.GetPads() if bridge.item_id(p) in stencil_layers}
+    assert saved_stencils.keys() == stencil_layers.keys()
+    for ident, pad in saved_stencils.items():
+        assert list(pad.GetLayerSet().Seq()) == stencil_layers[ident]
+        assert bridge.point(pad.GetSize()) == [700000, 800000]
+        assert bridge.point(pad.GetPosition()) == [7000000, 10000000]
+        assert pad.GetShape() == pcbnew.PAD_SHAPE_RECT
+        assert pad.GetNetCode() == 0 and not pad.GetNumber()
+    assert native_board.read_bytes() == source_bytes
+
+
+@pytest.mark.parametrize('layers,net,number', [
+    ([pcbnew.F_Paste, pcbnew.F_Mask], 0, ''),
+    ([pcbnew.F_Paste], 1, ''),
+    ([pcbnew.B_Paste], 0, '1'),
+    ([], 0, ''),
+])
+def test_stencil_only_admission_keeps_unsupported_pads_out(native_board, layers, net, number):
+    board = pcbnew.LoadBoard(str(native_board))
+    pad = next(iter(board.GetPads()))
+    pad.SetNetCode(net)
+    pad.SetNumber(number)
+    layer_set = pcbnew.LSET()
+    for layer in layers:
+        layer_set.AddLayer(layer)
+    pad.SetLayerSet(layer_set)
+    with pytest.raises(bridge.UnsupportedBoard, match='copper layer'):
+        bridge.pad_shape(pad)
+
+
 def test_route_native_end_to_end_under_guarded_cli(native_board, guarded_cli):
     run, audit_log = guarded_cli
     engine = _built_rust_engine(run)
