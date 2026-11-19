@@ -870,15 +870,6 @@ fn validate_delay_member_profile(
     Ok(())
 }
 
-fn layer_matches_spec_local(layer: &str, spec: &str) -> bool {
-    match spec {
-        "*" => true,
-        "outer" => layer == "F.Cu" || layer == "B.Cu",
-        "inner" => layer != "F.Cu" && layer != "B.Cu",
-        exact => layer == exact,
-    }
-}
-
 fn net_pad_tokens(input: &Input, net_id: u32) -> Vec<String> {
     input
         .pads
@@ -943,8 +934,8 @@ fn resolve_pair_dru_bounds(
             if r.severity == DruSeverity::Ignore {
                 continue;
             }
-            if let Some(rl) = r.layer.as_deref() {
-                if !layers.iter().any(|l| layer_matches_spec_local(l, rl)) {
+            if let Some(rl) = r.layer.as_ref() {
+                if !layers.iter().any(|l| rl.matches(l)) {
                     continue;
                 }
             }
