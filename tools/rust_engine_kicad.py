@@ -1763,6 +1763,31 @@ def _center_exported_coordinates_if_needed(result: dict) -> None:
     _visit_exported_coords(result, shift_1x, shift_2x)
 
 
+def _zone_layer_fills(zone, cu_layers):
+    layer_fills = []
+    for lid in cu_layers:
+        if not zone.GetLayerSet().Contains(lid) or not zone.HasFilledPolysForLayer(lid):
+            continue
+        fill = zone.GetFilledPolysList(lid)
+        fpolys = []
+        for idx in range(fill.OutlineCount()):
+            outer = _extract_poly_ring(fill.Outline(idx))
+            if len(outer) < 3 or _is_collinear_ring(outer):
+                continue
+            fholes = []
+            for h in range(fill.HoleCount(idx)):
+                hr = _extract_poly_ring(fill.Hole(idx, h))
+                if len(hr) >= 3 and not _is_collinear_ring(hr):
+                    fholes.append(hr)
+            fpoly = {'outer': outer}
+            if fholes:
+                fpoly['holes'] = fholes
+            fpolys.append(fpoly)
+        if fpolys:
+            layer_fills.append({'layer': pcbnew.LayerName(lid), 'polygons': fpolys})
+    return layer_fills
+
+
 def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int = 100000,
                     limits: dict | None = None):
     if limits is not None and not isinstance(limits, dict):
@@ -1937,27 +1962,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 ra['no_zone_fills'] = True
             rule_areas.append(ra)
         else:
-            layer_fills = []
-            for lid in cu_layers:
-                if not zone.GetLayerSet().Contains(lid) or not zone.HasFilledPolysForLayer(lid):
-                    continue
-                fill = zone.GetFilledPolysList(lid)
-                fpolys = []
-                for idx in range(fill.OutlineCount()):
-                    outer = _extract_poly_ring(fill.Outline(idx))
-                    if len(outer) < 3 or _is_collinear_ring(outer):
-                        continue
-                    fholes = []
-                    for h in range(fill.HoleCount(idx)):
-                        hr = _extract_poly_ring(fill.Hole(idx, h))
-                        if len(hr) >= 3 and not _is_collinear_ring(hr):
-                            fholes.append(hr)
-                    fpoly = {'outer': outer}
-                    if fholes:
-                        fpoly['holes'] = fholes
-                    fpolys.append(fpoly)
-                if fpolys:
-                    layer_fills.append({'layer': pcbnew.LayerName(lid), 'polygons': fpolys})
+            layer_fills = _zone_layer_fills(zone, cu_layers)
             z_entry = {
                 'id': item_id(zone),
                 'net': int(zone.GetNetCode()),
@@ -2628,7 +2633,8 @@ def _compare_pour_facts(ref: dict, cand: dict, *, area_loss_pct: float | None = 
 
 def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
                original_source: Path | None = None, drc_timeout: float = 30.0,
-               validation_report: Path | None = None, pour_area_loss: float | None = None,
+               validation_report: Path | None = None, refill_state: Path | None = None,
+               pour_area_loss: float | None = None,
                pour_min_spokes: int | None = None):
     if source.resolve() == destination.resolve():
         raise ValueError('output must be a new path distinct from the input')
@@ -2640,7 +2646,7 @@ def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request:
         resolve_sidecars(original_source)
     with source_snapshot(source) as snapshot:
         apply_snapshot(snapshot, plan, destination, expected_request=expected_request,
-                       drc_timeout=drc_timeout, validation_report=validation_report,
+                       drc_timeout=drc_timeout, validation_report=validation_report, refill_state=refill_state,
                        pour_area_loss=pour_area_loss, pour_min_spokes=pour_min_spokes)
 
 
@@ -2667,6 +2673,35 @@ def _filter_active_net_codes(board, net_filters: list[str]) -> set[int]:
         if pos_ok and not neg_hit:
             active.add(int(code))
     return active
+
+
+def _refilled_copper(board, shift):
+    """Measure the saved copper using the request's coordinate frame."""
+    cu_layers, _ = _cu_stack(board)
+    zones = {}
+    teardrops = []
+    for zone in _all_board_zones(board):
+        if zone.GetIsRuleArea():
+            continue
+        layers = _zone_layer_fills(zone, cu_layers)
+        for layer in layers:
+            for poly in layer['polygons']:
+                for ring in [poly['outer'], *poly.get('holes', [])]:
+                    for pt in ring:
+                        pt[0] += shift[0]
+                        pt[1] += shift[1]
+        if not zone.IsTeardropArea():
+            zones[item_id(zone)] = layers
+            continue
+        for layer in layers:
+            for index, poly in enumerate(layer['polygons']):
+                # One native teardrop can contain several filled contours.
+                ident = uuid.uuid5(uuid.UUID(item_id(zone)), f"{layer['layer']}:{index}")
+                teardrops.append({'id': str(ident), 'layer': layer['layer'],
+                                  'net': int(zone.GetNetCode()),
+                                  'shape': {'kind': 'polygon', 'width_nm': 0,
+                                            'filled': True, **poly}})
+    return {'zones': zones, 'teardrops': teardrops}
 
 
 def _verify_saved_connectivity(saved, before_drc: dict, after_drc: dict, net_filters: list[str]) -> None:
@@ -2724,7 +2759,7 @@ def _verify_saved_connectivity(saved, before_drc: dict, after_drc: dict, net_fil
 
 def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
                    drc_timeout: float = 30.0, validation_report: Path | None = None,
-                   pour_area_loss: float | None = None, pour_min_spokes: int | None = None):
+                   refill_state: Path | None = None, pour_area_loss: float | None = None, pour_min_spokes: int | None = None):
     if not math.isfinite(drc_timeout) or drc_timeout <= 0:
         raise ValueError('drc timeout must be positive and finite')
     if pour_area_loss is not None and (not math.isfinite(pour_area_loss) or not 0.0 <= pour_area_loss <= 100.0):
@@ -2942,9 +2977,16 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         net_filters = ro_doc.get('net_filters', []) if isinstance(ro_doc, dict) else []
         if not isinstance(net_filters, list):
             net_filters = []
-        _verify_saved_connectivity(saved, before, after, [str(x) for x in net_filters])
         key = lambda violation: json.dumps(violation, sort_keys=True)
         introduced = Counter(map(key, after['violations'])) - Counter(map(key, before['violations']))
+        try:
+            _verify_saved_connectivity(saved, before, after, [str(x) for x in net_filters])
+        except NativeValidationError:
+            if refill_state is not None and has_copper_zones and after['unconnected_items']:
+                measured = _refilled_copper(saved, shift)
+                measured['introduced_violations'] = sum(introduced.values())
+                write_request(measured, refill_state)
+            raise
         if introduced:
             raise NativeValidationError('candidate introduces native DRC violations')
         pour_integrity_checked = False
@@ -3055,6 +3097,8 @@ def main():
                        help='optional original source board path for sidecar checks before snapshotting')
     apply.add_argument('--drc-timeout', type=float, default=30.0,
                        help='timeout in seconds for each native KiCad DRC invocation')
+    apply.add_argument('--refill-state', type=Path, default=None,
+                       help='save measured copper polygons if a refill leaves open connections')
     apply.add_argument('--validation-report', type=Path, default=None,
                        help='optional atomic output path for native apply validation metadata')
     apply.add_argument('--pour-area-loss', type=float, default=None,
@@ -3075,7 +3119,7 @@ def main():
                        expected_request=read_bounded(args.request),
                        original_source=args.original_source,
                        drc_timeout=args.drc_timeout,
-                       validation_report=args.validation_report,
+                       validation_report=args.validation_report, refill_state=args.refill_state,
                        pour_area_loss=args.pour_area_loss,
                        pour_min_spokes=args.pour_min_spokes)
     except (UnsupportedBoard, NativeValidationError, FileExistsError, OSError, ValueError) as error:

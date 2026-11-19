@@ -4492,3 +4492,50 @@ def test_tier5_stackup_utf8_collinear_bowtie_and_parse_last_json_line():
 
 
 
+
+
+def test_route_native_repairs_ground_split_by_signal_on_refill(native_board, guarded_cli, tmp_path):
+    board = pcbnew.LoadBoard(str(native_board))
+    for track in list(board.GetTracks()):
+        board.Remove(track)
+    # A signal on B.Cu crosses a narrow ground pour between two plated pads.
+    for fp in board.GetFootprints():
+        pad = next(iter(fp.Pads()))
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_PTH)
+        pad.SetDrillSize(pcbnew.VECTOR2I(400000, 400000))
+        pad.SetLayerSet(pcbnew.LSET.AllCuMask())
+        pad.SetNetCode(2)
+    for i, y in enumerate((4_000_000, 16_000_000)):
+        fp = pcbnew.FOOTPRINT(board)
+        fp.SetReference(f'S{i+1}')
+        fp.SetPosition(pcbnew.VECTOR2I(10_000_000, y))
+        pad = pcbnew.PAD(fp)
+        pad.SetPosition(fp.GetPosition())
+        pad.SetNumber('1')
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+        pad.SetSize(pcbnew.VECTOR2I(1_000_000, 1_000_000))
+        bottom = pcbnew.LSET()
+        bottom.AddLayer(pcbnew.B_Cu)
+        pad.SetLayerSet(bottom)
+        pad.SetNetCode(1)
+        fp.Add(pad)
+        board.Add(fp)
+    plane = pcbnew.ZONE(board)
+    plane.SetLayer(pcbnew.B_Cu)
+    plane.SetNetCode(2)
+    plane.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
+    _add_rect_outline(plane.Outline(), 1_000_000, 8_000_000, 19_000_000, 12_000_000)
+    board.Add(plane)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    candidate = tmp_path / 'repaired.kicad_pcb'
+    process = run([str(engine), 'route-native', str(native_board), str(candidate)], check=False)
+    op = json.loads(process.stdout)
+    assert process.returncode == 0, op.get('reason')
+    assert any(p['phase'] == 'rust_refill_repair' and p['status'] == 'ok' for p in op['phases'])
+    assert op['publication']['published']
+    final = bridge.native_violations(candidate, tmp_path / 'repaired-drc.json', refill_zones=True)
+    assert not final['unconnected_items']
+    assert not [v for v in final['violations'] if v['severity'] == 'error']

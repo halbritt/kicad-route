@@ -1,3 +1,5 @@
+mod refill;
+
 use crate::{
     identity::MAX_REQUEST_BYTES,
     model::{Input, Limits, Status, RESULT_VERSION},
@@ -2048,6 +2050,22 @@ fn push_failed_phase(
     });
 }
 
+fn summarize_routing(route_output: &crate::model::Output) -> RoutingSummary {
+    RoutingSummary {
+        result_version: route_output.version,
+        status: serde_json::to_value(route_output.status)
+            .ok()
+            .and_then(|v| v.as_str().map(str::to_owned))
+            .unwrap_or_else(|| "unknown".to_owned()),
+        expanded_states: route_output.expanded_states,
+        work_used: route_output.work_used,
+        added_track_count: route_output.added_tracks.len(),
+        added_via_count: route_output.added_vias.len(),
+        removed_track_count: route_output.removed_track_ids.len(),
+        request_sha256: route_output.request_sha256.clone(),
+    }
+}
+
 fn phase_rust_route_with_hook(
     request_bytes: &[u8],
     req_sha: &str,
@@ -2070,19 +2088,7 @@ fn phase_rust_route_with_hook(
             return Err((OperationStatus::InternalError, msg));
         }
     };
-    result.routing = Some(RoutingSummary {
-        result_version: route_output.version,
-        status: serde_json::to_value(route_output.status)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_owned))
-            .unwrap_or_else(|| "unknown".to_owned()),
-        expanded_states: route_output.expanded_states,
-        work_used: route_output.work_used,
-        added_track_count: route_output.added_tracks.len(),
-        added_via_count: route_output.added_vias.len(),
-        removed_track_count: route_output.removed_track_ids.len(),
-        request_sha256: route_output.request_sha256.clone(),
-    });
+    result.routing = Some(summarize_routing(&route_output));
     if let Some(hook) = after_route_hook {
         hook();
     }
@@ -2306,7 +2312,7 @@ fn execute_staged_phases(
     });
 
     // Phase 4: rust_route
-    let (route_output, staged_plan) = phase_rust_route_with_hook(
+    let (mut route_output, staged_plan) = phase_rust_route_with_hook(
         &request_bytes,
         &req_sha,
         &admitted.source_sha256,
@@ -2344,13 +2350,7 @@ fn execute_staged_phases(
     let drc_timeout_secs = ((remaining_ms as f64) / 1000.0).max(0.05);
     let staged_candidate = staging_dir.join("candidate.kicad_pcb");
     let staged_report = staging_dir.join("apply-report.json");
-    let mut apply_args: Vec<OsString> = vec![
-        "-B".into(),
-        admitted.bridge_path.as_os_str().to_os_string(),
-        "apply".into(),
-        staged_source.as_os_str().to_os_string(),
-        staged_plan.as_os_str().to_os_string(),
-        staged_candidate.as_os_str().to_os_string(),
+    let mut apply_options: Vec<OsString> = vec![
         "--request".into(),
         staged_request.as_os_str().to_os_string(),
         "--original-source".into(),
@@ -2361,37 +2361,120 @@ fn execute_staged_phases(
         staged_report.as_os_str().to_os_string(),
     ];
     if let Some(pct) = config.pour_area_loss {
-        apply_args.push("--pour-area-loss".into());
-        apply_args.push(format!("{pct}").into());
+        apply_options.push("--pour-area-loss".into());
+        apply_options.push(format!("{pct}").into());
     }
     if let Some(min_spokes) = config.pour_min_spokes {
-        apply_args.push("--pour-min-spokes".into());
-        apply_args.push(min_spokes.to_string().into());
+        apply_options.push("--pour-min-spokes".into());
+        apply_options.push(min_spokes.to_string().into());
     }
-    let t_apply = Instant::now();
-    let apply_outcome = run_bounded_child(
-        &config.python,
-        &apply_args,
-        deadline,
-        config.max_child_output_bytes,
-    );
-    let apply_ok = apply_outcome.spawn_error.is_none()
-        && !apply_outcome.record.timed_out
-        && !apply_outcome.record.cancelled
-        && !apply_outcome.output_exceeded
-        && apply_outcome.record.signal.is_none()
-        && apply_outcome.record.exit_code == Some(0);
-    if !apply_ok {
-        let (st, msg) = parse_child_failure(&apply_outcome, "native_apply_validate");
-        result.phases.push(PhaseRecord {
-            phase: "native_apply_validate".to_owned(),
-            status: "failed".to_owned(),
-            elapsed_ms: t_apply.elapsed().as_millis() as u64,
-            detail: Some(msg.clone()),
-            child: Some(apply_outcome.record),
-        });
-        return Err((st, msg));
-    }
+    let mut current_plan = staged_plan;
+    let refill_file = staging_dir.join("refilled-copper.json");
+    let mut request_refill = input_has_zones && !has_custom_routing_options;
+    let (apply_outcome, t_apply) = loop {
+        let t_apply = Instant::now();
+        let mut apply_args: Vec<OsString> = vec![
+            "-B".into(),
+            admitted.bridge_path.as_os_str().to_owned(),
+            "apply".into(),
+            staged_source.as_os_str().to_owned(),
+            current_plan.as_os_str().to_owned(),
+            staged_candidate.as_os_str().to_owned(),
+        ];
+        apply_args.extend_from_slice(&apply_options);
+        if request_refill {
+            apply_args.extend(["--refill-state".into(), refill_file.as_os_str().to_owned()]);
+        }
+        let outcome = run_bounded_child(
+            &config.python,
+            &apply_args,
+            deadline,
+            config.max_child_output_bytes,
+        );
+        if outcome.spawn_error.is_none()
+            && !outcome.record.timed_out
+            && !outcome.record.cancelled
+            && !outcome.output_exceeded
+            && outcome.record.signal.is_none()
+            && outcome.record.exit_code == Some(0)
+        {
+            break (outcome, t_apply);
+        }
+        let (status, reason) = parse_child_failure(&outcome, "native_apply_validate");
+        push_failed_phase(
+            result,
+            "native_apply_validate",
+            t_apply.elapsed(),
+            reason.clone(),
+            Some(outcome.record),
+        );
+        // Only the first native apply is asked for readback. On its second
+        // invocation the original source and native acceptance checks still apply.
+        if !request_refill
+            || status != OperationStatus::NativeValidationFailed
+            || !refill_file.is_file()
+        {
+            return Err((status, reason));
+        }
+        check_cancel_or_deadline(deadline)?;
+        let t_repair = Instant::now();
+        let attempt = (|| {
+            let bytes = read_bounded_regular(&refill_file, MAX_REQUEST_BYTES, "native refill data")
+                .map_err(|e| e.into_status())?;
+            let measured = serde_json::from_slice(&bytes).map_err(|e| {
+                (
+                    OperationStatus::ChildProcessError,
+                    format!("invalid native refill data: {e}"),
+                )
+            })?;
+            let input = serde_json::from_slice(&request_bytes).map_err(|e| {
+                (
+                    OperationStatus::InternalError,
+                    format!("cannot read original routing request: {e}"),
+                )
+            })?;
+            refill::repair(input, measured, &mut route_output)?;
+            check_cancel_or_deadline(deadline)?;
+            let repair_plan = staging_dir.join("refill-plan.json");
+            let plan_bytes = serde_json::to_vec(&route_output).map_err(|e| {
+                (
+                    OperationStatus::InternalError,
+                    format!("cannot encode repaired plan: {e}"),
+                )
+            })?;
+            write_file_create_new(&repair_plan, &plan_bytes, 0o600).map_err(|e| {
+                (
+                    OperationStatus::InternalError,
+                    format!("cannot stage repaired plan: {e}"),
+                )
+            })?;
+            Ok(repair_plan)
+        })();
+        result.routing = Some(summarize_routing(&route_output));
+        match attempt {
+            Ok(plan) => {
+                current_plan = plan;
+                request_refill = false;
+                result.phases.push(PhaseRecord {
+                    phase: "rust_refill_repair".into(),
+                    status: "ok".into(),
+                    elapsed_ms: t_repair.elapsed().as_millis() as u64,
+                    detail: None,
+                    child: None,
+                });
+            }
+            Err((status, reason)) => {
+                push_failed_phase(
+                    result,
+                    "rust_refill_repair",
+                    t_repair.elapsed(),
+                    reason.clone(),
+                    None,
+                );
+                return Err((status, reason));
+            }
+        }
+    };
     if let Err(msg) = verify_regular_non_symlink(&staged_candidate, "candidate board") {
         let m = format!("native_apply_validate did not produce candidate board: {msg}");
         result.phases.push(PhaseRecord {
