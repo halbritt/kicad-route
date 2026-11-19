@@ -2260,8 +2260,9 @@ def _read_pro_min_resolved_spokes(board_path: Path) -> int | None:
     return None
 
 
-def _extract_pour_facts(board_path: Path) -> dict:
-    board = pcbnew.LoadBoard(str(board_path))
+def _extract_pour_facts(board_path: Path, board=None) -> dict:
+    if board is None:
+        board = pcbnew.LoadBoard(str(board_path))
     if board is None:
         raise NativeValidationError(f'KiCad could not reload board for pour facts: {board_path}')
     bds = board.GetDesignSettings()
@@ -3081,6 +3082,154 @@ def write_request(result: dict, destination: Path):
         os.link(temporary, destination)
 
 
+def _reference_plane_measurement(board_path, b, sha, spec):
+    # The fixed clearance expressions are unsupported by the native 2-D measurement.
+    k = pcbnew
+    clearance_rule = '\\(\\s*constraint\\s+(clearance|hole_clearance|physical_clearance|physical_hole_clearance)\\b'
+    if (not isinstance(spec, dict) or spec.get('clearance_rule') != clearance_rule or
+            any(type(spec.get(field)) not in (int, float) or not math.isfinite(spec[field]) or spec[field] < 0
+                for field in ('extra_clearance_mm', 'tolerance_mm2')) or
+            not all(isinstance(spec.get(field), list) and spec[field] and
+                    all(isinstance(name, str) and name for name in spec[field]) for field in ('layers', 'rf_nets')) or
+            not isinstance(spec.get('net'), str) or not isinstance(spec.get('scope'), str)):
+        raise ValueError('invalid reference-plane measurement specification')
+    ds = b.GetDesignSettings()
+    layers = {k.LayerName(l): l for l in b.GetEnabledLayers().CuStack()}
+    err, filler_err = k.FromMM(0.001), ds.m_MaxError
+    extra = k.FromMM(spec['extra_clearance_mm'])
+    problems, tracks, vias = [], [], []
+    for rules in sorted(board_path.parent.glob('*.kicad_dru')):
+        if re.search(clearance_rule, rules.read_text(errors='replace')):
+            problems.append('custom clearance rules in ' + rules.name + ': the plane clearance is not evaluable')
+    names = {str(n) for n in b.GetNetsByName().keys()}
+    for net in [spec['net'], *spec['rf_nets']]:
+        if net not in names:
+            problems.append('net absent from the board: ' + net)
+    fills, gaps = {}, {}
+    for name in spec['layers']:
+        if name not in layers:
+            problems.append('reference layer not on the board: ' + name)
+            continue
+        layer, fill, gap = layers[name], k.SHAPE_POLY_SET(), None
+        for z in b.Zones():
+            if z.GetIsRuleArea() or z.GetNetname() != spec['net'] or not z.IsOnLayer(layer):
+                continue
+            if not z.IsFilled():
+                problems.append('reference zone is not filled on ' + name)
+            fill.BooleanAdd(z.GetFilledPolysList(layer))
+            # The smallest zone clearance: a larger one would excuse more than one zone cut.
+            own = z.GetOwnClearance(layer)
+            gap = own if gap is None else min(gap, own)
+        if gap is None:
+            problems.append('no reference zone on ' + name)
+        fills[name], gaps[name] = fill, gap or 0
+    pads = [p for fp in b.GetFootprints() for p in fp.Pads() if p.GetNetname() in spec['rf_nets']]
+    keeps = {}
+    for name, layer in ((n, layers[n]) for n in fills):
+        keep = k.SHAPE_POLY_SET()
+        for p in pads:
+            clear = max(gaps[name], p.GetOwnClearance(layer), ds.m_MinClearance)
+            if p.FlashLayer(layer):
+                p.TransformShapeToPolygon(keep, layer, clear + extra, filler_err, k.ERROR_OUTSIDE)
+            if p.HasHole():
+                # The lesser of the two clearances a hole may carry: never more than KiCad cut.
+                hole = min(clear, ds.m_HoleClearance)
+                p.TransformHoleToPolygon(keep, hole + extra, filler_err, k.ERROR_OUTSIDE)
+        keeps[name] = keep
+    for t in b.GetTracks():
+        if t.GetNetname() not in spec['rf_nets']:
+            continue
+        if t.GetClass() == 'PCB_VIA':
+            for name in spec['layers']:
+                if name in layers and t.IsOnLayer(layers[name]):
+                    vias.append({'uuid': t.m_Uuid.AsString(), 'net': t.GetNetname(), 'kind': 'PCB_VIA',
+                                 'layers': [k.LayerName(t.TopLayer()), k.LayerName(t.BottomLayer())],
+                                 'reference_layer': name, 'status': 'interrupted',
+                                 'reason': 'RF via antipad through the reference plane'})
+            continue
+        if t.GetClass() not in ('PCB_TRACK', 'PCB_ARC'):
+            continue
+        for name in spec['layers']:
+            rec = {'uuid': t.m_Uuid.AsString(), 'net': t.GetNetname(), 'kind': t.GetClass(),
+                   'layer': k.LayerName(t.GetLayer()), 'reference_layer': name}
+            if name not in fills:
+                rec.update(status='unmeasured', reason='reference layer not on the board')
+            elif rec['layer'] == name:
+                rec.update(status='unmeasured', reason='RF track on its own reference layer')
+            else:
+                shape = k.SHAPE_POLY_SET()
+                t.TransformShapeToPolygon(shape, t.GetLayer(), 0, err, k.ERROR_INSIDE)
+                shape.BooleanSubtract(fills[name])
+                shape.BooleanSubtract(keeps[name])
+                area = shape.Area() / 1e12
+                rec.update(uncovered_mm2=round(area, 6),
+                           status='interrupted' if area > spec['tolerance_mm2'] else 'continuous')
+            tracks.append(rec)
+    return {'schema': 'agent-ee.reference-continuity/2', 'board_sha256': sha, 'kicad': k.Version(),
+            'scope': spec['scope'], 'spec': spec, 'problems': problems, 'tracks': tracks, 'vias': vias}
+
+
+def _layer_copper_inventory(board, sha):
+    stack = list(board.GetEnabledLayers().CuStack())
+    layers = [{'name': pcbnew.LayerName(layer)} for layer in stack]
+    tracks, vias = [], []
+    via_names = {pcbnew.VIATYPE_THROUGH: 'through', pcbnew.VIATYPE_BLIND: 'blind',
+                 pcbnew.VIATYPE_BURIED: 'buried', pcbnew.VIATYPE_MICROVIA: 'micro'}
+    for item in board.GetTracks():
+        kind = item.GetClass()
+        record = {'uuid': item_id(item), 'net': item.GetNetname()}
+        if kind == 'PCB_VIA':
+            vias.append({**record, 'layers': [pcbnew.LayerName(item.TopLayer()), pcbnew.LayerName(item.BottomLayer())],
+                         'position': point(item.GetPosition()), 'via_type': via_names.get(item.GetViaType(), 'unknown'),
+                         'diameter': int(item.GetWidth()), 'drill': int(item.GetDrillValue())})
+        elif kind in ('PCB_TRACK', 'PCB_ARC'):
+            record.update(kind='arc' if kind == 'PCB_ARC' else 'segment', layer=pcbnew.LayerName(item.GetLayer()),
+                          width=int(item.GetWidth()), start=point(item.GetStart()), end=point(item.GetEnd()))
+            if kind == 'PCB_ARC':
+                record['mid'] = point(item.GetMid())
+            tracks.append(record)
+        else:
+            raise NativeValidationError(f'cannot measure native copper item {kind}')
+    return {'sha256': sha, 'copper_layers': layers,
+            'tracks': sorted(tracks, key=lambda t: t['uuid']), 'vias': sorted(vias, key=lambda v: v['uuid'])}
+
+
+def measure_layer_policy(source, candidate, area_loss, reference):
+    """Read the two saved boards under the original project rules without refilling or writing either."""
+    if not math.isfinite(area_loss) or area_loss < 0:
+        raise ValueError('pour area-loss limit must be nonnegative and finite')
+    candidate_data = read_bounded(candidate)
+    with source_snapshot(source) as original, tempfile.TemporaryDirectory(prefix='kicad-route-policy-') as tmp:
+        other = Path(tmp) / original.name
+        other.write_bytes(candidate_data)
+        for suffix in ('.kicad_pro', '.kicad_dru'):
+            snapshot_sidecar = original.with_suffix(suffix)
+            if snapshot_sidecar.is_file():
+                other.with_suffix(suffix).write_bytes(snapshot_sidecar.read_bytes())
+        before, after = pcbnew.LoadBoard(str(original)), pcbnew.LoadBoard(str(other))
+        if before is None or after is None:
+            raise NativeValidationError('KiCad could not reload the boards for layer-policy measurements')
+        ref_sha = hashlib.sha256(read_bounded(original)).hexdigest()
+        cand_sha = hashlib.sha256(candidate_data).hexdigest()
+        ref, cand = _extract_pour_facts(original, before), _extract_pour_facts(other, after)
+        ok, violations = _compare_pour_facts(ref, cand, area_loss_pct=area_loss)
+        rows = []
+        for name in sorted(ref['layers'].keys() | cand['layers'].keys()):
+            ra = ref['layers'].get(name, {}).get('area_mm2', 0.0)
+            ca = cand['layers'].get(name, {}).get('area_mm2', 0.0)
+            rows.append({'net_layer': name, 'area_mm2': [ra, ca],
+                         'area_delta_pct': round(100.0 * (ca - ra) / ra, 3) if ra else None})
+        result = {'source': _layer_copper_inventory(before, ref_sha),
+                  'candidate': _layer_copper_inventory(after, cand_sha),
+                  'sidecars': {s: hashlib.sha256(original.with_suffix(s).read_bytes()).hexdigest()
+                               for s in ('.kicad_pro', '.kicad_dru') if original.with_suffix(s).is_file()},
+                  'preservation': [{'check': 'pour_integrity', 'status': 'PASS' if ok else 'FAIL', 'detail': violations}],
+                  'pour': {'area_loss_limit_pct': area_loss, 'layers': rows}}
+        if reference is not None:
+            result['reference'] = _reference_plane_measurement(other, after, cand_sha, reference)
+        return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='command', required=True)
@@ -3112,6 +3261,12 @@ def main():
                        help='fail pour_integrity if any net/layer loses more than PCT percent fill area')
     apply.add_argument('--pour-min-spokes', type=int, default=None,
                        help='tighten minimum thermal spoke requirement to max(board_min, N)')
+    measure = sub.add_parser('measure-layer-policy', help='inspect saved copper and filled zones under the source project rules')
+    measure.add_argument('source', type=Path)
+    measure.add_argument('candidate', type=Path)
+    measure.add_argument('output', type=Path)
+    measure.add_argument('--pour-area-loss', type=float, required=True)
+    measure.add_argument('--reference-spec', type=json.loads)
     args = parser.parse_args()
     try:
         if args.command == 'export':
@@ -3121,6 +3276,9 @@ def main():
                                   original_source=args.original_source,
                                   project_path=args.project)
             write_request(result, args.output)
+        elif args.command == 'measure-layer-policy':
+            facts = measure_layer_policy(args.source, args.candidate, args.pour_area_loss, args.reference_spec)
+            write_request(facts, args.output)
         else:
             apply_plan(args.board, read_object(args.plan), args.output,
                        expected_request=read_bounded(args.request),
