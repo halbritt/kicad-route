@@ -617,6 +617,55 @@ impl SingleEndedAdapter {
     }
 }
 
+/// A new surface net with very few usable pad exits can lose those exits
+/// when a more flexible net routes first. Existing net order breaks ties.
+pub(crate) fn prioritize_pad_escapes(engine: &Engine, nets: &mut [u32]) -> Result<(), Failure> {
+    if nets.len() < 2 || engine.layer_count() < 2 {
+        return Ok(());
+    }
+    let input = engine.input();
+    let mut eligible = BTreeMap::<u32, (usize, u8)>::new();
+    engine.work.search_storage(nets.len())?;
+    engine.work.charge(nets.len() as u64)?;
+    for net in nets.iter().copied() {
+        eligible.insert(net, (0, 3));
+    }
+    // Existing same-net conductors can already provide a way out of a pad.
+    engine.work.charge(
+        (input.tracks.len() + input.vias.len() + input.zones.len() + input.graphics.len()) as u64,
+    )?;
+    for net in input
+        .tracks
+        .iter()
+        .map(|t| t.net)
+        .chain(input.vias.iter().map(|v| v.net))
+        .chain(input.zones.iter().map(|z| z.net))
+        .chain(input.graphics.iter().map(|g| g.net))
+    {
+        eligible.remove(&net);
+    }
+    engine.work.charge(input.pads.len() as u64)?;
+    for p in &input.pads {
+        if let Some((count, _)) = eligible.get_mut(&p.net) {
+            *count += 1
+        }
+    }
+    eligible.retain(|net, (count, _)| *count >= 2 && !engine.copper.has_generated_for_net(*net));
+    if eligible.is_empty() {
+        return Ok(());
+    }
+    engine.work.charge(input.pads.len() as u64)?;
+    for p in &input.pads {
+        if let Some((_, rank)) = eligible.get_mut(&p.net) {
+            if *rank > 1 {
+                *rank = (*rank).min(crate::search::pad_escape_rank(engine, p)?);
+            }
+        }
+    }
+    nets.sort_by_key(|net| eligible.get(net).map_or(3, |(_, rank)| *rank));
+    Ok(())
+}
+
 impl RouteUnitAdapter for SingleEndedAdapter {
     fn units(&self, engine: &Engine) -> Result<Vec<UnitSpec>, Failure> {
         engine.charge_work(engine.input().nets.len() as u64)?;
@@ -655,6 +704,7 @@ impl RouteUnitAdapter for SingleEndedAdapter {
             };
             (hpwl, pad_count, net)
         });
+        prioritize_pad_escapes(engine, &mut nets)?;
         Ok(nets
             .into_iter()
             .map(|net| UnitSpec {

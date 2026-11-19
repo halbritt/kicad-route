@@ -1474,6 +1474,51 @@ fn extend_path_into_target_pad(
     Ok(())
 }
 
+/// Count the clear axial departures from a surface terminal which cannot
+/// change layers in its pad. A value of 3 means no evidence of a bottleneck;
+/// this estimate only influences order, never legality or reachability.
+pub(crate) fn pad_escape_rank(engine: &Engine, pad: &crate::model::Pad) -> Result<u8, Failure> {
+    let layer = match pad.layers.as_slice() {
+        [] => engine.input.layer.as_str(),
+        [l] => l.as_str(),
+        _ => return Ok(3),
+    };
+    let Some(l_idx) = engine.layer_index(layer) else {
+        return Ok(3);
+    };
+    let grid = engine.input.rules.grid_nm;
+    let center = pad.copper_center();
+    engine.work.charge(pad.shape.parts().len() as u64)?;
+    if !geometry::point_in_pad(center, pad) {
+        return Ok(3);
+    }
+    let (lo, hi) = pad.copper_bounds();
+    let mut directions = 0;
+    for axis in 0..2 {
+        for edge in [lo[axis], hi[axis]] {
+            // Probe the first grid point outside the pad, so a step still
+            // inside a wide land cannot count as an escape.
+            engine.work.charge(1)?;
+            let steps = center[axis].abs_diff(edge) / grid as u64 + 1;
+            let mut end = center;
+            let sign = if edge == lo[axis] { -1 } else { 1 };
+            end[axis] += sign * steps as i64 * grid;
+            if engine.legal_edge_on(pad.net, l_idx, center, end)? {
+                directions += 1;
+                if directions == 3 {
+                    return Ok(3);
+                }
+            }
+        }
+    }
+    if directions == 0 {
+        return Ok(3);
+    }
+    let mut vias = Vec::new();
+    push_legal_via_transitions(engine, pad.net, center, l_idx, 1, &[], &mut vias)?;
+    Ok(if vias.is_empty() { directions } else { 3 })
+}
+
 fn push_legal_via_transitions(
     engine: &Engine,
     net: u32,
