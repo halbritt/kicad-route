@@ -92,6 +92,16 @@ pub struct DiffPairPlan {
     pub intra_amplitude_nm: i64,
 }
 
+impl DiffPairPlan {
+    fn pair_tolerance(&self, pair: &ResolvedDiffPair) -> Option<i64> {
+        match (self.intra_match, pair.dru_skew_max_nm) {
+            (true, Some(d)) => Some(self.intra_tolerance_nm.min(d)),
+            (true, None) => Some(self.intra_tolerance_nm),
+            (false, max) => max,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct DiffPairRunState {
     pub routed_pair_nets: BTreeSet<u32>,
@@ -8595,6 +8605,25 @@ fn match_net_in_pair_to_target(
     .map_err(|f| attempts.failure(f))
 }
 
+fn chain_lengths(
+    eng: &Engine,
+    plan: &DiffPairPlan,
+    chain: &ResolvedAcChain,
+) -> Result<(i64, i64), Failure> {
+    let mut sum_p = 0i64;
+    let mut sum_n = 0i64;
+    for &p_idx in &chain.pair_indices {
+        let pair = &plan.pairs[p_idx];
+        let mp = measure_net_fromto(eng, pair.pos_net, false)?
+            .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain pos disconnected"))?;
+        let mn = measure_net_fromto(eng, pair.neg_net, false)?
+            .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain neg disconnected"))?;
+        sum_p += mp.length_nm;
+        sum_n += mn.length_nm;
+    }
+    Ok((sum_p, sum_n))
+}
+
 fn apply_ac_chain_match(
     engine: &mut Engine,
     plan: &DiffPairPlan,
@@ -8608,7 +8637,7 @@ fn apply_ac_chain_match(
 
     for &p_idx in &chain.pair_indices {
         let pair = &plan.pairs[p_idx];
-        if let Some(d) = pair.dru_skew_max_nm {
+        if let Some(d) = plan.pair_tolerance(pair) {
             let mp = measure_net_fromto(engine, pair.pos_net, false)?
                 .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain pos disconnected"))?;
             let mn = measure_net_fromto(engine, pair.neg_net, false)?
@@ -8623,7 +8652,7 @@ fn apply_ac_chain_match(
                     return Err(Failure::new(
                         Status::Unroutable,
                         format!(
-                            "protected/existing net {short_net} in AC pair {} exceeds DRU skew",
+                            "protected/existing net {short_net} in AC pair {} exceeds pair skew",
                             pair.stem
                         ),
                     ));
@@ -8643,23 +8672,8 @@ fn apply_ac_chain_match(
         }
     }
 
-    let measure_chain = |eng: &Engine| -> Result<(i64, i64), Failure> {
-        let mut sum_p = 0i64;
-        let mut sum_n = 0i64;
-        for &p_idx in &chain.pair_indices {
-            let pair = &plan.pairs[p_idx];
-            let mp = measure_net_fromto(eng, pair.pos_net, false)?
-                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain pos disconnected"))?;
-            let mn = measure_net_fromto(eng, pair.neg_net, false)?
-                .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain neg disconnected"))?;
-            sum_p += mp.length_nm;
-            sum_n += mn.length_nm;
-        }
-        Ok((sum_p, sum_n))
-    };
-
     let mut attempts = MeanderAttempts::default();
-    let (mut sum_p, mut sum_n) = measure_chain(engine)?;
+    let (mut sum_p, mut sum_n) = chain_lengths(engine, plan, chain)?;
     if (sum_p - sum_n).abs() > tol_nm {
         let p_is_short = sum_p < sum_n;
         let rem = (sum_p - sum_n).abs();
@@ -8716,14 +8730,14 @@ fn apply_ac_chain_match(
         if !solved_single {
             cands.sort_by(|a, b| (b.5 - b.3).cmp(&(a.5 - a.3)));
             for _pass in 0..2 {
-                (sum_p, sum_n) = measure_chain(engine)?;
+                (sum_p, sum_n) = chain_lengths(engine, plan, chain)?;
                 let cur_rem = (sum_p - sum_n).abs();
                 if cur_rem <= tol_nm {
                     break;
                 }
                 let cur_p_short = sum_p < sum_n;
                 for &(p_idx, _, _, _, _, _) in &cands {
-                    (sum_p, sum_n) = measure_chain(engine)?;
+                    (sum_p, sum_n) = chain_lengths(engine, plan, chain)?;
                     let cur_rem = (sum_p - sum_n).abs();
                     if cur_rem <= tol_nm || (sum_p < sum_n) != cur_p_short {
                         break;
@@ -8747,7 +8761,9 @@ fn apply_ac_chain_match(
                             Failure::new(Status::Unroutable, "AC chain long disconnected")
                         })?
                         .length_nm;
-                    let max_allowed = pair.dru_skew_max_nm.map_or(i64::MAX / 4, |d| len_l + d);
+                    let max_allowed = plan
+                        .pair_tolerance(pair)
+                        .map_or(i64::MAX / 4, |d| len_l + d);
                     let headroom = max_allowed - len_s;
                     if headroom <= 0 {
                         continue;
@@ -8771,7 +8787,7 @@ fn apply_ac_chain_match(
         }
     }
 
-    let (final_p, final_n) = measure_chain(engine)?;
+    let (final_p, final_n) = chain_lengths(engine, plan, chain)?;
     if (final_p - final_n).abs() > tol_nm {
         return Err(attempts.failure(Failure::new(
             Status::Unroutable,
@@ -8784,7 +8800,7 @@ fn apply_ac_chain_match(
     }
     for &p_idx in &chain.pair_indices {
         let pair = &plan.pairs[p_idx];
-        if let Some(d) = pair.dru_skew_max_nm {
+        if let Some(d) = plan.pair_tolerance(pair) {
             let mp = measure_net_fromto(engine, pair.pos_net, false)?
                 .ok_or_else(|| Failure::new(Status::Unroutable, "AC chain pos disconnected"))?;
             let mn = measure_net_fromto(engine, pair.neg_net, false)?
@@ -8793,7 +8809,7 @@ fn apply_ac_chain_match(
                 return Err(Failure::new(
                     Status::Unroutable,
                     format!(
-                        "AC chain pair {} skew {} nm exceeds DRU skew limit {d} nm",
+                        "AC chain pair {} skew {} nm exceeds pair skew limit {d} nm",
                         pair.stem,
                         (mp.length_nm - mn.length_nm).abs()
                     ),
@@ -8835,13 +8851,7 @@ pub fn apply_length_matching_in_tx(
             if !plan.protected_nets.contains(&pair.pos_net)
                 && !plan.protected_nets.contains(&pair.neg_net)
             {
-                let eff_tol = match (plan.intra_match, pair.dru_skew_max_nm) {
-                    (true, Some(d)) => Some(plan.intra_tolerance_nm.min(d)),
-                    (true, None) => Some(plan.intra_tolerance_nm),
-                    (false, Some(d)) => Some(d),
-                    (false, None) => None,
-                };
-                if let Some(tol_nm) = eff_tol {
+                if let Some(tol_nm) = plan.pair_tolerance(pair) {
                     apply_intra_pair_match(eng, pair, tol_nm, plan.intra_amplitude_nm)?;
                 }
             }
@@ -8994,7 +9004,15 @@ pub fn apply_length_matching_in_tx(
                 }
             }
 
-            // Independent final group skew verification
+        }
+
+        // A later group may tune a member of an earlier group. Grade the
+        // copper that survives every matching operation, including protected legs.
+        for group in &plan.length_groups {
+            let (is_delay, tol) = match group.mode {
+                GroupTargetMode::LengthNm { tolerance_nm } => (false, tolerance_nm),
+                GroupTargetMode::DelayAs { tolerance_as } => (true, tolerance_as),
+            };
             let mut final_min = i64::MAX;
             let mut final_max = i64::MIN;
             for &nid in &group.members {
@@ -9016,6 +9034,28 @@ pub fn apply_length_matching_in_tx(
                         final_max - final_min
                     ),
                 ));
+            }
+        }
+        if !plan.length_groups.is_empty() {
+            for chain in &plan.ac_chains {
+                let (pos, neg) = chain_lengths(eng, plan, chain)?;
+                let skew = (pos - neg).abs();
+                if skew > plan.ac_match_tolerance_nm {
+                    return Err(Failure::new(Status::Unroutable,
+                        format!("final AC chain {:?} skew {skew} nm exceeds tolerance {} nm", chain.bridges, plan.ac_match_tolerance_nm)));
+                }
+            }
+        }
+        for pair in &plan.pairs {
+            if let Some(tol) = plan.pair_tolerance(pair) {
+                let length = |net| measure_net_fromto(eng, net, false)?
+                    .map(|m| m.length_nm)
+                    .ok_or_else(|| Failure::new(Status::Unroutable, format!("pair net {net} disconnected")));
+                let skew = (length(pair.pos_net)? - length(pair.neg_net)?).abs();
+                if skew > tol {
+                    return Err(Failure::new(Status::Unroutable,
+                        format!("final differential pair {} skew {skew} nm exceeds tolerance {tol} nm", pair.stem)));
+                }
             }
         }
         Ok(())
