@@ -1212,7 +1212,7 @@
       "status": "open",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Keep seed/phase limits explicit; wording is corrected and accepted. Broaden the search domain only with independent completeness evidence.",
+      "next_action": "Keep seed and grid-phase limits explicit. Verify any extension against an independent search oracle and native saved-board connectivity.",
       "correction_evidence": "Direct route, reroute and batch reasons now name fixed copper/grid and pad-center/track-endpoint seeds. Rust tests verify scope; seed/phase search algorithm unchanged.",
       "correction_review": "Both reviewers close the wording half at47e98ec; source-component seed/phase completeness remains open."
     },
@@ -1415,7 +1415,7 @@
       "status": "open",
       "owner": "agent-1484",
       "acceptance_owner": "agent-1497",
-      "next_action": "Keep future engine-controlled orchestration/retry loops inside one outer transaction; exercise total-work exhaustion when adding loops.",
+      "next_action": "Exercise exhaustion across complete negotiation and tuning calls. The caller controls the number of independent native invocations.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false
     },
@@ -1436,7 +1436,7 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Retain admission/serialization controls; implement full-operation cancellation and measure parse/native memory before any full-path resource claim.",
+      "next_action": "The native workflow caps child output and handles deadlines and cancellation. Measure the cost of native decoding separately before claiming a bound on overall process memory.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false,
       "correction_evidence": "Native file reads capped at16MiB plus1 read sentinel before decoding; source/plan/rules/limits/consumedDRC and exported JSON covered. Parsed allocations, native report generation, in-memory API arguments and whole-operation runtime remain outside this limit.",
@@ -1564,7 +1564,7 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Keep exclusions explicit; reassess when changing the CLI boundary. Do not infer all-process termination handling.",
+      "next_action": "Keep executor unwinding and whole-process death separate. The orchestration tests cover child SIGKILL and cancellation. Hard process death during publication requires separate evidence.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false
     },
@@ -1580,10 +1580,10 @@
       "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
       "finding": "A killed process can leave a PID-named temporary that refuses a later publication with reused PID.",
       "evidence_class": "Source-derived fail-closed behavior.",
-      "status": "open",
+      "status": "implemented-tested-awaiting-m6-audit",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Preserve foreign temporary files; revisit collision-safe publication naming/recovery when extending process lifecycle.",
+      "next_action": "Keep the PID-reuse and existing-destination regression tests when changing either publication path.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false
     },
@@ -1602,7 +1602,7 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Keep full-path cancellation and measured memory requirements open; do not infer RSS from a raw byte cap.",
+      "next_action": "Use native process measurements alongside byte admission and engine work limits. A small set of peak RSS observations does not bound all supported inputs.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false
     },
@@ -1761,7 +1761,7 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Future orchestration must require successful process outcome or use fresh output paths; never infer current execution success from a matching request hash alone.",
+      "next_action": "Preserve native no-overwrite publication, per-operation staging and caller checks of process success. Verify every production entry point against stale results during the final audit.",
       "blocks_current_integration": false
     },
     {
@@ -1819,7 +1819,7 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Identify representative inputs within existing authorization and preserve every named hold; record native outcomes before accepting any matrix row.",
+      "next_action": "Verify a solvable external multilayer design under its original rules. At 36f7b11 the frozen One-Air-Max input stopped at native export on a custom pad. Native DRC identified four invalid split-outline pads and 316 unconnected items after refill.",
       "blocks_current_integration": false
     },
     {
@@ -1838,7 +1838,7 @@
       "status": "open",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Extend source-backed behavioral inventory as capabilities are addressed; do not claim the initial matrix is exhaustive.",
+      "next_action": "Check each capability against a normal Rust entry point and saved-board measurements. T4-07 proves full connectivity on bus_routing. Optional geometric bus ordering remains unimplemented.",
       "blocks_current_integration": false
     },
     {

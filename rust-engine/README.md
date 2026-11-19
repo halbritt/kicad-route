@@ -1,4 +1,4 @@
-# Rust routing engine: first supported slice
+# Rust routing engine
 
 This is a greenfield implementation. KRT is a behavioral reference and a source
 of test cases, not an implementation to wrap, fork or continuously sync. Follow
@@ -19,10 +19,38 @@ cargo run --locked --manifest-path rust-engine/Cargo.toml -- INPUT.json OUTPUT.j
 mise run host:exec -- --timeout 5m -- cargo test --locked --offline --manifest-path rust-engine/Cargo.toml
 ```
 
+## Route a KiCad board
+
+From the repository root, build the native executable and give it a source board
+and a fresh output path. Keep the original project and rule files beside the
+source board. The destination directory must exist.
+
+```sh
+cargo build --release --locked --offline --manifest-path rust-engine/Cargo.toml
+rust-engine/target/release/kicad-route-engine route-native SOURCE.kicad_pcb OUTPUT.kicad_pcb
+```
+
+Rust stages the input, routes the requested nets and publishes after native
+KiCad validation. The operation result on stdout records the phase that
+failed or the board that was published. Read both the process exit code and
+the result. Run `route-native --help` on the executable for options covering
+rules, limits, pair routing and length matching.
+
+The [capability matrix](../docs/rust-parity.md) describes current multilayer
+routing, net classes, supported custom rules, fills, keepouts, negotiation
+and pair tuning. The measurements there give the board, rules and revision
+for each result.
+
+## Original single-layer JSON routing subset
+
+The following geometry, search and validation description documents the
+original front-copper implementation and its acceptance tests. The native
+board path also supports the multilayer features described above.
+
 The version-1 input JSON contract is enforced with typed deserialization, including
-unknown-field and duplicate-field rejection. Bounds are an axis-aligned
-rectangle; only F.Cu, circular/axis-aligned rectangular/roundrect (including oval) pads and straight tracks
-are supported. All incumbent tracks, locked or unlocked, are immutable. Nonzero nets may have any number of pads within the admitted item and work
+unknown-field and duplicate-field rejection. The original subset combined a
+rectangular outline, F.Cu pads (circles, orthogonal rectangles, roundrects or
+ovals) and straight tracks. All incumbent tracks, locked or unlocked, are immutable. Nonzero nets may have any number of pads within the admitted item and work
 limits. Every nonzero net is partitioned into connected components
 of all its pads and incumbent/generated tracks, including zero-pad or singleton
 nets. A net is complete only when it has at most one copper component. Two pads
@@ -48,9 +76,8 @@ track/circle, track/rectangle-corner, circle/circle and circle/rectangle-corner
 contacts had no false completion after this change. These are bounded contact
 experiments, not proof of KiCad equivalence at all orientations, sizes or
 sub-nanometre boundaries. Native validation remains required after routing.
-Vias, zones, non-orthogonally rotated pads, custom rules, differential/length constraints and
-other unrepresented native objects must be rejected by the adapter, never
-silently omitted from the request.
+Later native releases added via, zone, rotated-pad, project-rule and pair
+support. Native import still refuses objects it cannot represent.
 
 Coordinates must lie within +/-100,000,000 integer nanometres (up to a 200 mm
 span). Pad centers and track endpoints must lie inside bounds; positive pad
@@ -84,9 +111,9 @@ step past the target is not published as a dangling spur.
 A shortened goal edge is checked for clearance before the full grid step is
 rejected: an obstacle or board boundary beyond the attachment cannot invalidate
 the shorter route. It is queued at the same one-step cost and must be settled
-within the expansion budget before success. There is no bend cost,
-layer change, arbitrary-angle search, rip-up negotiation or global multi-net
-optimization. Nets route in increasing net-ID order. A later net can fail even
+within the expansion budget before success. The original single-layer search used unit step costs, a fixed net-ID order
+and no rip-up. Current multilayer negotiation can change the routing order
+and rip up generated copper. A later net can fail even
 when a different earlier route would permit a solution; this is reported as
 unroutable, not proof of global routing impossibility. Success/failure is
 deterministic. Each completed join must strictly reduce the net's conservative
