@@ -1833,3 +1833,87 @@ fn bus_lanes_can_detour_outside_the_corridor_under_the_same_shared_budget() {
         }
     }
 }
+
+#[test]
+fn constrained_surface_terminal_gets_its_exit_before_a_flexible_crossing() {
+    // Four F.Cu keepouts form orthogonal corridors. The fifth closes the
+    // west end of one corridor; a via keepout leaves its pad just one exit.
+    // Both nets span 10 mm, so their original order depends on the net IDs.
+    let xy = |x: i64, y: i64| [x * 2_500, y * 2_500];
+    let mut board = base_input(
+        xy(8_300, 8_000),
+        ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+            .map(str::to_owned)
+            .to_vec(),
+    );
+    board.rules.width_nm = 100_000;
+    board.rules.clearance_nm = 100_000;
+    board.rules.edge_clearance_nm = 100_000;
+    board.rules.grid_nm = 250_000;
+    board.max_expansions = 130;
+    for (index, [x, y, right, top]) in [
+        [900, 4100, 3430, 5500],
+        [900, 2500, 3430, 3900],
+        [3570, 4100, 5100, 5500],
+        [3570, 2500, 5100, 3900],
+        [1800, 3500, 2055, 4400],
+        [1500, 3800, 5000, 4200],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        board.rule_areas.push(RuleArea {
+            id: id(10 + index as u64),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![xy(x, y), xy(right, y), xy(right, top), xy(x, top)],
+            holes: vec![],
+            extra_polygons: vec![],
+            no_tracks: index < 5,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        });
+    }
+    for (flex, constrained) in [(1, 2), (2, 1)] {
+        board.nets = vec![
+            Net {
+                id: flex,
+                name: "flexible".into(),
+            },
+            Net {
+                id: constrained,
+                name: "constrained".into(),
+            },
+        ];
+        board.pads = vec![
+            pad(1, flex, xy(3500, 2000)),
+            pad(2, flex, xy(3500, 6000)),
+            pad(3, constrained, xy(2100, 4000)),
+            pad(4, constrained, xy(6100, 4000)),
+        ];
+        for p in &mut board.pads {
+            p.layers = vec!["F.Cu".into()];
+            p.shape = Shape::Circle { radius_nm: 65_000 };
+        }
+        let e = Engine::new(board.clone()).unwrap();
+        let units = negotiate::SingleEndedAdapter::all().units(&e).unwrap();
+        assert_eq!(units[0].id, RouteUnitId::SingleNet(constrained));
+        let routed = run(board.clone());
+        assert_eq!(routed.status, Status::Complete, "{:?}", routed.reason);
+        assert_eq!(routed.added_vias.len(), 3);
+        let planar: i64 = routed
+            .added_tracks
+            .iter()
+            .map(|t| (t.end[0] - t.start[0]).abs() + (t.end[1] - t.start[1]).abs())
+            .sum();
+        assert_eq!(planar, 19_500_000);
+
+        let mut open = board.clone();
+        open.rule_areas.clear();
+        let e = Engine::new(open).unwrap();
+        let units = negotiate::SingleEndedAdapter::all().units(&e).unwrap();
+        assert_eq!(units[0].id, RouteUnitId::SingleNet(1));
+    }
+}

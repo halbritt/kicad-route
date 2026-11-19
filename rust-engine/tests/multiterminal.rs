@@ -918,3 +918,82 @@ fn a_pad_can_branch_from_the_interior_of_an_existing_trace() {
         }
     }
 }
+
+#[test]
+fn offset_copper_tree_escapes_surface_keepouts_on_a_four_layer_board() {
+    // Coordinates in hundredths of the 0.25 mm grid. Each protected branch
+    // end can start a search on a different grid phase.
+    let point = |xy: Point| xy.map(|n| n * 2_500);
+    let tree = [
+        [912, 912],
+        [912, 2519],
+        [912, 4032],
+        [912, 7028],
+        [3423, 7028],
+        [6537, 7028],
+        [8244, 7028],
+    ]
+    .map(point);
+    let mut board = fixture(&[tree[0], point([7841, 1133])]);
+    board.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+        .map(str::to_owned)
+        .to_vec();
+    board.bounds.max = point([9200, 8300]);
+    board.rules.width_nm = 100_000;
+    board.rules.clearance_nm = 100_000;
+    board.rules.grid_nm = 250_000;
+    board.rules.edge_clearance_nm = 100_000;
+    for pad in &mut board.pads {
+        pad.layers = vec!["F.Cu".into()];
+        pad.shape = Shape::Circle { radius_nm: 85_000 };
+    }
+    for (i, pair) in tree.windows(2).enumerate() {
+        let mut t = track(10 + i, 1, pair[0], pair[1], true);
+        t.width_nm = board.rules.width_nm;
+        board.tracks.push(t);
+    }
+    board.max_expansions = 400;
+    let open = run(board.clone());
+    assert_eq!(open.status, Status::Complete, "{:?}", open.reason);
+    assert!(open.added_vias.is_empty());
+    for (i, [x, y, right, top]) in [[2400, 1800, 9000, 2300], [2400, 100, 2700, 1800]]
+        .into_iter()
+        .enumerate()
+    {
+        board.rule_areas.push(RuleArea {
+            id: id(100 + i),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: [[x, y], [right, y], [right, top], [x, top]]
+                .map(point)
+                .to_vec(),
+            holes: vec![],
+            extra_polygons: vec![],
+            no_tracks: true,
+            no_vias: false,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        });
+    }
+    let routed = run(board);
+    assert_eq!(routed.status, Status::Complete, "{:?}", routed.reason);
+    assert!(routed.removed_track_ids.is_empty());
+    assert_eq!(routed.added_vias.len(), 2);
+    assert!(routed
+        .added_tracks
+        .iter()
+        .any(|t| t.layer != "F.Cu" && !t.layer.is_empty()));
+    let length: i64 = routed
+        .added_tracks
+        .iter()
+        .map(|t| {
+            assert_eq!(
+                t.start[0], t.end[0],
+                "vertical connection between the two banks"
+            );
+            (t.start[1] - t.end[1]).abs()
+        })
+        .sum();
+    assert_eq!(length, 14_500_000);
+}

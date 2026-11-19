@@ -6628,6 +6628,7 @@ impl RouteUnitAdapter for CompositeRouteAdapter {
             .collect();
         engine.charge_work(se_nets.len() as u64)?;
         se_nets.sort_unstable();
+        crate::negotiate::prioritize_pad_escapes(engine, &mut se_nets)?;
         out.extend(se_nets.into_iter().map(|net| UnitSpec {
             id: RouteUnitId::SingleNet(net),
             nets: vec![net],
