@@ -556,7 +556,7 @@ def _decode_effective_pad_shape(pad, radius_hint=None, *, layer_id=pcbnew.F_Cu):
 
 
 def pad_shape(pad, cu_layers=None):
-    """Decode admitted native copper; leave original native pad metadata intact."""
+    """Decode the pad shape, returning None for standalone stencil apertures."""
     raw_copper = [layer for layer in pad.GetLayerSet().Seq() if pcbnew.IsCopperLayer(layer)]
     attrib = pad.GetAttribute()
     if cu_layers is not None:
@@ -575,14 +575,18 @@ def pad_shape(pad, cu_layers=None):
     has_f_mask = layer_set.Contains(pcbnew.F_Mask)
     has_b_mask = layer_set.Contains(pcbnew.B_Mask)
     if attrib == pcbnew.PAD_ATTRIB_SMD:
+        if any(point(getter()) != [0, 0] for getter in (
+                pad.GetDrillSize, pad.GetSecondaryDrillSize, pad.GetTertiaryDrillSize)):
+            raise UnsupportedBoard('drilled pads are not represented')
+        if not copper and not pad.GetNumber() and pad.GetNetCode() == 0:
+            layers = set(layer_set.Seq())
+            if layers and layers <= {pcbnew.F_Paste, pcbnew.B_Paste}:
+                return None
         if len(copper) != 1:
             raise UnsupportedBoard('SMD pads must sit on exactly one copper layer')
         cu_layer = copper[0]
         if (has_f_mask and cu_layer != pcbnew.F_Cu) or (has_b_mask and cu_layer != pcbnew.B_Cu):
             raise UnsupportedBoard('SMD pad solder-mask layer must match its copper layer')
-        if any(point(getter()) != [0, 0] for getter in (
-                pad.GetDrillSize, pad.GetSecondaryDrillSize, pad.GetTertiaryDrillSize)):
-            raise UnsupportedBoard('drilled pads are not represented')
     elif attrib == pcbnew.PAD_ATTRIB_PTH:
         if not copper:
             raise UnsupportedBoard('through-hole pads must include at least one copper layer')
@@ -1692,6 +1696,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                               'at': point(pad.GetPosition()), 'shape': drill})
                 continue
             shape = pad_shape(pad, cu_layers)
+            if shape is None:
+                continue
             pad_layers = [pcbnew.LayerName(l) for l in pad.GetLayerSet().Seq() if l in cu_set]
             pad_net = int(pad.GetNetCode())
             entry = {'id': item_id(pad), 'net': pad_net,
