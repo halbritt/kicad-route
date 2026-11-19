@@ -484,3 +484,45 @@ fn small_zone_island_can_join_the_side_of_a_large_filled_region() {
     assert_eq!(swapped.status, Status::Complete);
     assert_eq!(swapped.added_tracks, plan.added_tracks);
 }
+
+#[test]
+fn plane_with_track_and_via_keepout_can_use_its_plated_pads_on_another_layer() {
+    let mut input = base();
+    input.bounds.max = [100, 100];
+    input.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    input.tracks.clear();
+    input.pads = vec![pad(1, [20, 50]), pad(2, [80, 50])];
+    for p in &mut input.pads {
+        p.layers = input.layers.clone();
+        p.drill = Some(DrillShape::Circle { diameter_nm: 2 });
+        p.shape = Shape::Circle { radius_nm: 3 };
+    }
+    input.zones = vec![serde_json::from_value(serde_json::json!({
+        "id":id(3),"net":1,"layers":["B.Cu"],"connection":"solid","filled":true,
+        "outer":[[0,0],[100,0],[100,100],[0,100]],"min_thickness_nm":1,
+        "layer_fills":[{"layer":"B.Cu","polygons":[
+            {"outer":[[10,40],[30,40],[30,60],[10,60]]},
+            {"outer":[[70,40],[90,40],[90,60],[70,60]]}
+        ]}]
+    }))
+    .unwrap()];
+    input.rule_areas = vec![serde_json::from_value(serde_json::json!({
+        "id":id(4),"layers":["B.Cu"],"outer":[[1,1],[99,1],[99,99],[1,99]],
+        "no_tracks":true,"no_vias":true
+    }))
+    .unwrap()];
+    let plan = run(input.clone());
+    assert_eq!(plan.status, Status::Complete, "{:?}", plan.reason);
+    assert_eq!(plan.added_tracks.len(), 1);
+    assert_eq!(plan.added_tracks[0].layer, "F.Cu");
+    assert!(plan.added_vias.is_empty());
+    let mut limited = input.clone();
+    limited.limits.max_work = plan.work_used - 1;
+    let out = run(limited);
+    assert_eq!(out.status, Status::WorkExhausted);
+    assert!(out.added_tracks.is_empty());
+    input.max_expansions = plan.expanded_states - 1;
+    let out = run(input);
+    assert_eq!(out.status, Status::BudgetExhausted);
+    assert!(out.added_tracks.is_empty());
+}
