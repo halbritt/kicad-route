@@ -458,6 +458,38 @@ def _orient_ccw_convex(pts):
     return cleaned, True
 
 
+def _effective_primitive_shape(shape, pad_pos):
+    if shape.Type() == pcbnew.SH_CIRCLE:
+        circle = pcbnew.Cast_to_SHAPE_CIRCLE(shape)
+        if circle is None:
+            raise UnsupportedBoard('native pad effective circle is unavailable')
+        center = point(circle.GetCenter())
+        r = int(circle.GetRadius())
+        if center == pad_pos:
+            return {'kind': 'circle', 'radius_nm': r}
+        return {'kind': 'box_exact', 'center_2x': [2 * center[0], 2 * center[1]],
+                'half_size_2x': [2 * r, 2 * r], 'radius_2x': 2 * r}
+    if shape.Type() == pcbnew.SH_SEGMENT:
+        seg = pcbnew.Cast_to_SHAPE_SEGMENT(shape)
+        if seg is None:
+            raise UnsupportedBoard('native pad effective segment is unavailable')
+        s = seg.GetSeg()
+        a, b = [int(s.A.x), int(s.A.y)], [int(s.B.x), int(s.B.y)]
+        w = int(seg.GetWidth())
+        if a == b and a == pad_pos and w % 2 == 0:
+            return {'kind': 'circle', 'radius_nm': w // 2}
+        return {'kind': 'capsule', 'start_nm': a, 'end_nm': b, 'width_nm': w}
+    if shape.Type() == pcbnew.SH_RECT:
+        rc = pcbnew.Cast_to_SHAPE_RECT(shape)
+        if rc is None:
+            raise UnsupportedBoard('native pad effective rect is unavailable')
+        pos, sz = point(rc.GetPosition()), point(rc.GetSize())
+        return {'kind': 'box_exact',
+                'center_2x': [2 * pos[0] + sz[0], 2 * pos[1] + sz[1]],
+                'half_size_2x': sz, 'radius_2x': 0}
+    return None
+
+
 def _decode_effective_pad_shape(pad, radius_hint=None, *, layer_id=pcbnew.F_Cu):
     raw_effective = pad.GetEffectiveShape(layer_id)
     if raw_effective is None or raw_effective.Type() == pcbnew.SH_NULL:
@@ -470,34 +502,10 @@ def _decode_effective_pad_shape(pad, radius_hint=None, *, layer_id=pcbnew.F_Cu):
     else:
         subs = [raw_effective]
     pad_pos = point(pad.GetPosition())
-    if len(subs) == 1 and subs[0].Type() == pcbnew.SH_CIRCLE:
-        circle = pcbnew.Cast_to_SHAPE_CIRCLE(subs[0])
-        if circle is None:
-            raise UnsupportedBoard('native pad effective circle is unavailable')
-        center = point(circle.GetCenter())
-        r = int(circle.GetRadius())
-        if center == pad_pos:
-            return {'kind': 'circle', 'radius_nm': r}
-        return {'kind': 'box_exact', 'center_2x': [2 * center[0], 2 * center[1]],
-                'half_size_2x': [2 * r, 2 * r], 'radius_2x': 2 * r}
-    if len(subs) == 1 and subs[0].Type() == pcbnew.SH_SEGMENT:
-        seg = pcbnew.Cast_to_SHAPE_SEGMENT(subs[0])
-        if seg is None:
-            raise UnsupportedBoard('native pad effective segment is unavailable')
-        s = seg.GetSeg()
-        a, b = [int(s.A.x), int(s.A.y)], [int(s.B.x), int(s.B.y)]
-        w = int(seg.GetWidth())
-        if a == b and a == pad_pos and w % 2 == 0:
-            return {'kind': 'circle', 'radius_nm': w // 2}
-        return {'kind': 'capsule', 'start_nm': a, 'end_nm': b, 'width_nm': w}
-    if len(subs) == 1 and subs[0].Type() == pcbnew.SH_RECT:
-        rc = pcbnew.Cast_to_SHAPE_RECT(subs[0])
-        if rc is None:
-            raise UnsupportedBoard('native pad effective rect is unavailable')
-        pos, sz = point(rc.GetPosition()), point(rc.GetSize())
-        return {'kind': 'box_exact',
-                'center_2x': [2 * pos[0] + sz[0], 2 * pos[1] + sz[1]],
-                'half_size_2x': sz, 'radius_2x': 0}
+    if len(subs) == 1:
+        primitive = _effective_primitive_shape(subs[0], pad_pos)
+        if primitive is not None:
+            return primitive
     if len(subs) == 5 and subs[0].Type() == pcbnew.SH_RECT and all(s.Type() == pcbnew.SH_SEGMENT for s in subs[1:]):
         widths = {int(pcbnew.Cast_to_SHAPE_SEGMENT(s).GetWidth()) for s in subs[1:]}
         if len(widths) != 1:
@@ -583,6 +591,17 @@ def _convex_contains_anchor(edges, anchor):
     return bool(corners) and all(_cross(a, b, v) >= 0 for a, b in edges for v in corners)
 
 
+def _custom_convex_polygon(piece, label):
+    points = _custom_polygon_points(piece)
+    vertices, convex = _orient_ccw_convex(points)
+    edges = list(zip(vertices, vertices[1:] + vertices[:1]))
+    # Repeated loops and self-crossings can have same-sign consecutive turns.
+    if (not convex or len(set(map(tuple, vertices))) != len(vertices)
+            or any(_cross(a, b, v) < 0 for a, b in edges for v in vertices)):
+        raise UnsupportedBoard(f'{label}: non-convex, degenerate, or oversized native copper polygon is not represented')
+    return {'kind': 'convex_polygon', 'vertices': vertices, 'radius_nm': 0}, edges
+
+
 def _custom_pad_shape(pad, layer):
     label = f'custom pad {pad.GetParentFootprint().GetReference()}.{pad.GetNumber()}'
     # This is the split-outline check in KiCad's PAD::doCheckPad. Its polygon
@@ -592,8 +611,8 @@ def _custom_pad_shape(pad, layer):
     if merged.OutlineCount() > 1:
         raise ValueError(f'{label}: padstack_invalid (custom pad shape must resolve to a single polygon, '
                          f'found {merged.OutlineCount()} outlines)')
-    if merged.OutlineCount() == 0 or merged.HoleCount(0):
-        raise UnsupportedBoard(f'{label}: empty or holed custom copper is not represented')
+    if merged.OutlineCount() == 0:
+        raise UnsupportedBoard(f'{label}: empty custom copper is not represented')
     if pad.GetAttribute() != pcbnew.PAD_ATTRIB_SMD:
         raise UnsupportedBoard(f'{label}: only SMD custom pad copper is represented')
     mask = {pcbnew.F_Cu: pcbnew.F_Mask, pcbnew.B_Cu: pcbnew.B_Mask}.get(layer)
@@ -601,40 +620,51 @@ def _custom_pad_shape(pad, layer):
         raise UnsupportedBoard(f'{label}: a solder-mask opening on the copper face is required')
     # SWIG's GetPrimitives has no iterable binding. KiCad's own writer keeps
     # arc vertices and thermal-spoke proxies that its collision shapes may
-    # tessellate or omit. Only ordinary straight polygon/rectangle primitives
-    # are in this subset. Exclude quoted properties from the element names.
+    # tessellate or omit. Require a one-to-one match between the source
+    # primitives and analytical pieces. Quoted properties are not elements.
     writer = pcbnew.PCB_IO_KICAD_SEXPR()
     writer.Format(pad)
-    primitives = 0
+    expected_types = [(pcbnew.SH_CIRCLE, pcbnew.SH_RECT, pcbnew.SH_SIMPLE)]  # anchor
+    primitive_types = {'gr_poly': (pcbnew.SH_SIMPLE,), 'gr_rect': (pcbnew.SH_RECT, pcbnew.SH_SIMPLE),
+                       'gr_circle': (pcbnew.SH_CIRCLE,), 'gr_line': (pcbnew.SH_SEGMENT,)}
     for token in re.finditer(r'"(?:\\.|[^"\\])*"|\(\s*([^()\s"]+)', writer.GetStringOutput(True)):
         name = token.group(1)
-        if name in ('gr_poly', 'gr_rect'):
-            primitives += 1
+        if name in primitive_types:
+            expected_types.append(primitive_types[name])
+            if len(expected_types) > 16:
+                raise UnsupportedBoard(f'{label}: a union of more than 16 copper shapes is not represented')
         elif name and (name == 'arc' or name.startswith('gr_')):
             raise UnsupportedBoard(f'{label}: native {name} primitive is not represented')
 
-    # GetEffectiveShape returns the anchor first, followed by analytical
-    # primitives in board coordinates. One primitive may wholly contain the
-    # anchor. A partial overlap, stroke, or separate piece needs a true union.
     raw = pad.GetEffectiveShape(layer)
     compound = pcbnew.Cast_to_SHAPE_COMPOUND(raw) if raw and raw.Type() == pcbnew.SH_COMPOUND else None
     pieces = list(compound.GetSubshapes()) if compound else []
-    if primitives == 0 and len(pieces) == 1 and pieces[0].Type() in (pcbnew.SH_CIRCLE, pcbnew.SH_RECT):
-        return _decode_effective_pad_shape(pad, layer_id=layer)
-    if (primitives, len(pieces)) in ((0, 1), (1, 2)):
-        points = _custom_polygon_points(pieces[-1])
-        if points:
-            vertices, convex = _orient_ccw_convex(points)
-            edges = list(zip(vertices, vertices[1:] + vertices[:1]))
-            # Also exclude repeated loops and self-crossings with same-sign
-            # consecutive turns, neither of which defines a solid convex pad.
-            if (not convex or len(set(map(tuple, vertices))) != len(vertices)
-                    or any(_cross(a, b, v) < 0 for a, b in edges for v in vertices)):
-                raise UnsupportedBoard(f'{label}: non-convex or degenerate native copper polygon is not represented')
-            if not _convex_contains_anchor(edges, pieces[0]):
-                raise UnsupportedBoard(f'{label}: native copper polygon does not contain its entire anchor')
-            return {'kind': 'convex_polygon', 'vertices': vertices, 'radius_nm': 0}
-    raise UnsupportedBoard(f'{label}: native compound copper is not represented by one supported shape')
+    if len(pieces) != len(expected_types):
+        raise UnsupportedBoard(f'{label}: compound copper needs more than one analytical shape per native primitive')
+    if any(p.Type() not in types for p, types in zip(pieces, expected_types)):
+        raise UnsupportedBoard(f'{label}: a native primitive has an unsupported analytical copper shape')
+
+    pad_pos = point(pad.GetPosition())
+    shapes = []
+    for piece in pieces:
+        if piece.Type() == pcbnew.SH_SEGMENT and (piece.GetWidth() <= 0 or piece.GetWidth() % 2):
+            raise UnsupportedBoard(f'{label}: custom copper line needs a positive even width in nanometres')
+        shape = _effective_primitive_shape(piece, pad_pos)
+        if shape is None:
+            shape, _ = _custom_convex_polygon(piece, label)
+        shapes.append(shape)
+    if len(shapes) == 1:
+        return shapes[0]
+    if len(shapes) == 2 and pieces[1].Type() in (pcbnew.SH_RECT, pcbnew.SH_SIMPLE):
+        polygon, edges = _custom_convex_polygon(pieces[1], label)
+        if _convex_contains_anchor(edges, pieces[0]):
+            return polygon
+    if pad.GetCustomShapeInZoneOpt() != pcbnew.CUSTOM_SHAPE_ZONE_MODE_OUTLINE and any(
+            not z.GetIsRuleArea() and z.GetLayerSet().Contains(layer) for z in pad.GetBoard().Zones()):
+        raise UnsupportedBoard(f'{label}: convex-hull zone clearance for compound copper is not represented')
+    # One native identity, terminal, net, and mask opening. Rust validates
+    # positive-area connectivity and measures contacts on the complete union.
+    return {'kind': 'union', 'shapes': shapes}
 
 
 def pad_shape(pad, cu_layers=None):
@@ -1612,7 +1642,10 @@ def _parse_pcb_stackup(body: bytes) -> list[dict]:
 
 def _visit_exported_shape_coords(shape: dict, fn_1x, fn_2x) -> None:
     kind = shape.get('kind')
-    if kind == 'box_exact':
+    if kind == 'union':
+        for child in shape['shapes']:
+            _visit_exported_shape_coords(child, fn_1x, fn_2x)
+    elif kind == 'box_exact':
         fn_2x(shape['center_2x'])
     elif kind == 'capsule':
         fn_1x(shape['start_nm'])
