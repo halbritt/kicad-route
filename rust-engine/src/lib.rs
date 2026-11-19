@@ -1433,11 +1433,12 @@ impl Engine {
                     }
                     return Ok(ControlFlow::Continue(()));
                 }
-                let copper_clr = self.effective_rules.pair_clearance(
-                    net,
-                    DruItemKind::Track,
-                    via.net,
-                    DruItemKind::Via,
+                let s_idx = self.layer_index(&via.start_layer).unwrap_or(0);
+                let e_idx = self.layer_index(&via.end_layer).unwrap_or(s_idx);
+                let via_layers = &self.layer_names[s_idx.min(e_idx)..=s_idx.max(e_idx)];
+                let copper_clr = self.effective_rules.pair_clearance_on_layer(
+                    (net, DruItemKind::Track, layer_slice),
+                    (via.net, DruItemKind::Via, via_layers),
                     layer_name,
                     None,
                 );
@@ -1450,15 +1451,13 @@ impl Engine {
                 ) {
                     return Ok(ControlFlow::Break(()));
                 }
-                let s_idx = self.layer_index(&via.start_layer).unwrap_or(0);
-                let e_idx = self.layer_index(&via.end_layer).unwrap_or(s_idx);
                 let hole_clr = self.effective_rules.pair_hole_clearance(
                     net,
                     DruItemKind::Track,
                     layer_slice,
                     via.net,
                     DruItemKind::Via,
-                    &self.layer_names[s_idx..=e_idx],
+                    via_layers,
                 );
                 if geometry::point_near_segment(
                     via.at,
@@ -2241,11 +2240,9 @@ impl Engine {
                         return Ok(ControlFlow::Continue(()));
                     };
                     let poly = &lf.polygons[zg.poly_idx as usize];
-                    let clr = self.effective_rules.pair_clearance(
-                        net,
-                        DruItemKind::Via,
-                        z.net,
-                        DruItemKind::Zone,
+                    let clr = self.effective_rules.pair_clearance_on_layer(
+                        (net, DruItemKind::Via, span_layers),
+                        (z.net, DruItemKind::Zone, &[]),
                         layer_name,
                         (z.local_clearance_nm > 0).then_some(z.local_clearance_nm),
                     );
@@ -2273,11 +2270,9 @@ impl Engine {
                 |_, sg| {
                     self.work.charge(1)?;
                     let sc = &self.spoke_corridors[sg.corridor_idx as usize];
-                    let clr = self.effective_rules.pair_clearance(
-                        net,
-                        DruItemKind::Via,
-                        sc.net,
-                        DruItemKind::Zone,
+                    let clr = self.effective_rules.pair_clearance_on_layer(
+                        (net, DruItemKind::Via, span_layers),
+                        (sc.net, DruItemKind::Zone, &[]),
                         layer_name,
                         (sc.local_clearance_nm > 0).then_some(sc.local_clearance_nm),
                     );
@@ -2400,11 +2395,9 @@ impl Engine {
                     }
                     let pad_clr = self
                         .effective_rules
-                        .pair_clearance(
-                            net,
-                            DruItemKind::Via,
-                            pad.net,
-                            DruItemKind::Pad,
+                        .pair_clearance_on_layer(
+                            (net, DruItemKind::Via, span_layers),
+                            (pad.net, DruItemKind::Pad, &[]),
                             layer_name,
                             pad.local_clearance_nm,
                         )
@@ -2484,11 +2477,9 @@ impl Engine {
                         }
                         return Ok(ControlFlow::Continue(()));
                     }
-                    let clr = self.effective_rules.pair_clearance(
-                        net,
-                        DruItemKind::Via,
-                        other_net,
-                        DruItemKind::Track,
+                    let clr = self.effective_rules.pair_clearance_on_layer(
+                        (net, DruItemKind::Via, span_layers),
+                        (other_net, DruItemKind::Track, layer_slice),
                         layer_name,
                         None,
                     );
@@ -2536,11 +2527,9 @@ impl Engine {
                     self.work.charge(1)?;
                     let g_idx = self.artwork_graphic_idx[l_idx][ordinal as usize];
                     let g_net = self.input.graphics[g_idx].net;
-                    let clr = self.effective_rules.pair_clearance(
-                        net,
-                        DruItemKind::Via,
-                        g_net,
-                        DruItemKind::Graphic,
+                    let clr = self.effective_rules.pair_clearance_on_layer(
+                        (net, DruItemKind::Via, span_layers),
+                        (g_net, DruItemKind::Graphic, layer_slice),
                         layer_name,
                         None,
                     );
@@ -2723,11 +2712,9 @@ impl Engine {
                 if ev.net != net || ev.net == 0 {
                     for l_idx in start_idx..=end_idx {
                         if (ev_mask & (1u32 << l_idx)) != 0 {
-                            let clr = self.effective_rules.pair_clearance(
-                                net,
-                                DruItemKind::Via,
-                                ev.net,
-                                DruItemKind::Via,
+                            let clr = self.effective_rules.pair_clearance_on_layer(
+                                (net, DruItemKind::Via, span_layers),
+                                (ev.net, DruItemKind::Via, ev_layers),
                                 &self.layer_names[l_idx],
                                 None,
                             );

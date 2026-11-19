@@ -349,11 +349,9 @@ fn corridor_conflicts_with_existing_copper(
         if !(s_idx..=e_idx).contains(&layer_idx) {
             continue;
         }
-        let clr = rules.pair_clearance(
-            via.net,
-            DruItemKind::Via,
-            zone.net,
-            DruItemKind::Zone,
+        let clr = rules.pair_clearance_on_layer(
+            (via.net, DruItemKind::Via, &layers[s_idx..=e_idx]),
+            (zone.net, DruItemKind::Zone, &[]),
             layer_name,
             z_clr,
         );
