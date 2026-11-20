@@ -248,14 +248,17 @@ def test_krt_rewind_routes_around_the_barrier():
         # Current KRT can avoid the historical collision on the first attempt.
         # Regrade that geometry under the actual run's reference, rules and baseline.
         source = run1.with_name(run1.name + "-historical-collision")
-        shutil.copytree(run1, source, ignore=shutil.ignore_patterns("validate", "work"))
-        attempt = common.load_json(source / "attempt.json")
-        board = source / attempt["candidate_dir"] / BOARD
-        shutil.copy2(source / attempt["reference_dir"] / BOARD, board)
+        attempt = common.load_json(run1 / "attempt.json")
+        reference = source / attempt["reference_dir"]
+        candidate = source / attempt["candidate_dir"]
+        shutil.copytree(run1 / attempt["reference_dir"], reference)
+        shutil.copytree(reference, candidate)
+        shutil.copytree(run1 / "facts", source / "facts")
+        shutil.copy2(run1 / "attempt.json", source / "attempt.json")
+        board = candidate / BOARD
         uuid = add_historical_track(board)
         # pcbnew may save local project settings alongside an edited board.
-        shutil.copy2(source / attempt["reference_dir"] / board.with_suffix(".kicad_pro").name,
-                     board.with_suffix(".kicad_pro"))
+        shutil.copy2(reference / board.with_suffix(".kicad_pro").name, board.with_suffix(".kicad_pro"))
         validation, _ = route.validate(source)
         assert not validation["restored_project_files"], validation
         assert (source / "validate" / "new-findings.json").is_file(), validation
