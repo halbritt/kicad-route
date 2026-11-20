@@ -196,16 +196,8 @@ impl Join<'_> {
                                 return Ok(None);
                             }
                         } else {
-                            let k = usize::from(start[0] == end[0]);
-                            let sign = (end[k] - start[k]).signum();
-                            for i in 1..=span {
-                                engine.work.charge(1)?;
-                                let mut q = start;
-                                q[k] += sign * (i as i64 * c.grid).min((end[k] - start[k]).abs());
-                                steps = steps.saturating_add(engine.layer_policy.scale(
-                                    history.step_penalty(layer, q, engine.input.bounds.min, c.grid),
-                                ));
-                            }
+                            let penalty = history.octilinear_penalty(engine, layer, start, end)?;
+                            steps = steps.saturating_add(engine.layer_policy.scale(penalty));
                         }
                     }
                 }

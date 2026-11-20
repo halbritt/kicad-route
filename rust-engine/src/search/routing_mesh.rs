@@ -13,6 +13,7 @@ use std::collections::{BinaryHeap, HashMap};
 
 mod corner_guides;
 mod drill_access;
+mod plane_approach;
 
 type Node = (Point, u8);
 
@@ -24,6 +25,20 @@ fn link(a: Point, b: Point, layer: u8) -> PathEdge {
     }
 }
 
+#[derive(Clone, Copy)]
+enum MeshPricing<'a> {
+    Unpenalized,
+    Observe(&'a std::cell::Cell<bool>),
+    Forward,
+    Reverse,
+}
+
+impl MeshPricing<'_> {
+    fn paid(self) -> bool {
+        matches!(self, Self::Forward | Self::Reverse)
+    }
+}
+
 struct Mesh<'a> {
     engine: &'a Engine,
     net: u32,
@@ -32,6 +47,7 @@ struct Mesh<'a> {
     via_step: u64,
     history: Option<&'a CongestionHistory>,
     occupied_entries: usize,
+    pricing: MeshPricing<'a>,
 }
 
 impl Mesh<'_> {
@@ -46,9 +62,60 @@ impl Mesh<'_> {
             .saturating_mul(self.engine.layer_policy.weight(layer as usize))
     }
 
+    fn accepts(&self, edges: &[PathEdge]) -> Result<bool, Failure> {
+        if self.pricing.paid() {
+            return Ok(true);
+        }
+        let clear = unpenalized_terminal(self.engine, self.history, edges)?;
+        if !clear {
+            if let MeshPricing::Observe(blocked) = self.pricing {
+                blocked.set(true);
+            }
+        }
+        Ok(clear)
+    }
+
     fn clear(&self, a: Point, b: Point, layer: u8) -> Result<bool, Failure> {
         Ok(self.engine.legal_edge_on(self.net, layer as usize, a, b)?
-            && unpenalized_terminal(self.engine, self.history, &[link(a, b, layer)])?)
+            && self.accepts(&[link(a, b, layer)])?)
+    }
+
+    fn price(&self, a: Point, b: Point, layer: u8) -> Result<u64, Failure> {
+        let base = self.steps(a, b, layer);
+        let Some(history) = self
+            .history
+            .filter(|h| self.pricing.paid() && !h.is_empty())
+        else {
+            return Ok(base);
+        };
+        let (from, to) = if matches!(self.pricing, MeshPricing::Reverse) {
+            (b, a)
+        } else {
+            (a, b)
+        };
+        let penalty = history.octilinear_penalty(self.engine, layer, from, to)?;
+        Ok(base.saturating_add(self.engine.layer_policy.scale(penalty)))
+    }
+
+    fn drill_price(&self, v: PlacedViaKey) -> Result<u64, Failure> {
+        let Some(history) = self
+            .history
+            .filter(|h| self.pricing.paid() && !h.is_empty())
+        else {
+            return Ok(self.via_step);
+        };
+        self.engine
+            .work
+            .charge(1 + u64::from(v.end_layer - v.start_layer))?;
+        Ok(self
+            .via_step
+            .saturating_add(self.engine.layer_policy.scale(history.via_penalty(
+                v.at,
+                v.start_layer,
+                v.end_layer,
+                self.engine.input.bounds.min,
+                self.grid as i64,
+            ))))
     }
 
     // Attach off-grid native copper to neighboring mesh intersections with
@@ -63,23 +130,32 @@ impl Mesh<'_> {
             for dy in [-self.pitch, 0, self.pitch] {
                 self.engine.work.charge(1)?;
                 let q = [nearest[0] + dx, nearest[1] + dy];
-                // The two elbow orders traverse the same axial and diagonal
-                // displacement on this layer. The first clear order has the
-                // minimum price, including rounding each leg to grid steps.
+                let mut found: Option<(u64, Vec<PathEdge>)> = None;
                 for route in octilinear_elbow_paths(p, q) {
                     let mut cost = 0u64;
+                    let mut base = 0u64;
                     let mut edges = Vec::new();
                     for w in route.windows(2) {
                         if !self.clear(w[0], w[1], layer)? {
                             break;
                         }
-                        cost = cost.saturating_add(self.steps(w[0], w[1], layer));
+                        base = base.saturating_add(self.steps(w[0], w[1], layer));
+                        cost = cost.saturating_add(self.price(w[0], w[1], layer)?);
                         edges.push(link(w[0], w[1], layer));
                     }
-                    if edges.len() + 1 == route.len() {
-                        result.push(((q, layer), cost, edges));
-                        break;
+                    if edges.len() + 1 == route.len()
+                        && found.as_ref().is_none_or(|(n, _)| cost < *n)
+                    {
+                        found = Some((cost, edges));
+                        // The two elbow orders have equal unpenalized length.
+                        // A charged first elbow may still lose to the other.
+                        if cost == base {
+                            break;
+                        }
                     }
+                }
+                if let Some((cost, edges)) = found {
+                    result.push(((q, layer), cost, edges));
                 }
             }
         }
@@ -129,7 +205,7 @@ impl Mesh<'_> {
                         points.push(start);
                     }
                     points.push(end);
-                    steps = steps.saturating_add(self.steps(start, end, layer));
+                    steps = steps.saturating_add(self.price(start, end, layer)?);
                 }
                 PathEdge::Via(v) => {
                     if self
@@ -151,7 +227,7 @@ impl Mesh<'_> {
                         points.push(v.at);
                     }
                     points.push(v.at);
-                    steps = steps.saturating_add(self.via_step);
+                    steps = steps.saturating_add(self.drill_price(v)?);
                 }
             }
         }
@@ -198,6 +274,7 @@ pub(super) fn connect(
         via_step: engine.layer_policy.scale(via_cost),
         history,
         occupied_entries,
+        pricing: MeshPricing::Unpenalized,
     };
     // A narrow channel can lie entirely between adjacent rows of the mesh.
     // Refine only when the coarser search has finished without a connection.
@@ -239,6 +316,43 @@ impl Mesh<'_> {
         frontier: Option<&BlockedFrontier>,
         stop: u64,
     ) -> Result<Option<Path>, Failure> {
+        // A legal portal can disappear when the zero-penalty search crosses
+        // negotiation history. Only retry when a whole endpoint lost its
+        // entries. Both attempts share exactly the same stop and trial.
+        let lost = std::cell::Cell::new(false);
+        let can_price = targets.len() == 1 && self.history.is_some_and(|h| !h.is_empty());
+        let checked = Mesh {
+            pricing: if can_price {
+                MeshPricing::Observe(&lost)
+            } else {
+                self.pricing
+            },
+            ..*self
+        };
+        let first =
+            checked.search_entries(starts, targets, track_ok, budget, expanded, frontier, stop)?;
+        if first.is_none() && lost.get() && *expanded < stop {
+            let paid = Mesh {
+                pricing: MeshPricing::Forward,
+                ..*self
+            };
+            return paid
+                .search_entries(starts, targets, track_ok, budget, expanded, frontier, stop);
+        }
+        Ok(first)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn search_entries(
+        &self,
+        starts: &[(Point, u8, bool)],
+        targets: &[TargetBounds<'_>],
+        track_ok: &[bool],
+        budget: &mut TrialBudget<'_>,
+        expanded: &mut u64,
+        frontier: Option<&BlockedFrontier>,
+        stop: u64,
+    ) -> Result<Option<Path>, Failure> {
         let engine = self.engine;
         let net = self.net;
         // Existing planar entries already reach the lattice. Divide
@@ -256,6 +370,14 @@ impl Mesh<'_> {
         };
         let mut goals = HashMap::<Node, (u64, Vec<PathEdge>)>::new();
         let mut ends = Vec::new();
+        let target_mesh = Self {
+            pricing: if self.pricing.paid() {
+                MeshPricing::Reverse
+            } else {
+                self.pricing
+            },
+            ..*self
+        };
         for target in targets {
             let mut attach = |center, layer, plated| -> Result<(), Failure> {
                 let layer = layer as u8;
@@ -263,9 +385,9 @@ impl Mesh<'_> {
                 let portals = if plated {
                     // The barrel already reaches this layer. Connect with a trace
                     // and keep its existing hole out of the list of new drills.
-                    self.portals(center, layer)?
+                    target_mesh.portals(center, layer)?
                 } else {
-                    self.contact_portals(
+                    target_mesh.contact_portals(
                         center,
                         layer,
                         track_ok,
@@ -298,6 +420,13 @@ impl Mesh<'_> {
         }
         if goals.is_empty() {
             return Ok(None);
+        }
+        if let MeshPricing::Observe(rejected) = self.pricing {
+            rejected.set(false);
+        }
+        let priced = self.pricing.paid();
+        if priced && targets[0].plated_contact(&engine.work)?.is_none() {
+            self.drilled_goals(&mut goals, track_ok, ends.len())?;
         }
         let min_step = engine.layer_policy.minimum_step(net);
         let estimate = |(p, layer): Node| -> Result<u64, Failure> {
@@ -341,8 +470,44 @@ impl Mesh<'_> {
                 }
             }
         }
+
+        if roots.is_empty() {
+            return Ok(None);
+        }
+        if let MeshPricing::Observe(rejected) = self.pricing {
+            rejected.set(false);
+        }
+        let mut preferred = if priced && !ends.is_empty() && !starts.is_empty() {
+            self.common_approach(starts[0].0, ends[0].0, &roots, &goals)?
+        } else {
+            None
+        };
+
+        // Search the common plane first. Park the other entries and preserve
+        // every relaxation. A connection or a closed plane restores the full
+        // queue before comparing the incumbent with its lower bound.
+        let mut deferred = BinaryHeap::new();
+        if let Some(plane) = preferred {
+            self.storage(costs.len() + parents.len() + roots.len() + goals.len() + 2 * open.len())?;
+            engine.work.charge(open.len() as u64)?;
+            for entry in std::mem::take(&mut open).into_vec() {
+                if (entry.0).2 .1 == plane {
+                    open.push(entry);
+                } else {
+                    deferred.push(entry);
+                }
+            }
+        }
         let mut best_path: Option<Path> = None;
-        while let Some(Reverse((priority, Reverse(cost), node))) = open.pop() {
+        loop {
+            if preferred.is_some() && (open.is_empty() || best_path.is_some()) {
+                engine.work.charge(deferred.len() as u64)?;
+                open.append(&mut deferred);
+                preferred = None;
+            }
+            let Some(Reverse((priority, Reverse(cost), node))) = open.pop() else {
+                break;
+            };
             engine.work.charge(1)?;
             if best_path.as_ref().is_some_and(|p| p.steps <= priority) {
                 break;
@@ -350,9 +515,11 @@ impl Mesh<'_> {
             if costs.get(&node) != Some(&cost) {
                 continue;
             }
-            if !expand()? {
+            if *expanded >= stop {
                 break;
             }
+            budget.check_before_expand(engine, *expanded, frontier)?;
+            *expanded += 1;
             if let Some((tail_cost, tail)) = goals.get(&node) {
                 // Two neighboring mesh attachments can have different terminal
                 // lengths. Retain the complete cost before comparing open nodes.
@@ -370,11 +537,22 @@ impl Mesh<'_> {
                 let g = cost.saturating_add(delta);
                 if costs.get(&dest).is_none_or(|&old| g < old) {
                     self.storage(
-                        costs.len() + open.len() + roots.len() + goals.len() + parents.len() + 3,
+                        costs.len()
+                            + open.len()
+                            + deferred.len()
+                            + roots.len()
+                            + goals.len()
+                            + parents.len()
+                            + 3,
                     )?;
                     costs.insert(dest, g);
                     parents.insert(dest, (node, edge));
-                    open.push(Reverse((
+                    let queue = if preferred.is_some_and(|l| dest.1 != l) {
+                        &mut deferred
+                    } else {
+                        &mut open
+                    };
+                    queue.push(Reverse((
                         g.saturating_add(estimate(dest)?),
                         Reverse(g),
                         dest,
@@ -394,7 +572,7 @@ impl Mesh<'_> {
             ] {
                 let q = [at[0] + dx * self.pitch, at[1] + dy * self.pitch];
                 if self.clear(at, q, layer)? {
-                    push((q, layer), link(at, q, layer), self.steps(at, q, layer))?;
+                    push((q, layer), link(at, q, layer), self.price(at, q, layer)?)?;
                 }
             }
             let last = engine.layer_count() - 1;
@@ -407,14 +585,21 @@ impl Mesh<'_> {
             if engine
                 .legal_via(net, at, 0, last, ViaKind::Through, &[])?
                 .is_some()
-                && unpenalized_terminal(engine, self.history, &[PathEdge::Via(via)])?
+                && self.accepts(&[PathEdge::Via(via)])?
             {
                 for (other, &allowed) in track_ok.iter().enumerate() {
                     if allowed && usize::from(layer) != other {
-                        push((at, other as u8), PathEdge::Via(via), self.via_step)?;
+                        push(
+                            (at, other as u8),
+                            PathEdge::Via(via),
+                            self.drill_price(via)?,
+                        )?;
                     }
                 }
             }
+        }
+        if let MeshPricing::Observe(rejected) = self.pricing {
+            rejected.set(false);
         }
         Ok(best_path)
     }
@@ -452,6 +637,7 @@ mod tests {
                 via_step: 5,
                 history: None,
                 occupied_entries: 0,
+                pricing: MeshPricing::Unpenalized,
             };
             let options = octilinear_elbow_paths(a, b);
             let prices: Vec<_> = options
@@ -508,6 +694,7 @@ mod tests {
             via_step: 5,
             history: None,
             occupied_entries: 0,
+            pricing: MeshPricing::Unpenalized,
         };
         for (layer, expected) in [(1, false), (2, true)] {
             let mut allowed = [false; 4];
@@ -562,6 +749,7 @@ mod tests {
             via_step: 5,
             history: None,
             occupied_entries: 0,
+            pricing: MeshPricing::Unpenalized,
         };
         for (separation, accepted) in [(1, false), (2_000_000, true)] {
             let a = [10_000_000, 8_000_000];

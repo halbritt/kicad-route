@@ -301,6 +301,7 @@ mod tests {
             via_step: 5,
             history: None,
             occupied_entries: 0,
+            pricing: super::super::MeshPricing::Unpenalized,
         };
         let start = [17_000_000, 10_000_000];
         let end = engine.input.pads[0].copper_center();

@@ -309,6 +309,60 @@ impl CongestionHistory {
         Ok(true)
     }
 
+    /// Price each directed fine-grid move, including the clipped last move.
+    /// A 45-degree centerline with unequal native X/Y phases crosses one
+    /// axis boundary first. Charge that intervening cell as well.
+    pub(crate) fn octilinear_penalty(
+        &self,
+        engine: &Engine,
+        layer: u8,
+        from: Point,
+        to: Point,
+    ) -> Result<u64, Failure> {
+        if self.cells.is_empty() || from == to {
+            return Ok(0);
+        }
+        let origin = engine.input.bounds.min;
+        let grid = engine.input.rules.grid_nm;
+        let delta = [to[0] - from[0], to[1] - from[1]];
+        let length = delta[0].abs().max(delta[1].abs());
+        debug_assert!(delta[0] == 0 || delta[1] == 0 || delta[0].abs() == delta[1].abs());
+        let cell = |point| {
+            let (x, y) = cell_coord(point, origin, grid);
+            [x, y]
+        };
+        let weight = |p: Point| self.cells.get(&(layer, p[0], p[1])).copied().unwrap_or(0);
+        let mut previous = from;
+        let mut at = cell(from);
+        let mut distance = 0;
+        let mut cost = 0u64;
+        while distance < length {
+            engine.charge_work(1)?;
+            distance = (distance + grid).min(length);
+            let tip = std::array::from_fn(|k| from[k] + delta[k].signum() * distance);
+            let next = cell(tip);
+            if at[0] != next[0] && at[1] != next[1] {
+                let first = std::array::from_fn::<_, 2, _>(|k| {
+                    let boundary = origin[k] + at[k].max(next[k]) * grid;
+                    boundary.abs_diff(previous[k])
+                });
+                if first[0] != first[1] {
+                    engine.charge_work(1)?;
+                    let middle = if first[0] < first[1] {
+                        [next[0], at[1]]
+                    } else {
+                        [at[0], next[1]]
+                    };
+                    cost = cost.saturating_add(weight(middle));
+                }
+            }
+            cost = cost.saturating_add(weight(next));
+            previous = tip;
+            at = next;
+        }
+        Ok(cost)
+    }
+
     pub fn via_penalty(
         &self,
         at: Point,

@@ -1,7 +1,5 @@
 //! Surface attachments when a small drill window has no coarse lattice point.
-use super::{
-    link, unpenalized_terminal, Failure, Mesh, Node, PathEdge, PlacedViaKey, Point, ViaKind,
-};
+use super::{link, Failure, Mesh, Node, PathEdge, PlacedViaKey, Point, ViaKind};
 use std::collections::{HashMap, VecDeque};
 
 pub(super) type Portal = (Node, u64, Vec<PathEdge>);
@@ -18,9 +16,10 @@ impl Mesh<'_> {
         result: &mut Vec<Portal>,
     ) -> Result<(), Failure> {
         let drill = PathEdge::Via(via);
-        if !unpenalized_terminal(self.engine, self.history, &[drill])? {
+        if !self.accepts(&[drill])? {
             return Ok(());
         }
+        let drill_price = self.drill_price(via)?;
         for (other, &ok) in allowed.iter().enumerate() {
             self.engine.work.charge(1)?;
             if !ok
@@ -39,9 +38,7 @@ impl Mesh<'_> {
                 path.extend(edges);
                 result.push((
                     node,
-                    prefix_cost
-                        .saturating_add(self.via_step)
-                        .saturating_add(cost),
+                    prefix_cost.saturating_add(drill_price).saturating_add(cost),
                     path,
                 ));
             }
@@ -161,7 +158,7 @@ impl Mesh<'_> {
                 .engine
                 .legal_via(self.net, q, 0, last, ViaKind::Through, &[])?
                 .is_some()
-                && unpenalized_terminal(self.engine, self.history, &[PathEdge::Via(via_key(q))])?
+                && self.accepts(&[PathEdge::Via(via_key(q))])?
             {
                 return Ok(result);
             }
@@ -175,12 +172,12 @@ impl Mesh<'_> {
             None,
         )? {
             let stub = link(p, via.at, layer);
-            if unpenalized_terminal(self.engine, self.history, &[stub])? {
+            if self.accepts(&[stub])? {
                 self.via_portals(
                     via,
                     layer,
                     &[stub],
-                    self.steps(p, via.at, layer),
+                    self.price(p, via.at, layer)?,
                     allowed,
                     occupied,
                     &mut result,
@@ -217,8 +214,8 @@ impl Mesh<'_> {
                         continue;
                     };
                     let cost = self
-                        .steps(p, bend, layer)
-                        .saturating_add(self.steps(bend, via.at, layer));
+                        .price(p, bend, layer)?
+                        .saturating_add(self.price(bend, via.at, layer)?);
                     self.storage(occupied + result.len() + bends.len() + 1)?;
                     bends.push((cost, bend, via));
                 }
@@ -277,8 +274,17 @@ impl Mesh<'_> {
                     q = prev;
                 }
                 prefix.reverse();
-                let price =
-                    (level as u64).saturating_mul(self.engine.layer_policy.weight(layer as usize));
+                let price = if self.pricing.paid() {
+                    let mut total = 0u64;
+                    for edge in &prefix {
+                        if let PathEdge::Track { start, end, layer } = *edge {
+                            total = total.saturating_add(self.price(start, end, layer)?);
+                        }
+                    }
+                    total
+                } else {
+                    (level as u64).saturating_mul(self.engine.layer_policy.weight(layer as usize))
+                };
                 self.via_portals(
                     via_key(at),
                     layer,
@@ -350,6 +356,7 @@ mod tests {
             via_step: 5,
             history: None,
             occupied_entries: 0,
+            pricing: super::super::MeshPricing::Unpenalized,
         };
         let p = [13_150_000, 8_350_000];
         let expected = mesh.portals(p, 0).unwrap();
@@ -410,6 +417,7 @@ mod tests {
             via_step: 5,
             history: None,
             occupied_entries: 0,
+            pricing: super::super::MeshPricing::Unpenalized,
         };
         assert!(
             super::super::super::layer_crossing::drill_sites(&engine, 1, center, 0, None)
@@ -491,6 +499,7 @@ mod tests {
             via_step: 5,
             history: None,
             occupied_entries: 0,
+            pricing: super::super::MeshPricing::Unpenalized,
         };
         let pad = [9_350_000, 8_350_000];
         let hole = [10_350_000, 9_350_000];
