@@ -385,8 +385,12 @@ drill search shares the remaining allowance with the other contacts and
 the search between them.
 When a coarse frontier runs out of reachable points, the router can halve
 the number of grid steps between lattice lines, rounding up to a whole step.
-All resolutions draw from the same expansion allowance. The ordinary search
-can still use passages between lattice points. During a multilayer launch inside a
+All resolutions draw from the same expansion allowance. A forward search with many
+target copper items gives the first lattice attempt a per-net share. If the lattice
+uses its share without a route, it can try again with twice that allowance after the
+ordinary search has settled that many additional states. Each attempt charges the
+same trial and work budgets. The ordinary search can still use passages between
+lattice points. During a multilayer launch inside a
 rectangular through-via keepout, the ordinary search can also take longer axial
 steps toward a pad. It sweeps the whole segment, charges its full grid distance
 and keeps one-cell steps available for turns between those longer endpoints.

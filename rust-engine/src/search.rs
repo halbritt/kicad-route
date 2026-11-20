@@ -3060,6 +3060,8 @@ fn walk_multilayer(
         .surface_search_share
         .map(|share| expanded.saturating_add(share));
     let mut mesh_path: Option<Path> = None;
+    let mut mesh_at = 256;
+    let mut retry_allowance = None;
     while !queue.is_empty() {
         engine.work.charge(1)?;
         let Reverse((priority, tie_g, state)) = queue.pop().unwrap();
@@ -3087,7 +3089,7 @@ fn walk_multilayer(
         budget.check_before_expand(engine, *expanded, frontier.as_deref())?;
         *expanded = expanded.checked_add(1).expect("bounded expansion count");
         local_exp += 1;
-        if local_exp == 256 && only_through_vias {
+        if local_exp == mesh_at && mesh_path.is_none() && only_through_vias {
             if let Some(targets) = surface_targets {
                 // Many disconnected islands make reverse seeding expensive.
                 // The coarser mesh can still join any one of them. Keep the
@@ -3101,6 +3103,10 @@ fn walk_multilayer(
                     + via_arena.total_len
                     + tv_arena.total_len;
                 let via_cost = engine.effective_rules.via_cost.max(1);
+                let remaining = budget.current_limit.saturating_sub(*expanded);
+                let allowance =
+                    retry_allowance.unwrap_or(remaining / engine.input.nets.len().max(1) as u64);
+                let stop = expanded.saturating_add(allowance).min(budget.current_limit);
                 mesh_path = routing_mesh::connect(
                     engine,
                     net,
@@ -3113,8 +3119,20 @@ fn walk_multilayer(
                     budget,
                     expanded,
                     frontier.as_deref(),
+                    Some(stop),
                 )?;
-                if mesh_path.is_none() {
+                let first_attempt = retry_allowance.is_none();
+                if mesh_path.is_none() && allowance != 0 && *expanded == stop {
+                    // The mesh hit its quota. Earn a larger retry by settling the
+                    // same number of ordinary states first. Doubling bounds the
+                    // total work spent repeating the prefixes of earlier searches.
+                    let next = allowance.saturating_mul(2);
+                    if next <= budget.current_limit.saturating_sub(*expanded) / 2 {
+                        mesh_at = local_exp.saturating_add(next);
+                        retry_allowance = Some(next);
+                    }
+                }
+                if first_attempt && mesh_path.is_none() {
                     // Many copper objects can describe only two remaining
                     // islands. Try a single straight crossing from the nearest
                     // launch on each layer to each physical terminal.
@@ -4554,6 +4572,7 @@ fn walk_multilayer_bidirectional(
                             budget,
                             expanded,
                             frontier.as_deref(),
+                            None,
                         )?,
                     };
                     let needs_planar = match &proposal {

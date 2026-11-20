@@ -1103,3 +1103,79 @@ fn a_grown_branch_can_be_reached_from_another_islands_grid() {
     assert_eq!(limited.work_used, result.work_used - 1);
     assert!(limited.added_tracks.is_empty() && limited.removed_track_ids.is_empty());
 }
+
+#[test]
+fn connected_banks_cross_a_folded_backplane_within_the_shared_budget() {
+    let mut board = fixture(&[[0, 0]]);
+    let mut pin = board.pads.pop().unwrap();
+    let um = |x: i64, y: i64| [x * 1000, y * 1000];
+    board.bounds.max = um(48_000, 32_000);
+    board.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+        .map(String::from)
+        .to_vec();
+    board.rules.width_nm = 200_000;
+    board.rules.clearance_nm = 200_000;
+    board.rules.grid_nm = 200_000;
+    board.rules.edge_clearance_nm = 500_000;
+    let mut pad = |net, at, layer: &str, half| {
+        pin.id = id(board.pads.len());
+        pin.layers = vec![layer.to_owned()];
+        pin.shape = Shape::Rect {
+            half_size_nm: [half, half],
+        };
+        pin.net = net;
+        pin.at = at;
+        board.pads.push(pin.clone());
+    };
+    for (x, y) in [(4400, 12400), (43400, 17400)] {
+        for row in -2..=2 {
+            let at = um(x, y + 1400 * row);
+            pad(1, at, "F.Cu", 300_000);
+            if row > -2 {
+                let mut link = track(
+                    100 + board.tracks.len(),
+                    1,
+                    um(x, y + 1400 * (row - 1)),
+                    at,
+                    true,
+                );
+                link.width_nm = board.rules.width_nm;
+                board.tracks.push(link);
+            }
+        }
+    }
+    for i in 0..24 {
+        let net = 2 + i as u32;
+        board.nets.push(Net {
+            id: net,
+            name: format!("EDGE{i}"),
+        });
+        for x in [46000, 47000] {
+            pad(net, um(x, 1400 + i * 1160), "B.Cu", 240_000);
+        }
+    }
+    for (layers, x, y, r, t) in [
+        (["F.Cu", "B.Cu"], 10000, -1000, 38000, 33000),
+        (["In1.Cu", "In2.Cu"], 14000, -1000, 15000, 19000),
+        (["In1.Cu", "In2.Cu"], 23000, 12000, 24000, 33000),
+        (["In1.Cu", "In2.Cu"], 32000, -1000, 33000, 18000),
+    ] {
+        board.rule_areas.push(
+            serde_json::from_value(serde_json::json!({
+                "id": id(200 + board.rule_areas.len()), "layers": layers,
+                "outer": [um(x, y), um(r, y), um(r, t), um(x, t)], "no_tracks": true, "no_vias": false
+            }))
+            .unwrap(),
+        );
+    }
+    board.max_expansions = 2_500;
+    let stopped = run(board.clone());
+    assert_eq!(stopped.status, Status::BudgetExhausted);
+    assert_eq!(stopped.expanded_states, board.max_expansions);
+    assert!(stopped.added_tracks.is_empty() && stopped.added_vias.is_empty());
+    board.max_expansions = 25_000;
+    let solved = run(board);
+    assert_eq!(solved.status, Status::Complete, "{:?}", solved.reason);
+    assert!(solved.expanded_states < 25_000);
+    assert!(solved.added_vias.len() >= 2);
+}

@@ -253,6 +253,7 @@ pub(super) fn connect(
     budget: &mut TrialBudget<'_>,
     expanded: &mut u64,
     frontier: Option<&BlockedFrontier>,
+    stop: Option<u64>,
 ) -> Result<Option<Path>, Failure> {
     let grid = engine.input.rules.grid_nm;
     let diameter = match engine
@@ -280,9 +281,11 @@ pub(super) fn connect(
     // A narrow channel can lie entirely between adjacent rows of the mesh.
     // Refine only when the coarser search has finished without a connection.
     // All pitches together get the same allowance as the original mesh search.
-    let share =
-        budget.current_limit.saturating_sub(*expanded) / engine.input.nets.len().max(1) as u64;
-    let stop = expanded.saturating_add(share);
+    let stop = stop.unwrap_or_else(|| {
+        let share =
+            budget.current_limit.saturating_sub(*expanded) / engine.input.nets.len().max(1) as u64;
+        expanded.saturating_add(share)
+    });
     let guide_stop = expanded
         .saturating_add(engine.surface_search_share.unwrap_or(0))
         .min(stop);
