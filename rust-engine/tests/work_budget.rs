@@ -1017,15 +1017,17 @@ fn generated_uniform_net_and_net0_work_accounting() {
         fromto_id: None,
     });
     // Each post-insert partition supplies the next join. The seven- and
-    // eight-item partitions cost 99 and 123 units respectively.
-    const MULTI_GEN_ROUTE_WORK: u64 = 1414;
+    // eight-item partitions cost 99 and 123 units respectively. At the five
+    // generated insertions the junction queries cost 0, 2, 3, 4 and 5 units.
+    // Each nonempty query visits all prior nodes and checks one candidate.
+    const MULTI_GEN_ROUTE_WORK: u64 = 1414 + 2 + 3 + 4 + 5;
     let mut probe = Engine::new(multi.clone()).unwrap();
     probe.route(1, 1000).unwrap();
     assert_eq!(probe.work_used(), MULTI_GEN_ROUTE_WORK);
     assert_eq!(probe.copper().generated().count(), 5);
-    // Each query bulk-charges the three remaining nodes of the four-track
-    // generated subtree. Stop after its first or second node.
-    for limit in [951u64, 952, 964, 965, 972, 973] {
+    // After inserting the first four tracks, three separate spatial queries
+    // bulk-charge three remaining nodes. Stop one or two nodes into each.
+    for limit in [960u64, 961, 973, 974, 981, 982] {
         multi.limits.max_work = limit;
         let mut em = Engine::new(multi.clone()).unwrap();
         let err = em.route(1, 1000).unwrap_err();
