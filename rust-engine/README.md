@@ -295,6 +295,10 @@ on a lattice with spacing derived from via diameter and clearance. The spacing
 is a whole number of ordinary grid steps. Short segments connect the existing
 copper to nearby lattice points. Every segment and layer change must clear
 native geometry, including hole spacing between new vias on the same path.
+If none of the reachable nearby intersections permits a drill, a surface
+contact can attach to the lattice on another layer through a legal drill
+outside the lattice. The search checks both terminal stubs and the distance
+between source and destination drills before accepting the path.
 The ordinary search can still use passages between lattice points.
 
 For an oblique imported track separating the terminals, the planar bound

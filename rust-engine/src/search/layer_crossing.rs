@@ -245,10 +245,49 @@ fn cross(
     Ok(None)
 }
 
+/// On each axial ray, find the first sampled drill site that accepts both
+/// the through-via and the surface track from the terminal.
+pub(super) fn drill_sites(
+    engine: &Engine,
+    net: u32,
+    at: Point,
+    layer: usize,
+) -> Result<Vec<PlacedViaKey>, Failure> {
+    let grid = engine.input.rules.grid_nm;
+    let mut sites = Vec::with_capacity(4);
+    for axis in 0..2 {
+        for sign in [-1, 1] {
+            let edge = if sign < 0 {
+                engine.input.bounds.min
+            } else {
+                engine.input.bounds.max
+            };
+            let extent = edge[axis].abs_diff(at[axis]) / grid as u64;
+            let found = terminal_via(
+                engine,
+                net,
+                layer,
+                at,
+                extent + 1,
+                |n| {
+                    let mut p = at;
+                    p[axis] += sign * grid * n as i64;
+                    p
+                },
+                &[],
+            )?;
+            if let Some(via) = found {
+                sites.push(via);
+            }
+        }
+    }
+    Ok(sites)
+}
+
 // Probe grid-aligned sites outward from a terminal at exponentially increasing
 // distances. A blocked surface segment cuts off every longer segment on the ray.
 // The ordinary search can still use any legal site between the sampled ones.
-pub(super) fn terminal_via(
+fn terminal_via(
     engine: &Engine,
     net: u32,
     face: usize,

@@ -13,38 +13,6 @@ struct Terminal {
     layer: usize,
 }
 
-fn escapes(engine: &Engine, net: u32, t: Terminal) -> Result<Vec<PlacedViaKey>, Failure> {
-    let grid = engine.input.rules.grid_nm;
-    let mut sites = Vec::with_capacity(4);
-    for axis in 0..2 {
-        for sign in [-1, 1] {
-            let edge = if sign < 0 {
-                engine.input.bounds.min
-            } else {
-                engine.input.bounds.max
-            };
-            let extent = edge[axis].abs_diff(t.at[axis]) / grid as u64;
-            let found = layer_crossing::terminal_via(
-                engine,
-                net,
-                t.layer,
-                t.at,
-                extent + 1,
-                |n| {
-                    let mut p = t.at;
-                    p[axis] += sign * grid * n as i64;
-                    p
-                },
-                &[],
-            )?;
-            if let Some(via) = found {
-                sites.push(via);
-            }
-        }
-    }
-    Ok(sites)
-}
-
 fn track(a: Point, b: Point, layer: usize) -> PathEdge {
     PathEdge::Track {
         start: a,
@@ -234,8 +202,8 @@ pub(super) fn from_launch(
         if best.as_ref().is_some_and(|p| p.steps <= lower) {
             continue;
         }
-        let left = escapes(engine, net, source)?;
-        let right = escapes(engine, net, target)?;
+        let left = layer_crossing::drill_sites(engine, net, source.at, source.layer)?;
+        let right = layer_crossing::drill_sites(engine, net, target.at, target.layer)?;
         if source.layer != dest {
             for &v in &left {
                 join.connect(dest, Some(v), None, &mut best, &mut expand)?;
