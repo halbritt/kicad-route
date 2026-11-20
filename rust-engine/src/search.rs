@@ -3823,6 +3823,12 @@ fn seed_backward_a_star(
                                             },
                                         };
                                         record_seed(bkey, g_seed, step)?;
+                                        // Each legal final track reaches this same reverse
+                                        // state in one step. A zero congestion charge is
+                                        // its least possible price on this layer.
+                                        if step_pen == 0 {
+                                            break;
+                                        }
                                     }
                                 }
                             }
