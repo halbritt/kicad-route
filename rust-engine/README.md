@@ -162,7 +162,11 @@ of the land exposed. Each candidate consumes work and the usual track, via and
 contact rules apply. A final pad can also branch perpendicularly from a straight track.
 When both ends of a source track already connect to other copper in its
 component, a terminal can branch from an interior point sharing its x or y
-coordinate, including an exact integer point on a diagonal trace. Its heuristic
+coordinate, including an exact integer point on a diagonal trace. After all spatial grid searches fail between two isolated surface pads on the
+same layer, the router can try a zero-via 45-degree segment or a 45-degree
+segment joined to an orthogonal one. It checks the full copper width and both
+pad landings, and uses the same work and expansion budgets. Generated
+blockers remain eligible for the existing rip-up process. The grid heuristic
 is the minimum, over target items, of the sum of the two rounded-up axis gaps
 in grid steps to a bounding box containing the endpoints that can make contact.
 For pads, tracks and vias the expansion uses the route's floored half-width

@@ -3741,7 +3741,7 @@ fn trim_dangling_pad_tails(tracks: &mut Vec<Track>, pads: &[&crate::model::Pad],
 }
 
 /// Computes a 1-segment or 2-segment octilinear (45-deg / ortho) path between `a` and `b`.
-fn octilinear_elbow_paths(a: Point, b: Point) -> Vec<Vec<Point>> {
+pub(crate) fn octilinear_elbow_paths(a: Point, b: Point) -> Vec<Vec<Point>> {
     if a == b {
         return vec![vec![a]];
     }
