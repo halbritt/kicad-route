@@ -5272,3 +5272,70 @@ fn staggered_barriers_certify_the_cheaper_path_for_off_grid_pads() {
         engine.work.used()
     );
 }
+
+#[test]
+fn straight_certificate_uses_the_first_contact_cell_and_checks_the_entire_track() {
+    let mut input: Input = serde_json::from_value(serde_json::json!({
+        "version": 1, "source_id": "a".repeat(64), "layer": "F.Cu",
+        "layers": ["F.Cu","In1.Cu","In2.Cu","B.Cu"],
+        "bounds": {"min":[0,0], "max":[40_000_000,12_000_000]},
+        "rules": {"grid_nm":500_000, "width_nm":200_000, "clearance_nm":200_000,
+                  "edge_clearance_nm":500_000},
+        "nets": [{"id":1,"name":"signal"},{"id":2,"name":"shield"}],
+        "pads": [], "tracks": [], "max_expansions":100_000
+    }))
+    .unwrap();
+    input.board_design_settings = Some(crate::rules::BoardDesignSettings {
+        min_track_width_nm: 200_000,
+        default_track_width_nm: 200_000,
+        min_edge_clearance_nm: 500_000,
+        default_clearance_nm: 200_000,
+        min_via_diameter_nm: 500_000,
+        default_via_diameter_nm: 600_000,
+        min_via_annular_width_nm: 100_000,
+        min_through_hole_diameter_nm: 300_000,
+        default_via_drill_nm: 300_000,
+        ..Default::default()
+    });
+    for (n, at) in [(1, [2_550_000, 4_585_000]), (2, [27_560_000, 4_615_000])] {
+        let mut p = pad(n, 1, at, Shape::Circle { radius_nm: 250_000 });
+        p.layers = vec!["F.Cu".into()];
+        input.pads.push(p);
+    }
+    let join = |input: Input, fast, bound| {
+        let engine = Engine::new(input).unwrap();
+        let mut expanded = 0;
+        let path = join_components_inner(
+            &engine,
+            1,
+            &[Copper::Pad(&engine.input.pads[0])],
+            &[vec![Copper::Pad(&engine.input.pads[1])]],
+            &mut crate::negotiate::TrialBudget::fixed(bound),
+            &mut expanded,
+            None,
+            None,
+            fast,
+        );
+        (path, expanded)
+    };
+    let (reference, _) = join(input.clone(), false, 100_000);
+    let (fast, expanded) = join(input.clone(), true, 8);
+    // A whole-ray interior landing is inside cell 51. The ordinary landing
+    // and the independent 50-step forward search both finish in cell 50.
+    let (reference, fast) = (reference.unwrap(), fast.unwrap());
+    assert_eq!((reference.steps, fast.steps), (50, 50));
+    assert_eq!(reference.points.last(), fast.points.last());
+    assert!(expanded <= 8);
+
+    // The terminal cell remains clear, but the long conductor hits the shield.
+    let shield = track(
+        3,
+        2,
+        [8_000_000, 1_000_000],
+        [8_000_000, 11_000_000],
+        800_000,
+    );
+    input.tracks.push(shield);
+    let (blocked, _) = join(input, true, 8);
+    assert_eq!(blocked.unwrap_err().status, Status::BudgetExhausted);
+}
