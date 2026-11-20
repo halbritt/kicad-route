@@ -860,12 +860,12 @@ fn search_component_path(
     expanded: &mut u64,
     history: Option<&crate::negotiate::CongestionHistory>,
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
-    prefer_higher_g: bool,
+    batch_search: bool,
 ) -> Result<Path, Failure> {
     // On an isolated pad-to-pad join, follow a minimum-cost plateau toward the
     // target. A history-dependent drill clearance can require several competing
     // approaches to the same location, so keep their normal ordering.
-    let prefer_higher_g = prefer_higher_g
+    let prefer_higher_g = batch_search
         || (engine.input.rules.same_net_hole_clearance_nm == 0
             && matches!(source, [Copper::Pad(_)])
             && matches!(targets, [group] if matches!(group.as_slice(), [Copper::Pad(_)])));
@@ -1430,6 +1430,7 @@ fn search_component_path(
                 history,
                 frontier.as_deref_mut(),
                 prefer_higher_g,
+                batch_search,
                 can_probe_escape.then_some(
                     &mut escape_probe
                         as &mut dyn FnMut(
@@ -3862,6 +3863,7 @@ fn walk_multilayer_bidirectional(
     history: Option<&crate::negotiate::CongestionHistory>,
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
     prefer_higher_g: bool,
+    batch_search: bool,
     mut escape_probe: Option<
         &mut dyn FnMut(
             &mut u64,
@@ -3958,7 +3960,7 @@ fn walk_multilayer_bidirectional(
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     let mut local_exp = 0u64;
-    let try_straight = prefer_higher_g
+    let try_straight = batch_search
         && history.is_none_or(|h| h.is_empty())
         && engine
             .input
