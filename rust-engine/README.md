@@ -294,7 +294,9 @@ it can retain a checked surface route as its best known path. It samples
 short pad departures in each axial direction. If the spaced samples all miss
 and the join still needs a route, it checks intervening grid points in order
 of distance. Each extra probe spends an expansion from a shared allowance.
-A solid no-via rectangle can exclude a run of drill centers at once.
+If the axial rays have no reachable drill, the same allowance can check the
+four 45-degree rays. A solid no-via rectangle can exclude a run of drill
+centers up to the first edge the ray exits.
 Every resulting via and the entire surface track to it must be legal.
 A pair of contacts on
 different faces can share one through-via. A blocked face can use a pair

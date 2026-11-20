@@ -257,34 +257,40 @@ pub(super) fn drill_sites(
 ) -> Result<Vec<PlacedViaKey>, Failure> {
     let grid = engine.input.rules.grid_nm;
     let last = engine.layer_count() - 1;
-    let rays = [(0, -1), (0, 1), (1, -1), (1, 1)];
-    let mut sites = Vec::with_capacity(rays.len());
-    let mut ends = [0; 4];
-    let along = |axis: usize, sign: i64, n: u64| {
-        let mut p = at;
-        p[axis] += sign * grid * n as i64;
-        p
+    const AXIAL: [Point; 4] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+    const DIAGONAL: [Point; 4] = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+    let point =
+        |direction: Point, n: u64| std::array::from_fn(|k| at[k] + direction[k] * grid * n as i64);
+    let ray_end = |direction: Point| {
+        (0..2)
+            .filter(|&k| direction[k] != 0)
+            .map(|k| {
+                let limit = if direction[k] < 0 {
+                    engine.input.bounds.min[k]
+                } else {
+                    engine.input.bounds.max[k]
+                };
+                limit.abs_diff(at[k]) / grid as u64 + 1
+            })
+            .min()
+            .unwrap_or(0)
     };
-    for (i, (axis, sign)) in rays.into_iter().enumerate() {
-        let edge = if sign < 0 {
-            engine.input.bounds.min
-        } else {
-            engine.input.bounds.max
-        };
-        let extent = edge[axis].abs_diff(at[axis]) / grid as u64;
+    let mut sites = Vec::with_capacity(4);
+    let mut axial_ends = [0; 4];
+    for (i, direction) in AXIAL.into_iter().enumerate() {
         let sample = sample_via(
             engine,
             net,
             layer,
             at,
-            extent + 1,
-            |n| along(axis, sign, n),
+            ray_end(direction),
+            |n| point(direction, n),
             &[],
         )?;
         if let Some(via) = sample.via {
             sites.push(via);
         }
-        ends[i] = sample.end;
+        axial_ends[i] = sample.end;
     }
     let Some(expand) = extra_sites else {
         return Ok(sites);
@@ -292,69 +298,75 @@ pub(super) fn drill_sites(
     if !sites.is_empty() {
         return Ok(sites);
     }
-    let mut next = [3; 4];
-    loop {
-        for (i, (axis, sign)) in rays.into_iter().enumerate() {
-            next[i] = next_drill_offset(engine, at, axis, sign, next[i], ends[i])?;
-        }
-        let Some(offset) = next
-            .iter()
-            .zip(ends)
-            .filter_map(|(&n, end)| (n < end).then_some(n))
-            .min()
-        else {
-            break;
-        };
-        for (i, (axis, sign)) in rays.into_iter().enumerate() {
-            if next[i] != offset || offset >= ends[i] {
-                continue;
+    // Fill in the axial samples first. A diagonal surface escape can reach
+    // a drill window that no horizontal or vertical line crosses.
+    for (directions, mut ends, sampled) in [
+        (AXIAL, axial_ends, true),
+        (DIAGONAL, DIAGONAL.map(ray_end), false),
+    ] {
+        let mut next = [if sampled { 3 } else { 1 }; 4];
+        loop {
+            for (i, direction) in directions.into_iter().enumerate() {
+                next[i] = next_drill_offset(engine, at, direction, next[i], ends[i], sampled)?;
             }
-            if !expand()? {
+            let Some(ring) = next
+                .iter()
+                .zip(ends)
+                .filter_map(|(&n, end)| (n < end).then_some(n))
+                .min()
+            else {
+                break;
+            };
+            for (i, direction) in directions.into_iter().enumerate() {
+                if next[i] != ring || ring >= ends[i] {
+                    continue;
+                }
+                if !expand()? {
+                    return Ok(sites);
+                }
+                engine.work.charge(1)?;
+                let p = point(direction, ring);
+                if !engine.legal_edge_on(net, layer, at, p)? {
+                    ends[i] = ring;
+                } else if engine
+                    .legal_via(net, p, 0, last, ViaKind::Through, &[])?
+                    .is_some()
+                {
+                    sites.push(PlacedViaKey {
+                        at: p,
+                        start_layer: 0,
+                        end_layer: last as u8,
+                        kind: 0,
+                    });
+                }
+                next[i] += 1;
+            }
+            if !sites.is_empty() {
                 return Ok(sites);
             }
-            engine.work.charge(1)?;
-            let p = along(axis, sign, offset);
-            if !engine.legal_edge_on(net, layer, at, p)? {
-                ends[i] = offset;
-            } else if engine
-                .legal_via(net, p, 0, last, ViaKind::Through, &[])?
-                .is_some()
-            {
-                sites.push(PlacedViaKey {
-                    at: p,
-                    start_layer: 0,
-                    end_layer: last as u8,
-                    kind: 0,
-                });
-            }
-            next[i] += 1;
-        }
-        if !sites.is_empty() {
-            break;
         }
     }
     Ok(sites)
 }
 
-/// A through drill spans every active copper layer. All admitted rule areas
-/// name at least one such layer. Skip centers contained in a solid no-via
-/// rectangle, leaving holes, slanted boundaries and clearances to legal_via.
+/// Skip centers inside solid no-via rectangles. For a diagonal ray the
+/// first exit is whichever of the two forward rectangle edges it meets first.
 fn next_drill_offset(
     engine: &Engine,
     at: Point,
-    axis: usize,
-    sign: i64,
+    direction: Point,
     mut n: u64,
     end: u64,
+    sampled: bool,
 ) -> Result<u64, Failure> {
     let grid = engine.input.rules.grid_nm;
     while n < end {
         engine.work.charge(1)?;
-        if n.is_power_of_two() {
+        if sampled && n.is_power_of_two() {
             n += 1;
             continue;
         }
-        let pos = at[axis] + sign * grid * n as i64;
+        let pos: Point = std::array::from_fn(|k| at[k] + direction[k] * grid * n as i64);
         let mut next = n;
         engine.work.charge(engine.input.rule_areas.len() as u64)?;
         for area in &engine.input.rule_areas {
@@ -364,11 +376,16 @@ fn next_drill_offset(
             let Some((lo, hi)) = area.rectangular_bounds() else {
                 continue;
             };
-            if (lo[axis]..=hi[axis]).contains(&pos)
-                && (lo[1 - axis]..=hi[1 - axis]).contains(&at[1 - axis])
-            {
-                let far = if sign < 0 { lo[axis] } else { hi[axis] };
-                next = next.max(at[axis].abs_diff(far) / grid as u64 + 1);
+            if (0..2).all(|k| (lo[k]..=hi[k]).contains(&pos[k])) {
+                let exit = (0..2)
+                    .filter(|&k| direction[k] != 0)
+                    .map(|k| {
+                        let far = if direction[k] < 0 { lo[k] } else { hi[k] };
+                        at[k].abs_diff(far) / grid as u64 + 1
+                    })
+                    .min()
+                    .unwrap_or(end);
+                next = next.max(exit);
             }
         }
         if next == n {
@@ -483,6 +500,72 @@ mod tests {
         .unwrap();
         assert!(found.is_empty());
         assert_eq!(probes, 0);
+    }
+
+    #[test]
+    fn diagonal_drill_windows_require_a_paid_clear_escape_and_the_nearest_rectangle_exit() {
+        let mut input: Input = serde_json::from_str(include_str!(
+            "../../tests/fixtures/multiterminal-native-two-nets.json"
+        ))
+        .unwrap();
+        input.layers = vec!["F.Cu".into(), "B.Cu".into()];
+        input.pads.clear();
+        input.tracks.clear();
+        let rect = |id, x, y, right, top, vias: bool| -> crate::model::RuleArea {
+            serde_json::from_value(serde_json::json!({
+                "id": format!("854bc63a-7fdf-43fb-a486-{id:012x}"),"layers":["F.Cu","B.Cu"],
+                "outer":[[x,y],[right,y],[right,top],[x,top]],
+                "no_tracks":!vias,"no_vias":vias
+            }))
+            .unwrap()
+        };
+        let source = [10_000_000, 10_000_000];
+        let via = [11_500_000, 11_500_000];
+        // Two long slabs beside the aperture and two short ones above and
+        // below it leave just its central ordinary-grid point drillable.
+        for (id, x, y, r, t) in [
+            (1, 0, 0, 11_000_000, 20_000_000),
+            (2, 12_000_000, 0, 40_000_000, 20_000_000),
+            (3, 11_000_000, 0, 12_000_000, 11_000_000),
+            (4, 11_000_000, 12_000_000, 12_000_000, 20_000_000),
+        ] {
+            input.rule_areas.push(rect(id, x, y, r, t, true));
+        }
+        for blocked in [false, true] {
+            let mut world = input.clone();
+            if blocked {
+                world.rule_areas.push(rect(
+                    5, 10_600_000, 10_600_000, 10_900_000, 10_900_000, false,
+                ));
+            }
+            let engine = Engine::new(world).unwrap();
+            assert!(engine
+                .legal_via(1, via, 0, 1, ViaKind::Through, &[])
+                .unwrap()
+                .is_some());
+            let only_sparse = drill_sites(&engine, 1, source, 0, None).unwrap();
+            assert!(only_sparse.is_empty());
+            let mut probes = 0;
+            let actual = drill_sites(
+                &engine,
+                1,
+                source,
+                0,
+                Some(&mut || {
+                    probes += 1;
+                    Ok(true)
+                }),
+            )
+            .unwrap();
+            assert!(probes > 0);
+            if blocked {
+                assert!(actual.is_empty());
+            } else {
+                assert_eq!(actual.iter().map(|p| p.at).collect::<Vec<_>>(), [via]);
+                let none = drill_sites(&engine, 1, source, 0, Some(&mut || Ok(false))).unwrap();
+                assert!(none.is_empty());
+            }
+        }
     }
 
     #[test]

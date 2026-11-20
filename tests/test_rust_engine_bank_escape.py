@@ -2,6 +2,7 @@
 import json
 
 import pcbnew
+import pytest
 
 from test_rust_engine_native import _built_rust_engine, guarded_cli as guarded_cli
 from tests.e2e_rust_router.kicad_verify import BoardBuilder, run_native_drc
@@ -238,7 +239,8 @@ def test_inner_land_grid_pads_escape_to_drills_outside_the_package(tmp_path, gua
     assert not native["unconnected_items"] and not native["violations"]
 
 
-def test_shielded_contacts_reach_drill_windows_between_geometric_samples(tmp_path, guarded_cli):
+@pytest.mark.parametrize("diagonal", [False, True], ids=["axial", "diagonal"])
+def test_shielded_contacts_reach_drill_windows_between_geometric_samples(tmp_path, guarded_cli, diagonal):
     board = BoardBuilder(copper_layers=4, seed=10382)
     board.set_rect_outline(0, 0, 40_000_000, 24_000_000)
     front, back = pcbnew.F_Cu, pcbnew.B_Cu
@@ -260,7 +262,7 @@ def test_shielded_contacts_reach_drill_windows_between_geometric_samples(tmp_pat
         board.add_pad(part, "1", net, pos, size_nm=point(.7, .6),
                       shape=pcbnew.PAD_SHAPE_RECT, layers=[layer])
 
-    windows = [(5.6, 8), (33.09, 13)]
+    windows = [(5.6, 10.5), (33.09, 16.81)] if diagonal else [(5.6, 8), (33.09, 13)]
     for (x, y), (lo, hi) in zip(windows, [(-1, 20), (20, 41)]):
         block(stack, lo, -1, x - .55, 25, vias=True)
         block(stack, x + .55, -1, hi, 25, vias=True)
@@ -284,6 +286,18 @@ def test_shielded_contacts_reach_drill_windows_between_geometric_samples(tmp_pat
     for (vx, vy), (cx, cy) in zip(vias, windows):
         x, y = point(cx, cy)
         assert abs(vx - x) < pcbnew.FromMM(.55) and abs(vy - y) < pcbnew.FromMM(.65)
+    if diagonal:
+        starts = {point(3.1, 8), point(36.9, 13)}
+        ends = set(vias)
+        def reaches_window(track):
+            a = (track.GetStartX(), track.GetStartY())
+            b = (track.GetEndX(), track.GetEndY())
+            return ((a in starts and b in ends) or (b in starts and a in ends)) and (
+                abs(a[0] - b[0]) == abs(a[1] - b[1])
+            )
+        assert any(reaches_window(track) for track in reopened.GetTracks()
+                   if track.GetNetname() == "SIG" and track.GetLayer() == front
+                   and not isinstance(track, pcbnew.PCB_VIA))
     verified = run_native_drc(saved, sidecar_source=source).raw
     assert not verified["unconnected_items"] and not verified["violations"]
 
