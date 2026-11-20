@@ -1,3 +1,4 @@
+use crate::budget::WorkBudget;
 use crate::geometry;
 use crate::model::{
     DiffPairsMode, Failure, Input, Point, ProtectMode, RoutingOptions, StackupKind, Status, Track,
@@ -8,7 +9,7 @@ use crate::rules::{
     TuningProfile,
 };
 use crate::search::PlacedViaKey;
-use crate::spatial::{DrillGeom, PadCore, SweptAabb};
+use crate::spatial::{DrillGeom, PadCore, SweptAabb, TrackGeom};
 use crate::{Engine, TransactionError};
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 use std::ops::ControlFlow;
@@ -7053,13 +7054,28 @@ fn meander_clean_clears_pads(engine: &Engine, net: u32, cand: &Track, clean: &[P
     true
 }
 
+fn other_meander_tracks(engine: &Engine, cand: &Track) -> Result<Vec<TrackGeom>, Failure> {
+    let mut other = Vec::new();
+    for track in engine.copper.tracks() {
+        engine.work.charge(1)?;
+        if track.net == cand.net && track.layer == cand.layer && track.id != cand.id {
+            other.push(TrackGeom {
+                start: track.start,
+                end: track.end,
+                width_nm: track.width_nm,
+            });
+        }
+    }
+    Ok(other)
+}
+
 fn same_net_meander_clear(
     cand: &Track,
     clean: &[Point],
-    other_same_net: &[Track],
-    min_clr_nm: i64,
-) -> bool {
-    let clr2 = 2 * i128::from(cand.width_nm) + 2 * i128::from(min_clr_nm);
+    others: &[TrackGeom],
+    work: &WorkBudget,
+) -> Result<bool, Failure> {
+    const MEANDER_CLEARANCE_NM: i128 = 50_000;
     let on_cand_line = |p: Point| -> bool {
         let vx = i128::from(cand.end[0] - cand.start[0]);
         let vy = i128::from(cand.end[1] - cand.start[1]);
@@ -7067,41 +7083,35 @@ fn same_net_meander_clear(
         let wy = i128::from(p[1] - cand.start[1]);
         (vx * wy - vy * wx).abs() <= vx.abs().max(vy.abs()) * 2
     };
-    for ot in other_same_net {
-        if ot.layer != cand.layer {
-            continue;
-        }
-        // Only check newly introduced off-line vertices and segments that leave `cand`'s line;
-        // collinear sub-segments of `cand` touching `cand.start`/`cand.end` retain pre-existing proximity.
-        for &pt in clean {
-            if pt != cand.start
-                && pt != cand.end
-                && !on_cand_line(pt)
-                && geometry::point_near_segment(pt, ot.start, ot.end, clr2, false)
-            {
-                return false;
+    for other in others {
+        let copper2 = i128::from(cand.width_nm) + i128::from(other.width_nm);
+        let gap2 = copper2 + 2 * MEANDER_CLEARANCE_NM;
+        for edge in clean.windows(2) {
+            work.charge(1)?;
+            let (a, b) = (edge[0], edge[1]);
+            if on_cand_line(a) && on_cand_line(b) {
+                continue;
             }
-        }
-        for w in clean.windows(2) {
-            if !on_cand_line(w[0]) || !on_cand_line(w[1]) {
-                if w[0] != cand.start && w[0] != cand.end && w[1] != cand.start && w[1] != cand.end
-                {
-                    if geometry::segments_near(w[0], w[1], ot.start, ot.end, clr2, false) {
-                        return false;
-                    }
-                } else {
-                    // V-peak leg attached to cand endpoint: check midpoint + 75% point toward apex
-                    let off = if !on_cand_line(w[0]) { w[0] } else { w[1] };
-                    let end = if !on_cand_line(w[0]) { w[1] } else { w[0] };
-                    let mid = [(off[0] + end[0]) / 2, (off[1] + end[1]) / 2];
-                    if geometry::point_near_segment(mid, ot.start, ot.end, clr2, false) {
-                        return false;
-                    }
-                }
+            let (joint, tip) = if a == cand.start || a == cand.end {
+                (a, b)
+            } else {
+                (b, a)
+            };
+            let existing_junction = (joint == cand.start || joint == cand.end)
+                && geometry::point_near_segment(joint, other.start, other.end, copper2, true);
+            // A detour leg leaving an existing junction can share its endpoint.
+            // Keep the outer half clear. Without an existing junction, test the whole leg.
+            let start = if existing_junction {
+                [(joint[0] + tip[0]) / 2, (joint[1] + tip[1]) / 2]
+            } else {
+                joint
+            };
+            if geometry::segments_near(start, tip, other.start, other.end, gap2, false) {
+                return Ok(false);
             }
         }
     }
-    true
+    Ok(true)
 }
 
 fn replace_generated_track_with_pts(
@@ -7337,19 +7347,7 @@ fn apply_single_ended_meander(
         let Some(li) = engine.layer_index(&cand.layer) else {
             continue;
         };
-        let other_same_net: Vec<Track> = engine
-            .copper
-            .generated()
-            .chain(engine.input.tracks.iter())
-            .filter(|t| {
-                t.net == net
-                    && !(t.layer == cand.layer
-                        && t.width_nm == cand.width_nm
-                        && ((t.start == cand.start && t.end == cand.end)
-                            || (t.start == cand.end && t.end == cand.start)))
-            })
-            .cloned()
-            .collect();
+        let other_same_net = other_meander_tracks(engine, &cand)?;
         let delay_rate = if let Some(ref p) = prof {
             let Some(le) = p
                 .layer_entries
@@ -7490,7 +7488,7 @@ fn apply_single_ended_meander(
                     let Some(clean) = best_clean else {
                         continue;
                     };
-                    if !same_net_meander_clear(&cand, &clean, &other_same_net, 50_000) {
+                    if !same_net_meander_clear(&cand, &clean, &other_same_net, &engine.work)? {
                         continue;
                     }
                     let attempt = engine.transaction(|tx| {
@@ -7627,7 +7625,7 @@ fn apply_single_ended_meander(
                         let Some(clean) = best_clean else {
                             continue;
                         };
-                        if !same_net_meander_clear(&cand, &clean, &other_same_net, 50_000) {
+                        if !same_net_meander_clear(&cand, &clean, &other_same_net, &engine.work)? {
                             continue;
                         }
                         let attempt = engine.transaction(|tx| {
@@ -8534,19 +8532,7 @@ fn match_net_in_pair_to_target(
             (clean, new_len - seg_len)
         };
 
-        let other_same_net: Vec<Track> = engine
-            .copper
-            .generated()
-            .chain(engine.input.tracks.iter())
-            .filter(|t| {
-                t.net == short_net
-                    && !(t.layer == cand.layer
-                        && t.width_nm == cand.width_nm
-                        && ((t.start == cand.start && t.end == cand.end)
-                            || (t.start == cand.end && t.end == cand.start)))
-            })
-            .cloned()
-            .collect();
+        let other_same_net = other_meander_tracks(engine, cand)?;
 
         for &(nx, ny) in &normals {
             engine.work.charge(1)?;
@@ -8567,7 +8553,7 @@ fn match_net_in_pair_to_target(
             }
             engine.work.charge(1)?;
             let (clean, _) = eval_pad_bump(0.5 * (lo + hi), nx, ny);
-            if !same_net_meander_clear(cand, &clean, &other_same_net, 50_000) {
+            if !same_net_meander_clear(cand, &clean, &other_same_net, &engine.work)? {
                 continue;
             }
             let attempt = engine.transaction(|tx| {
@@ -9094,6 +9080,128 @@ pub fn apply_length_matching_in_tx(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn length_matching_preserves_clearance_to_locked_same_net_branches() {
+        let uid = |n: usize| format!("00000000-0000-4000-8000-{n:012}");
+        let y = 10_000_000;
+        let track = |id, start, end, width_nm| Track {
+            id: uid(id),
+            net: 1,
+            start,
+            end,
+            width_nm,
+            locked: true,
+            layer: "F.Cu".into(),
+        };
+        // The two-pad path has just been routed. Wide input stubs return from its
+        // left pad alongside the track retained for tuning.
+        for sides in [&[][..], &[1][..], &[-1][..], &[-1, 1][..]] {
+            let mut fixed = Vec::new();
+            for (i, &side) in sides.iter().enumerate() {
+                let stub_y = y + side * 640_000;
+                fixed.push(track(
+                    10 + i * 2,
+                    [5_000_000, y],
+                    [5_000_000, stub_y],
+                    200_000,
+                ));
+                fixed.push(track(
+                    11 + i * 2,
+                    [5_000_000, stub_y],
+                    [14_000_000, stub_y],
+                    800_000,
+                ));
+            }
+            let input = serde_json::from_value(serde_json::json!({
+                "version": 1, "source_id": "a".repeat(64),
+                "layer": "F.Cu", "layers": ["F.Cu"],
+                "bounds": {"min":[0,0],"max":[20_000_000,20_000_000]},
+                "nets": [{"id":0,"name":""},{"id":1,"name":"DATA"}],
+                "pads": [
+                    {"id":uid(1),"net":1,"at":[5_000_000,y],"shape":{"kind":"circle","radius_nm":150_000},"layers":["F.Cu"]},
+                    {"id":uid(2),"net":1,"at":[15_000_000,y],"shape":{"kind":"circle","radius_nm":150_000},"layers":["F.Cu"]}
+                ],
+                "tracks":fixed, "rules":{"grid_nm":200_000,"width_nm":200_000,"clearance_nm":150_000,
+                    "edge_clearance_nm":150_000,"hole_clearance_nm":150_000,"same_net_hole_clearance_nm":0},
+                "max_expansions":100_000
+            })).unwrap();
+            let mut engine = Engine::new(input).unwrap();
+            let start = [5_000_000, y];
+            let end = [15_000_000, y];
+            let mut original = track(30, start, end, 200_000);
+            original.locked = false;
+            let result = engine.transaction(|tx| {
+                let e = &mut *tx.engine;
+                e.copper.insert(original, &e.work)?;
+                apply_single_ended_meander(
+                    e, 1, 10_150_000, 10_000, false, 500_000, 2.5, false, None,
+                )
+            });
+            assert_eq!(engine.copper.input(), fixed);
+            if sides.len() == 2 {
+                assert_eq!(
+                    Failure::from(result.unwrap_err()).status,
+                    Status::Unroutable
+                );
+                assert_eq!(engine.copper.generated().count(), 0);
+                continue;
+            }
+            result.unwrap();
+            let mut length = 0.0;
+            for t in engine.copper.generated() {
+                length += dist_f64(t.start, t.end);
+                // A straight segment between these endpoints also lies within the strip.
+                for &side in sides {
+                    let toward = (side * (t.start[1] - y)).max(side * (t.end[1] - y));
+                    let copper_gap = 640_000 - toward - (800_000 + t.width_nm) / 2;
+                    assert!(copper_gap >= 50_000, "side {side}, {t:?}, gap {copper_gap}");
+                }
+            }
+            assert!((length - 10_150_000.0).abs() <= 10_000.0, "length {length}");
+        }
+    }
+
+    #[test]
+    fn meander_clearance_checks_and_charges_the_entire_new_leg() {
+        let cand = Track {
+            id: "original".into(),
+            net: 1,
+            start: [0, 0],
+            end: [10_000_000, 0],
+            width_nm: 200_000,
+            locked: false,
+            layer: "F.Cu".into(),
+        };
+        let bumped = [cand.start, [5_000_000, 1_000_000], cand.end];
+        // A short existing track crosses the first leg at one fifth of its
+        // length. The endpoint, midpoint and peak alone would all miss it.
+        let crossing = TrackGeom {
+            start: [1_000_000, 100_000],
+            end: [1_000_000, 300_000],
+            width_nm: 200_000,
+        };
+        let clear = TrackGeom {
+            start: [1_000_000, 4_000_000],
+            end: [1_000_000, 5_000_000],
+            width_nm: 200_000,
+        };
+        let work = WorkBudget::new(crate::model::Limits::default());
+        assert!(same_net_meander_clear(&cand, &bumped, &[clear], &work).unwrap());
+        let first_track_work = work.used();
+        assert!(first_track_work > 0);
+        assert!(!same_net_meander_clear(&cand, &bumped, &[clear, crossing], &work).unwrap());
+        let limited = WorkBudget::new(crate::model::Limits {
+            max_work: first_track_work,
+            ..Default::default()
+        });
+        assert_eq!(
+            same_net_meander_clear(&cand, &bumped, &[clear, crossing], &limited)
+                .unwrap_err()
+                .status,
+            Status::WorkExhausted
+        );
+    }
 
     #[test]
     fn measure_net_fromto_use_height_false_ignores_via_overrides_and_45_offcenter_overshoot() {
