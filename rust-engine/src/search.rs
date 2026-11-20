@@ -782,11 +782,14 @@ fn search_component_path(
         failure.expanded_states = *expanded;
         return Err(failure);
     }
+    let mut goal_bounds = Vec::new();
     let mut layer_targets: Vec<Vec<(Copper<'_>, Point, Point)>> = vec![Vec::new(); l_count];
     let mut layer_target_union: Vec<Option<(Point, Point)>> = vec![None; l_count];
     for c in targets.iter().flatten().copied() {
-        let mask = c.layer_mask(stackup);
-        let (lo, hi) = c.copper_bounds();
+        engine.work.search_storage(goal_bounds.len() + 1)?;
+        let goal = TargetBounds::new(c, stackup, &engine.work)?;
+        let (lo, hi, mask) = (goal.lo, goal.hi, goal.mask);
+        goal_bounds.push(goal);
         for l_idx in 0..l_count {
             if (mask & (1u32 << l_idx)) != 0 {
                 layer_targets[l_idx].push((c, lo, hi));
@@ -974,7 +977,7 @@ fn search_component_path(
             engine,
             net,
             &bwd_starts,
-            targets,
+            &goal_bounds,
             max_eff_width,
             via_cost,
             b,
@@ -998,7 +1001,7 @@ fn search_component_path(
                 p,
                 layer_idx,
                 stackup,
-                targets,
+                &goal_bounds,
                 &engine.effective_rules,
                 net,
                 max_eff_width,
@@ -1313,7 +1316,7 @@ fn search_component_path(
                 engine,
                 net,
                 &start_vec,
-                targets,
+                &goal_bounds,
                 max_eff_width,
                 via_cost,
                 budget,
@@ -1395,7 +1398,7 @@ fn search_component_path(
                             engine,
                             net,
                             &bwd_starts,
-                            targets,
+                            &goal_bounds,
                             max_eff_width,
                             via_cost,
                             needed_cutoff,
@@ -1890,7 +1893,7 @@ fn target_escape_reachable(
     engine: &Engine,
     net: u32,
     starts: &[(Point, u8)],
-    targets: &[Vec<Copper<'_>>],
+    targets: &[TargetBounds<'_>],
     max_eff_width: i64,
     via_cost: u64,
     budget: &mut crate::negotiate::TrialBudget<'_>,
@@ -1916,21 +1919,12 @@ fn target_escape_reachable(
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
 
-    for target in targets.iter().flatten() {
-        let t_mask = target.layer_mask(stackup);
-        let (lo, hi) = match *target {
-            Copper::Pad(pad) => pad.copper_bounds(),
-            Copper::Track(track) => track.copper_bounds(),
-            Copper::Graphic(graphic) => graphic.copper_bounds(),
-            Copper::Via(via) => {
-                let r = (via.diameter_nm + 1) / 2;
-                (
-                    [via.at[0] - r, via.at[1] - r],
-                    [via.at[0] + r, via.at[1] + r],
-                )
-            }
-            Copper::ZoneFill { .. } => continue,
-        };
+    for target in targets {
+        if matches!(target.copper, Copper::ZoneFill { .. }) {
+            continue;
+        }
+        let t_mask = target.mask;
+        let (lo, hi) = (target.lo, target.hi);
         let min_x = lo[0].saturating_sub(route_radius + grid).max(bounds.min[0]);
         let max_x = hi[0].saturating_add(route_radius + grid).min(bounds.max[0]);
         let min_y = lo[1].saturating_sub(route_radius + grid).max(bounds.min[1]);
@@ -1943,8 +1937,9 @@ fn target_escape_reachable(
                 let y_rem = (oy - min_y.rem_euclid(grid)).rem_euclid(grid);
                 let mut y = min_y.saturating_add(y_rem);
                 while y <= max_y {
+                    engine.work.charge(1)?;
                     let p = [x, y];
-                    let d = contact_steps(p, *target, max_eff_width, grid);
+                    let d = target.contact_steps(p, max_eff_width, grid);
                     if d <= 1 {
                         for l_idx in 0..l_count {
                             if (t_mask & (1u32 << l_idx)) == 0 {
@@ -2080,7 +2075,11 @@ fn target_escape_reachable(
                                             kind,
                                             locked: false,
                                         };
-                                        if target.touches_via(&probe_via, stackup, &engine.work)? {
+                                        if target.copper.touches_via(
+                                            &probe_via,
+                                            stackup,
+                                            &engine.work,
+                                        )? {
                                             let vkey = (p, prev_l);
                                             if start_set.contains(&vkey) {
                                                 return Ok(true);
@@ -2185,13 +2184,12 @@ fn compute_backward_heuristic(
     engine: &Engine,
     net: u32,
     starts: &[(Point, u8)],
-    targets: &[Vec<Copper<'_>>],
+    targets: &[TargetBounds<'_>],
     max_eff_width: i64,
     via_cost: u64,
     max_cost: u64,
     limit: u64,
 ) -> Result<BackwardHeuristic, Failure> {
-    let stackup = engine.all_layers_slice();
     let l_count = engine.layer_count();
     let grid = engine.input.rules.grid_nm;
     let route_radius = (max_eff_width + 1) / 2;
@@ -2206,21 +2204,12 @@ fn compute_backward_heuristic(
     let mut settled_d: HashMap<(Point, u8), u64> = HashMap::new();
     let mut pq: BinaryHeap<Reverse<(u64, Point, u8)>> = BinaryHeap::new();
 
-    for target in targets.iter().flatten() {
-        let t_mask = target.layer_mask(stackup);
-        let (lo, hi) = match *target {
-            Copper::Pad(pad) => pad.copper_bounds(),
-            Copper::Track(track) => track.copper_bounds(),
-            Copper::Graphic(graphic) => graphic.copper_bounds(),
-            Copper::Via(via) => {
-                let r = (via.diameter_nm + 1) / 2;
-                (
-                    [via.at[0] - r, via.at[1] - r],
-                    [via.at[0] + r, via.at[1] + r],
-                )
-            }
-            Copper::ZoneFill { .. } => continue,
-        };
+    for target in targets {
+        if matches!(target.copper, Copper::ZoneFill { .. }) {
+            continue;
+        }
+        let t_mask = target.mask;
+        let (lo, hi) = (target.lo, target.hi);
         let min_x = lo[0].saturating_sub(route_radius + grid).max(bounds.min[0]);
         let max_x = hi[0].saturating_add(route_radius + grid).min(bounds.max[0]);
         let min_y = lo[1].saturating_sub(route_radius + grid).max(bounds.min[1]);
@@ -2233,8 +2222,9 @@ fn compute_backward_heuristic(
                 let y_rem = (oy - min_y.rem_euclid(grid)).rem_euclid(grid);
                 let mut y = min_y.saturating_add(y_rem);
                 while y <= max_y {
+                    engine.work.charge(1)?;
                     let p = [x, y];
-                    let d = contact_steps(p, *target, max_eff_width, grid);
+                    let d = target.contact_steps(p, max_eff_width, grid);
                     if d <= 1 && d <= max_cost {
                         for l_idx in 0..l_count {
                             if (t_mask & (1u32 << l_idx)) == 0 {
@@ -2365,7 +2355,7 @@ fn component_estimate_multilayer(
     p: Point,
     layer_idx: usize,
     stackup: &[String],
-    targets: &[Vec<Copper<'_>>],
+    targets: &[TargetBounds<'_>],
     rules: &EffectiveRules,
     net: u32,
     max_eff_width: i64,
@@ -2384,12 +2374,12 @@ fn component_estimate_multilayer(
     let eff_width = track_width.map_or(max_eff_width, |w| w.max(max_eff_width));
     let my_bit = 1u32 << layer_idx;
     let mut lower_bound: Option<u64> = None;
-    for target in targets.iter().flatten() {
+    for target in targets {
         work.charge(1)?;
-        let t_mask = target.layer_mask(stackup);
+        let t_mask = target.mask;
         let smd_no_via = disallow_smd_via_in_pad
             && net != 0
-            && matches!(*target, Copper::Pad(pad) if pad.drill.is_none());
+            && matches!(target.copper, Copper::Pad(pad) if pad.drill.is_none());
         let d_via_bound = if smd_no_via {
             let mut d_pad_track: Option<u64> = None;
             for (t_idx, t_layer) in stackup.iter().enumerate() {
@@ -2398,21 +2388,23 @@ fn component_estimate_multilayer(
                 }
                 match rules.track_width_for(net, t_layer) {
                     Ok(w_l) => {
-                        let d = contact_steps(p, *target, w_l, grid);
+                        let d = target.contact_steps(p, w_l, grid);
                         d_pad_track = Some(d_pad_track.map_or(d, |best| best.min(d)));
                     }
                     Err(e) if e.status == Status::Unroutable => {}
                     Err(e) => return Err(e),
                 }
             }
-            d_pad_track.unwrap_or_else(|| contact_steps(p, *target, eff_width, grid))
+            d_pad_track.unwrap_or_else(|| target.contact_steps(p, eff_width, grid))
         } else {
-            contact_steps(p, *target, eff_width, grid)
+            target.contact_steps(p, eff_width, grid)
         };
         let d_via_bound = d_via_bound.saturating_mul(minimum_step);
         let steps = if let Some(width) = track_width {
             if (t_mask & my_bit) != 0 {
-                let d_track = contact_steps(p, *target, width, grid).saturating_mul(minimum_step);
+                let d_track = target
+                    .contact_steps(p, width, grid)
+                    .saturating_mul(minimum_step);
                 d_track.min(d_via_bound.saturating_add(via_cost))
             } else {
                 d_via_bound.saturating_add(via_cost)
@@ -2444,80 +2436,108 @@ fn isqrt_u128(n: u128) -> u128 {
     }
 }
 
-/// Lower bound to a superset of all endpoint-cap contacts with this target.
-/// Each orthogonal edge moves at most `grid` in one axis, including a shortened
-/// final edge. The sum of ceil(axis gap / grid) therefore cannot exceed the
-/// remaining step cost. Pad, track, and via contacts floor the route half-width
-/// and require one nm of overlap. Use their reachable endpoint bounds, so
-/// an edge that can only reach a tangent still needs one more step. For circular pads
-/// and vias, Cauchy-Schwarz also bounds `|dx| + |dy| <= isqrt(2 * R_sum^2)`.
-/// Ignoring obstacles and rounding outward can only decrease this bound. Each
-/// bound changes by at most one across an edge; the minimum over all targets is
-/// also consistent and is zero at every accepted contact endpoint.
-fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
-    let route_radius = match target {
-        Copper::Pad(_) | Copper::Track(_) | Copper::Via(_) => {
-            (width / 2 - geometry::CONTACT_OVERLAP_NM).max(0)
-        }
-        Copper::Graphic(_) | Copper::ZoneFill { .. } => (width + 1) / 2,
-    };
-    let (lo, hi, circle_center_and_radius) = match target {
-        Copper::Pad(pad) => {
-            let (lo, hi) = pad.copper_bounds();
-            let c = match pad.shape {
-                crate::model::Shape::Circle { radius_nm } => Some((pad.at, radius_nm)),
-                _ => None,
-            };
-            (lo, hi, c)
-        }
-        Copper::Track(track) => {
-            let (lo, hi) = track.copper_bounds();
-            (lo, hi, None)
-        }
-        Copper::Graphic(graphic) => {
-            let (lo, hi) = graphic.copper_bounds();
-            (lo, hi, None)
-        }
-        Copper::Via(via) => {
-            let r = (via.diameter_nm + 1) / 2;
-            (
-                [via.at[0] - r, via.at[1] - r],
-                [via.at[0] + r, via.at[1] + r],
-                Some((via.at, r)),
-            )
-        }
-        Copper::ZoneFill { poly, .. } => {
-            let mut lo = [i64::MAX, i64::MAX];
-            let mut hi = [i64::MIN, i64::MIN];
-            for pt in &poly.outer {
-                for k in 0..2 {
-                    lo[k] = lo[k].min(pt[k]);
-                    hi[k] = hi[k].max(pt[k]);
+/// Copper envelopes are invariant throughout a component join. Computing a
+/// filled ring's bounds during every queue expansion would rescan its vertices.
+struct TargetBounds<'a> {
+    copper: Copper<'a>,
+    lo: Point,
+    hi: Point,
+    mask: u32,
+}
+
+impl<'a> TargetBounds<'a> {
+    fn new(copper: Copper<'a>, stackup: &[String], work: &WorkBudget) -> Result<Self, Failure> {
+        use crate::model::{GraphicShape, Shape};
+        match copper {
+            Copper::ZoneFill { poly, .. } => work.charge(poly.outer.len() as u64)?,
+            Copper::Graphic(g) => match &g.shape {
+                GraphicShape::Polygon { outer, holes, .. } => {
+                    work.charge(outer.len() as u64)?;
+                    for ring in holes {
+                        work.charge(ring.len() as u64)?;
+                    }
+                }
+                _ => (),
+            },
+            Copper::Pad(pad) => {
+                let parts = pad.shape.parts();
+                if parts.len() > 1 {
+                    work.charge(parts.len() as u64)?;
+                }
+                for part in parts {
+                    if let Shape::ConvexPolygon { vertices, .. } = part {
+                        work.charge(vertices.len() as u64)?;
+                    }
                 }
             }
-            (lo, hi, None)
+            _ => (),
         }
-    };
-    let lo: Point = std::array::from_fn(|k| lo[k] - route_radius);
-    let hi: Point = std::array::from_fn(|k| hi[k] + route_radius);
-    let aabb_steps: u64 = (0..2)
-        .map(|k| {
-            let gap = (lo[k] - p[k]).max(p[k] - hi[k]).max(0);
-            ((gap + grid - 1) / grid) as u64
+        let (lo, hi) = copper.copper_bounds();
+        Ok(Self {
+            copper,
+            lo,
+            hi,
+            mask: copper.layer_mask(stackup),
         })
-        .sum();
-    if let Some((center, rad)) = circle_center_and_radius {
-        let r_sum = u128::try_from(rad.max(0) + route_radius.max(0)).unwrap_or(0);
-        let l1_limit = isqrt_u128(2 * r_sum * r_sum);
-        let l1_dist = (p[0] - center[0]).abs() as u128 + (p[1] - center[1]).abs() as u128;
-        if l1_dist > l1_limit {
-            let gap = l1_dist - l1_limit;
-            let g = grid as u128;
-            let diag_steps = ((gap + g - 1) / g) as u64;
-            return aabb_steps.max(diag_steps);
-        }
     }
-    aabb_steps
+    /// Lower bound to a superset of all endpoint-cap contacts with this target.
+    /// Each orthogonal edge moves at most `grid` in one axis, including a shortened
+    /// final edge. The sum of ceil(axis gap / grid) therefore cannot exceed the
+    /// remaining step cost. Pad, track, and via contacts floor the route half-width
+    /// and require one nm of overlap. Use their reachable endpoint bounds, so
+    /// an edge that can only reach a tangent still needs one more step. For circular pads
+    /// and vias, Cauchy-Schwarz also bounds `|dx| + |dy| <= isqrt(2 * R_sum^2)`.
+    /// Ignoring obstacles and rounding outward can only decrease this bound. Each
+    /// bound changes by at most one across an edge; the minimum over all targets is
+    /// also consistent and is zero at every accepted contact endpoint.
+    fn contact_steps(&self, p: Point, width: i64, grid: i64) -> u64 {
+        let route_radius = match self.copper {
+            Copper::Pad(_) | Copper::Track(_) | Copper::Via(_) => {
+                (width / 2 - geometry::CONTACT_OVERLAP_NM).max(0)
+            }
+            Copper::Graphic(_) | Copper::ZoneFill { .. } => (width + 1) / 2,
+        };
+        let circle = match self.copper {
+            Copper::Pad(pad) => match pad.shape {
+                crate::model::Shape::Circle { radius_nm } => Some((pad.at, radius_nm)),
+                _ => None,
+            },
+            Copper::Via(via) => Some((via.at, (via.diameter_nm + 1) / 2)),
+            _ => None,
+        };
+        let lo: Point = std::array::from_fn(|k| self.lo[k] - route_radius);
+        let hi: Point = std::array::from_fn(|k| self.hi[k] + route_radius);
+        let aabb_steps: u64 = (0..2)
+            .map(|k| {
+                let gap = (lo[k] - p[k]).max(p[k] - hi[k]).max(0);
+                ((gap + grid - 1) / grid) as u64
+            })
+            .sum();
+        if let Some((center, rad)) = circle {
+            let r_sum = u128::try_from(rad.max(0) + route_radius.max(0)).unwrap_or(0);
+            let l1_limit = isqrt_u128(2 * r_sum * r_sum);
+            let l1_dist = (p[0] - center[0]).abs() as u128 + (p[1] - center[1]).abs() as u128;
+            if l1_dist > l1_limit {
+                let gap = l1_dist - l1_limit;
+                let g = grid as u128;
+                let diag_steps = ((gap + g - 1) / g) as u64;
+                return aabb_steps.max(diag_steps);
+            }
+        }
+        aabb_steps
+    }
+}
+
+#[cfg(test)]
+fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
+    let (lo, hi) = target.copper_bounds();
+    TargetBounds {
+        copper: target,
+        lo,
+        hi,
+        mask: 0,
+    }
+    .contact_steps(p, width, grid)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -3339,7 +3359,7 @@ fn seed_backward_a_star(
     engine: &Engine,
     net: u32,
     sources: &ReverseSources,
-    targets: &[Vec<Copper<'_>>],
+    targets: &[TargetBounds<'_>],
     max_eff_width: i64,
     via_cost: u64,
     only_through_vias: bool,
@@ -3426,21 +3446,12 @@ fn seed_backward_a_star(
         Ok(())
     };
 
-    for target in targets.iter().flatten() {
-        let t_mask = target.layer_mask(stackup);
-        let (lo, hi) = match *target {
-            Copper::Pad(pad) => pad.copper_bounds(),
-            Copper::Track(track) => track.copper_bounds(),
-            Copper::Graphic(graphic) => graphic.copper_bounds(),
-            Copper::Via(via) => {
-                let r = (via.diameter_nm + 1) / 2;
-                (
-                    [via.at[0] - r, via.at[1] - r],
-                    [via.at[0] + r, via.at[1] + r],
-                )
-            }
-            Copper::ZoneFill { .. } => continue,
-        };
+    for target in targets {
+        if matches!(target.copper, Copper::ZoneFill { .. }) {
+            continue;
+        }
+        let t_mask = target.mask;
+        let (lo, hi) = (target.lo, target.hi);
         let min_x = lo[0].saturating_sub(route_radius + grid).max(bounds.min[0]);
         let max_x = hi[0].saturating_add(route_radius + grid).min(bounds.max[0]);
         let min_y = lo[1].saturating_sub(route_radius + grid).max(bounds.min[1]);
@@ -3453,8 +3464,9 @@ fn seed_backward_a_star(
                 let y_rem = (oy - min_y.rem_euclid(grid)).rem_euclid(grid);
                 let mut y = min_y.saturating_add(y_rem);
                 while y <= max_y {
+                    engine.work.charge(1)?;
                     let p = [x, y];
-                    if contact_steps(p, *target, max_eff_width, grid) <= 1 {
+                    if target.contact_steps(p, max_eff_width, grid) <= 1 {
                         for l_idx in 0..l_count {
                             if (t_mask & (1u32 << l_idx)) != 0 && track_ok_on_layer[l_idx] {
                                 for delta in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]] {
@@ -3559,7 +3571,11 @@ fn seed_backward_a_star(
                                             kind,
                                             locked: false,
                                         };
-                                        if target.touches_via(&probe_via, stackup, &engine.work)? {
+                                        if target.copper.touches_via(
+                                            &probe_via,
+                                            stackup,
+                                            &engine.work,
+                                        )? {
                                             let v_pen = match history {
                                                 Some(hist) if !hist.is_empty() => {
                                                     engine.work.charge(1)?;
@@ -3632,7 +3648,7 @@ fn walk_multilayer_bidirectional(
     engine: &Engine,
     net: u32,
     starts: &[(Point, u8, bool)],
-    targets: &[Vec<Copper<'_>>],
+    targets: &[TargetBounds<'_>],
     max_eff_width: i64,
     via_cost: u64,
     budget: &mut crate::negotiate::TrialBudget<'_>,
