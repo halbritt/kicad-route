@@ -49,6 +49,95 @@ impl Mesh<'_> {
         Ok(())
     }
 
+    /// Last visible grid center before a nearby obstruction along one axis.
+    fn turn_at_obstruction(
+        &self,
+        p: Point,
+        layer: u8,
+        axis: usize,
+        sign: i64,
+        radius: i64,
+    ) -> Result<Option<Point>, Failure> {
+        let grid = self.grid as i64;
+        let at = |steps| {
+            let mut q = p;
+            q[axis] += sign * grid * steps;
+            q
+        };
+        let mut blocked = radius / grid;
+        if self.clear(p, at(blocked), layer)? {
+            return Ok(None);
+        }
+        let mut clear = 0;
+        while blocked - clear > 1 {
+            let mid = clear.midpoint(blocked);
+            if self.clear(p, at(mid), layer)? {
+                clear = mid;
+            } else {
+                blocked = mid;
+            }
+        }
+        Ok((clear > 0).then(|| at(clear)))
+    }
+
+    fn drill_after_turn(
+        &self,
+        bend: Point,
+        layer: u8,
+        axis: usize,
+        sign: i64,
+    ) -> Result<Option<PlacedViaKey>, Failure> {
+        let grid = self.grid as i64;
+        let bound = if sign < 0 {
+            self.engine.input.bounds.min
+        } else {
+            self.engine.input.bounds.max
+        };
+        let extent = bound[axis].abs_diff(bend[axis]) / self.grid + 1;
+        let at = |steps: u64| {
+            let mut q = bend;
+            q[axis] += sign * grid * steps as i64;
+            q
+        };
+        let Some(mut via) = super::super::layer_crossing::terminal_via(
+            self.engine,
+            self.net,
+            layer as usize,
+            bend,
+            extent,
+            at,
+            &[],
+        )?
+        else {
+            return Ok(None);
+        };
+        // Keep a known legal outer end while shortening the sampled stub.
+        // Other legal apertures can exist between the earlier samples.
+        let mut outer = via.at[axis].abs_diff(bend[axis]) / self.grid;
+        let mut inner = outer / 2;
+        while outer - inner > 1 {
+            let mid = inner.midpoint(outer);
+            if self
+                .engine
+                .legal_via(
+                    self.net,
+                    at(mid),
+                    0,
+                    self.engine.layer_count() - 1,
+                    ViaKind::Through,
+                    &[],
+                )?
+                .is_some()
+            {
+                outer = mid;
+            } else {
+                inner = mid;
+            }
+        }
+        via.at = at(outer);
+        Ok(self.clear(bend, via.at, layer)?.then_some(via))
+    }
+
     pub(super) fn contact_portals(
         &self,
         p: Point,
@@ -101,22 +190,67 @@ impl Mesh<'_> {
         if result.len() > surface {
             return Ok(result);
         }
-        // Work outward from the contact on its own ordinary grid phase. Each
-        // legal axial run may turn around the adjacent pad or keepout. Stop at
-        // the nearest level with a usable drill, or at the far side of the
-        // neighboring coarse cell. The ordinary search can go farther.
         let grid = self.grid as i64;
         let radius = self.pitch * 2;
-        // Every site considered by this local drill search is inside the
-        // square. A through-via exclusion on any crossed layer covers it.
-        if self.same_no_via_region(p.map(|v| v - radius), p.map(|v| v + radius))? {
+        // When a nearby mesh junction cannot admit a barrel, or drilling is
+        // excluded throughout the local window, try turning along a pad row
+        // at the first obstruction. The strip beyond the turn may reach
+        // drillable copper outside the local window.
+        let mut extra_used = 0;
+        let window_covered =
+            self.same_no_via_region(p.map(|v| v - radius), p.map(|v| v + radius))?;
+        if surface != 0 || window_covered {
+            let mut bends = Vec::new();
+            for (axis, sign) in [(0, -1), (0, 1), (1, -1), (1, 1)] {
+                if extra_used >= optional_expansions {
+                    break;
+                }
+                let Some(bend) = self.turn_at_obstruction(p, layer, axis, sign, radius)? else {
+                    continue;
+                };
+                if !expand()? {
+                    break;
+                }
+                extra_used += 1;
+                for direction in [-1, 1] {
+                    let Some(via) = self.drill_after_turn(bend, layer, 1 - axis, direction)? else {
+                        continue;
+                    };
+                    let cost = self
+                        .steps(p, bend, layer)
+                        .saturating_add(self.steps(bend, via.at, layer));
+                    self.storage(occupied + result.len() + bends.len() + 1)?;
+                    bends.push((cost, bend, via));
+                }
+            }
+            self.engine.work.charge(
+                bends.len() as u64 * bends.len().max(1).next_power_of_two().ilog2() as u64,
+            )?;
+            bends.sort_by_key(|(cost, bend, via)| (*cost, *bend, via.at));
+            for (cost, bend, via) in bends.iter().copied() {
+                let prefix = [link(p, bend, layer), link(bend, via.at, layer)];
+                self.via_portals(
+                    via,
+                    layer,
+                    &prefix,
+                    cost,
+                    allowed,
+                    occupied + bends.len(),
+                    &mut result,
+                )?;
+                if result.len() > surface {
+                    return Ok(result);
+                }
+            }
+        }
+        // Every grid site considered by the local flood lies in this square.
+        if window_covered {
             return Ok(result);
         }
         self.storage(occupied + result.len() + 2)?;
         let mut parents = HashMap::from([(p, p)]);
         let mut queue = VecDeque::from([(p, 0usize)]);
         let mut found_level = None;
-        let mut extra_used = 0;
         while let Some((at, level)) = queue.pop_front() {
             if (surface != 0 && extra_used >= optional_expansions)
                 || found_level.is_some_and(|found| level > found)
@@ -233,6 +367,104 @@ mod tests {
             && edges
                 .iter()
                 .all(|e| matches!(e, PathEdge::Track { layer: 0, .. }))));
+    }
+
+    #[test]
+    fn surface_trace_can_turn_between_lands_and_reach_a_barrel_beyond_the_package() {
+        let mut input: Input = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/multiterminal-native-two-nets.json"
+        ))
+        .unwrap();
+        input.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+            .map(str::to_owned)
+            .to_vec();
+        input.rules.grid_nm = 100_000;
+        input.rules.width_nm = 200_000;
+        input.rules.clearance_nm = 200_000;
+        input.pads.clear();
+        input.tracks.clear();
+        let center = [7_170_000i64, 10_170_000i64];
+        for row in -1..=1 {
+            for col in -1..=1 {
+                let signal = row == 0 && col == 0;
+                let id = format!("9e9a5669-0215-4d8d-8232-{:012}", 5 + 3 * row + col);
+                input.pads.push(serde_json::from_value(serde_json::json!({
+                    "id": id, "net":if signal {1} else {0}, "layers":["F.Cu"],
+                    "at":[center[0]+col*1_620_000,center[1]+row*1_200_000],
+                    "shape":{"kind":"rect","half_size_nm":[if col == 0 {220_000} else {950_000},210_000]}
+                })).unwrap());
+            }
+        }
+        let edge = |x, y| [center[0] + x, center[1] + y];
+        input.rule_areas.push(serde_json::from_value(serde_json::json!({
+            "id":"5496846d-27f7-4f55-bcdd-2473db731e64","layers":["In1.Cu"],
+            "outer":[edge(-2_550_000,-1_750_000),edge(2_550_000,-1_750_000),edge(2_550_000,1_750_000),edge(-2_550_000,1_750_000)],
+            "no_tracks": false, "no_vias":true
+        })).unwrap());
+        let engine = Engine::new(input).unwrap();
+        let mesh = Mesh {
+            engine: &engine,
+            net: 1,
+            grid: 100_000,
+            pitch: 800_000,
+            via_step: 5,
+            history: None,
+            occupied_entries: 0,
+        };
+        assert!(
+            super::super::super::layer_crossing::drill_sites(&engine, 1, center, 0, None)
+                .unwrap()
+                .is_empty()
+        );
+        let run = |available| {
+            let mut charged = 0;
+            let portals = mesh
+                .contact_portals(center, 0, &[true; 4], 0, available, &mut || {
+                    charged += 1;
+                    Ok(true)
+                })
+                .unwrap();
+            (charged, portals)
+        };
+        assert!(run(0).1.iter().all(|((_, layer), _, _)| *layer == 0));
+        let (charged, portals) = run(4);
+        assert!((1..=4).contains(&charged));
+        let ((_, dest), cost, edges) = portals
+            .iter()
+            .find(|((_, face), _, _)| *face == 1)
+            .expect("a physical inner-layer attachment");
+        let mut at = center;
+        let mut layer = 0;
+        let mut price = 0;
+        let mut drilled = false;
+        for &edge in edges {
+            match edge {
+                PathEdge::Track {
+                    start,
+                    end,
+                    layer: face,
+                } => {
+                    assert_eq!((start, face), (at, layer));
+                    assert!(mesh.clear(start, end, layer).unwrap());
+                    price += mesh.steps(start, end, layer);
+                    at = end;
+                }
+                PathEdge::Via(via) => {
+                    assert!(!drilled);
+                    assert_eq!(via.at, at);
+                    assert!(at[0].abs_diff(center[0]) > 2_550_000 && at[1] != center[1]);
+                    assert!(engine
+                        .legal_via(1, at, 0, 3, ViaKind::Through, &[])
+                        .unwrap()
+                        .is_some());
+                    price += mesh.via_step;
+                    layer = *dest;
+                    drilled = true;
+                }
+            }
+        }
+        assert!(drilled);
+        assert_eq!(price, *cost);
     }
 
     #[test]

@@ -405,7 +405,7 @@ struct RaySample {
 // Probe grid-aligned sites outward from a terminal at exponentially increasing
 // distances. A blocked surface segment cuts off every longer segment on the ray.
 // The ordinary search can still use any legal site between the sampled ones.
-fn terminal_via(
+pub(super) fn terminal_via(
     engine: &Engine,
     net: u32,
     face: usize,
