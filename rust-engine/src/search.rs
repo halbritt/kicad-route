@@ -1217,6 +1217,22 @@ fn search_component_path(
             .map(|b| (b.lo, b.hi))
             .reduce(union)
             .expect("nonempty join targets");
+        // A plated via can only reach an uncapped surface pad through a
+        // separate track. Use the track cap in this relaxation on those joins.
+        engine.work.charge(goal_bounds.len() as u64)?;
+        let track_terminals = if disallow_smd_via_in_pad && net != 0 {
+            goal_bounds.iter().try_fold(0u32, |mask, goal| {
+                matches!(goal.copper, Copper::Pad(pad) if pad.drill.is_none())
+                    .then_some(mask | goal.mask)
+            })
+        } else {
+            None
+        };
+        let terminal_reach = if track_terminals.is_some() {
+            (max_net_track_width / 2 - geometry::CONTACT_OVERLAP_NM).max(0)
+        } else {
+            (max_eff_width + 1) / 2
+        };
         let mut candidate = BarrierBound::for_join(
             &engine.input,
             net,
@@ -1224,7 +1240,7 @@ fn search_component_path(
             stackup,
             source_box,
             target_box,
-            (max_eff_width + 1) / 2,
+            terminal_reach,
             engine.input.rules.grid_nm,
             minimum_step,
             engine.layer_policy.scale(via_cost),
@@ -1232,24 +1248,11 @@ fn search_component_path(
         )?;
         engine.pad_banks.include(engine, net, &mut candidate)?;
         if candidate.is_active() {
-            engine
-                .work
-                .charge((start_vec.len() + goal_bounds.len()) as u64)?;
+            engine.work.charge(start_vec.len() as u64)?;
             let source_mask = start_vec
                 .iter()
                 .fold(0u32, |mask, &(_, layer, _)| mask | (1u32 << layer));
-            let target_mask = if disallow_smd_via_in_pad && net != 0 {
-                goal_bounds
-                    .iter()
-                    .try_fold(0u32, |mask, b| {
-                        matches!(b.copper, Copper::Pad(p) if p.drill.is_none())
-                            .then_some(mask | b.mask)
-                    })
-                    .unwrap_or(u32::MAX)
-            } else {
-                u32::MAX
-            };
-            Some(candidate.with_terminal_layers(source_mask, target_mask))
+            Some(candidate.with_terminal_layers(source_mask, track_terminals.unwrap_or(u32::MAX)))
         } else {
             None
         }

@@ -60,44 +60,13 @@ pub(super) fn axial(
             if state.at[axis].abs_diff(end[axis]).div_ceil(grid as u64) != steps {
                 continue;
             }
-            let last = engine.layer_count() - 1;
-            let drill = |contact,
-                         anchor: u64,
-                         forward: bool,
-                         prior: &[PlacedViaKey]|
-             -> Result<Option<PlacedViaKey>, Failure> {
-                // Doubling the distance probes both near-pad and open board positions
-                // with logarithmic work. The unit search covers the omitted sites.
-                let mut offset = 1;
-                while offset < steps.div_ceil(2) {
-                    engine.work.charge(1)?;
-                    let at = along(if forward {
-                        anchor + offset
-                    } else {
-                        anchor - offset
-                    });
-                    if !engine.legal_edge_on(net, face, contact, at)? {
-                        break;
-                    }
-                    if engine
-                        .legal_via(net, at, 0, last, ViaKind::Through, prior)?
-                        .is_some()
-                    {
-                        return Ok(Some(PlacedViaKey {
-                            at,
-                            start_layer: 0,
-                            end_layer: last as u8,
-                            kind: 0,
-                        }));
-                    }
-                    offset *= 2;
-                }
-                Ok(None)
-            };
-            let Some(first) = drill(state.at, 0, true, &[])? else {
+            let half = steps.div_ceil(2);
+            let Some(first) = terminal_via(engine, net, face, state.at, half, along, &[])? else {
                 continue;
             };
-            let Some(second) = drill(end, steps, false, &[first])? else {
+            let Some(second) =
+                terminal_via(engine, net, face, end, half, |i| along(steps - i), &[first])?
+            else {
                 continue;
             };
             for inner in 0..engine.layer_count() {
@@ -133,6 +102,42 @@ pub(super) fn axial(
                 }));
             }
         }
+    }
+    Ok(None)
+}
+
+// Probe grid-aligned sites outward from a terminal at exponentially increasing
+// distances. A blocked surface segment cuts off every longer segment on the ray.
+// The ordinary search can still use any legal site between the sampled ones.
+fn terminal_via(
+    engine: &Engine,
+    net: u32,
+    face: usize,
+    contact: Point,
+    half: u64,
+    site: impl Fn(u64) -> Point,
+    previous: &[PlacedViaKey],
+) -> Result<Option<PlacedViaKey>, Failure> {
+    let last = engine.layer_count() - 1;
+    let mut offset = 1;
+    while offset < half {
+        engine.work.charge(1)?;
+        let at = site(offset);
+        if !engine.legal_edge_on(net, face, contact, at)? {
+            break;
+        }
+        if engine
+            .legal_via(net, at, 0, last, ViaKind::Through, previous)?
+            .is_some()
+        {
+            return Ok(Some(PlacedViaKey {
+                at,
+                start_layer: 0,
+                end_layer: last as u8,
+                kind: 0,
+            }));
+        }
+        offset *= 2;
     }
     Ok(None)
 }

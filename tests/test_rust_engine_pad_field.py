@@ -114,8 +114,6 @@ def test_surface_pad_field_escape(tmp_path, guarded_cli, family, sealed):
 
 
 def test_single_long_surface_lead_allows_a_two_via_escape(tmp_path, guarded_cli):
-    from tests.e2e_rust_router.kicad_verify import run_native_drc
-
     board = BoardBuilder(copper_layers=4, seed=813)
     board.set_rect_outline(0, 0, 36_000_000, 36_000_000)
 
@@ -142,6 +140,8 @@ def test_single_long_surface_lead_allows_a_two_via_escape(tmp_path, guarded_cli)
         fp = foot(ref, xy, "F" if layer == pcbnew.F_Cu else "B")
         board.add_pad(fp, "1", net, xy, size_nm=(880_000, 880_000), layers=[layer])
     source = board.save(tmp_path / "input").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 2 and not before["violations"]
     out, operation = tmp_path / "saved.kicad_pcb", tmp_path / "operation.json"
     run, _ = guarded_cli
     engine = _built_rust_engine(run)
@@ -152,3 +152,6 @@ def test_single_long_surface_lead_allows_a_two_via_escape(tmp_path, guarded_cli)
     assert routed["status"] == "complete" and routed["added_via_count"] == 2
     drc = run_native_drc(out, sidecar_source=source).raw
     assert not drc["violations"] and not drc["unconnected_items"]
+    saved = pcbnew.LoadBoard(str(out))
+    vias = [v for v in saved.GetTracks() if isinstance(v, pcbnew.PCB_VIA)]
+    assert [v.GetNetname() for v in vias] == ["SENSE", "SENSE"]

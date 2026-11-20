@@ -239,8 +239,8 @@ the shorter route. A shortened final edge costs one grid step. During the initia
 multilayer forward search, a settled state can finish a straight connection when
 the remaining grid-step cost exactly equals its A* lower bound. The engine uses
 the ordinary terminal landing in the final grid cell and checks the full
-conductor for clearance. In a board-wide search without congestion or bus
-penalties, the router can also finish on a surface pad using a 45-degree
+conductor for clearance. In a board-wide search with zero congestion cost
+on the proposed segments and vias, and with bus guidance disabled, the router can also finish on a surface pad using a 45-degree
 segment and an optional axial leg. Each diagonal step costs one step per axis.
 At a launch, bend or layer change the router checks whether the entire legal
 path to a pad-interior landing meets the minimum forward priority. Its last
@@ -251,7 +251,12 @@ entire via span and the pad landing, and includes the via cost in the bound.
 For a same-layer pad, the source and destination can also extend parallel clear
 runs to opposite ends of a perpendicular segment. The router tries the middle
 and the two ends of the overlap. Legal 45-degree cuts shorten the corners
-while preserving the weighted distance. The original single-layer search used unit step costs, a fixed net-ID order
+while preserving the weighted distance. An aligned connection can also leave
+its original layer on a through-via, cross an obstacle on another layer of
+equal track cost, and return on a second through-via. The search checks both
+drills, all three tracks and the clipped landing. For uncapped surface pads
+that require track contact, the obstacle-distance bound uses the track cap's
+reach around the destination. The original single-layer search used unit step costs, a fixed net-ID order
 and no rip-up. Current multilayer negotiation can change the routing order
 and rip up generated copper. When several single-ended nets still require
 routing, a surface pad with only one or two clear axial departures and no
