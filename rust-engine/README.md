@@ -48,6 +48,18 @@ routing, net classes, supported custom rules, fills, keepouts, negotiation
 and pair tuning. The measurements there give the board, rules and revision
 for each result.
 
+On reversible multilayer joins, the router uses fixed tracks and solid
+rectangular keepouts to estimate how far a trace must travel around an
+obstacle. A layer-specific obstruction can be crossed by changing layers.
+A keepout spanning every layer still requires a planar detour. Tracks added
+while routing are checked for clearance at each step and remain available
+for negotiation.
+
+For an uncapped surface pad in a rectangular pin field, an exhausted search
+can also try an offset grid that passes through a legal via site between
+neighboring lands. A land's via clearance must actually restrict the passage.
+The ordinary track, via and net-class rules apply to the escape.
+
 When routing resolves differential pairs, the result lists their net IDs and
 names in `diff_pairs`. A `coupled` disposition identifies both legs routed as
 a pair unit. An `existing` disposition identifies connectivity already present

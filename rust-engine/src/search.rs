@@ -1187,7 +1187,7 @@ fn search_component_path(
         && !has_zone_target
         && goal_bounds.len() <= 8;
     let barriers = if reversible
-        && (engine.copper.tracks().next().is_some() || !engine.input.rule_areas.is_empty())
+        && (!engine.copper.input().is_empty() || !engine.input.rule_areas.is_empty())
     {
         engine
             .work
@@ -1211,7 +1211,7 @@ fn search_component_path(
         let candidate = BarrierBound::for_join(
             &engine.input,
             net,
-            engine.copper.tracks(),
+            engine.copper.input(),
             stackup,
             source_box,
             target_box,
