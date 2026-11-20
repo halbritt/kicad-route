@@ -1,11 +1,9 @@
 """Collision barriers (`run --barrier-from RUN_DIR`, `kicad-route barrier RUN_DIR`), KICADROUTE-53.
 
 A /SIG_A track routed 0.3748 mm from C1.2 (GND) breaks the fixture's 0.4 mm
-power_to_signal rule; KRT's unscoped route does exactly that. A synthetic run
-carrying a hand-placed copy of that track drives the planning, injection and strip
-tests without routing; one short KRT pair (the colliding run, then a rewind with a
-barrier) checks that the backend routes around the barrier and that the stripped
-candidate passes every preservation check, keepouts included.
+power_to_signal rule. Helper tests use that historical geometry. The rewind test
+runs the current KRT and, when it clears C1.2, regrades the historical track with
+KiCad before asking KRT to route around its barrier.
 """
 import importlib.util
 import json
@@ -44,16 +42,9 @@ def facts(board, out):
     return f
 
 
-@pytest.fixture(scope="module")
-def collided_run(tmp_path_factory):
-    """A graded-run directory whose candidate has the colliding /SIG_A track and whose
-    new-findings.json carries the clearance finding KiCad reports for it."""
+def add_historical_track(path):
     import pcbnew
-    rd = tmp_path_factory.mktemp("barrier") / "collided"
-    shutil.copytree(FIXTURE, rd / "reference" / "route_demo", ignore=shutil.ignore_patterns("generate.py", "__pycache__"))
-    cand = rd / "candidate" / "route_demo"
-    shutil.copytree(rd / "reference" / "route_demo", cand)
-    board = pcbnew.LoadBoard(str(cand / BOARD))
+    board = pcbnew.LoadBoard(str(path))
     t = pcbnew.PCB_TRACK(board)
     t.SetStart(pcbnew.VECTOR2I(pcbnew.FromMM(TRACK[0][0]), pcbnew.FromMM(TRACK[0][1])))
     t.SetEnd(pcbnew.VECTOR2I(pcbnew.FromMM(TRACK[1][0]), pcbnew.FromMM(TRACK[1][1])))
@@ -62,7 +53,19 @@ def collided_run(tmp_path_factory):
     t.SetNet(board.FindNet("/SIG_A"))
     board.Add(t)
     uuid = t.m_Uuid.AsString()
-    board.Save(str(cand / BOARD))
+    board.Save(str(path))
+    return uuid
+
+
+@pytest.fixture(scope="module")
+def collided_run(tmp_path_factory):
+    """A graded-run directory whose candidate has the colliding /SIG_A track and whose
+    new-findings.json carries the clearance finding KiCad reports for it."""
+    rd = tmp_path_factory.mktemp("barrier") / "collided"
+    shutil.copytree(FIXTURE, rd / "reference" / "route_demo", ignore=shutil.ignore_patterns("generate.py", "__pycache__"))
+    cand = rd / "candidate" / "route_demo"
+    shutil.copytree(rd / "reference" / "route_demo", cand)
+    uuid = add_historical_track(cand / BOARD)
     (rd / "facts").mkdir()
     facts(rd / "reference" / "route_demo" / BOARD, rd / "facts" / "reference-facts.json")
     (rd / "validate").mkdir()
@@ -235,18 +238,36 @@ def test_run_refuses_without_a_collision(collided_run, tmp_path):
 # ------------------------------------------------------------- one rewind on KRT
 
 def test_krt_rewind_routes_around_the_barrier():
-    """Route /SIG_A with KRT (it lands 0.3748 mm from C1.2), then rewind: the same input
-    with a barrier where that track ran. The second route must avoid the barrier, the
-    collision must not recur, and the stripped candidate must pass every check."""
+    """KiCad identifies the collision and the rewound KRT route avoids it."""
     r1, run1, res1 = run("run", "--backend", "krt", "--budget", "180", "--nets", "/SIG_A",
                          "--label", "smoke-barrier-collide")
     new = json.loads((run1 / "validate" / "new-findings.json").read_text())["violations"]
+    source = run1
     if not any(v["type"] == "clearance" for v in new):
-        pytest.skip(f"this KRT build no longer collides on /SIG_A (exit {res1['exit_code']}): nothing to rewind")
+        assert r1.returncode == res1["exit_code"] == 0, res1["validation"]
+        # Current KRT can avoid the historical collision on the first attempt.
+        # Regrade that geometry under the actual run's reference, rules and baseline.
+        source = run1.with_name(run1.name + "-historical-collision")
+        shutil.copytree(run1, source, ignore=shutil.ignore_patterns("validate", "work"))
+        attempt = common.load_json(source / "attempt.json")
+        board = source / attempt["candidate_dir"] / BOARD
+        shutil.copy2(source / attempt["reference_dir"] / BOARD, board)
+        uuid = add_historical_track(board)
+        # pcbnew may save local project settings alongside an edited board.
+        shutil.copy2(source / attempt["reference_dir"] / board.with_suffix(".kicad_pro").name,
+                     board.with_suffix(".kicad_pro"))
+        validation, _ = route.validate(source)
+        assert not validation["restored_project_files"], validation
+        assert (source / "validate" / "new-findings.json").is_file(), validation
+        new = common.load_json(source / "validate" / "new-findings.json")["violations"]
+        assert validation["status"] == route.FAIL
+        assert any(v["type"] == "clearance" and {it["uuid"] for it in v["items"]} == {C1_2, uuid}
+                   for v in new), new
     r2, run2, res2 = run("run", "--backend", "krt", "--budget", "180", "--nets", "/SIG_A",
-                         "--barrier-from", str(run1), "--label", "smoke-barrier-rewind")
+                         "--barrier-from", str(source), "--label", "smoke-barrier-rewind")
     b = res2["process"]["barrier"]
-    record("barrier_rewind_krt", summary(res2) | {"collided": summary(res1), "barrier":
+    record("barrier_rewind_krt", summary(res2) | {"first_route": summary(res1),
+                                                  "collision_run": str(source), "barrier":
                                                   {k: b.get(k) for k in ("barriers", "injected", "stripped",
                                                                          "remaining", "outcome", "skipped")}})
     assert res2["settings"]["barrier"]["points"] and b["injected"] >= 1
