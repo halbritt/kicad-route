@@ -310,7 +310,9 @@ target layers and complete cross-board keepouts give a lower bound on the
 number of vias. This leaves the other nets more of the shared budget.
 When a negotiated trial can trigger rip-up, a complete connection also takes
 precedence once the trial reaches its expansion limit or spends its share of
-the board's budget. A trial without a connection still reports blockers.
+the board's budget. At the board's final expansion, either frontier may use
+a complete path it has already found. All joins must still finish within the
+original budget. A trial without a connection still reports blockers.
 Once the search reaches its allowance, reverse
 terminal checks still look for cheaper connections to reached forward states
 and the current step's possible landings. Other reverse roots need no queue. Every prospective connection and track

@@ -3048,9 +3048,11 @@ fn walk_multilayer(
         engine.work.charge(1)?;
         let Reverse((priority, tie_g, state)) = queue.pop().unwrap();
         let cost = tie_g.g;
-        if let Some(path) = mesh_path
-            .take_if(|p| p.steps <= priority || join_deadline.is_some_and(|stop| *expanded >= stop))
-        {
+        if let Some(path) = mesh_path.take_if(|p| {
+            p.steps <= priority
+                || *expanded >= budget.current_limit
+                || join_deadline.is_some_and(|stop| *expanded >= stop)
+        }) {
             return Ok(path);
         }
         if best.get(&state) != Some(&cost) {
@@ -4304,6 +4306,13 @@ fn walk_multilayer_bidirectional(
             .is_none_or(|o| o.bus.is_none());
 
     while !q_fwd.is_empty() || (reverse_sources.is_some() && !q_bwd.is_empty()) {
+        // The expansion cap limits further search. A complete path already
+        // found on the current copper needs no further expansion.
+        if *expanded >= budget.current_limit {
+            if let Some((cost, ref record)) = best_mu {
+                return reconstruct_bi_path(&parent_fwd, &parent_bwd, &engine.work, record, cost);
+            }
+        }
         if reverse_sources.is_some() {
             while let Some(Reverse((_, tie_g, st))) = q_fwd.peek() {
                 if best_fwd.get(st) == Some(&tie_g.g) && !settled_fwd.contains(st) {
@@ -4324,10 +4333,9 @@ fn walk_multilayer_bidirectional(
                 // At the negotiated trial boundary, keep it before another
                 // expansion could trigger rip-up of an unrelated routed net.
                 let trial_finished = budget.current_limit < budget.batch_limit
-                    && (*expanded >= budget.current_limit
-                        || engine
-                            .surface_search_share
-                            .is_some_and(|share| expanded.saturating_sub(join_start) >= share));
+                    && engine
+                        .surface_search_share
+                        .is_some_and(|share| expanded.saturating_sub(join_start) >= share);
                 if trial_finished
                     || mu <= min_f_fwd
                     || (via_only_unpopped == 0 && mu <= min_f_bwd)
