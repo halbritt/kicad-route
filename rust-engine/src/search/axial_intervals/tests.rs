@@ -140,3 +140,112 @@ fn sealed_surface_via_only_source_and_shorter_incumbent_leave_the_ordinary_front
         }
     }
 }
+
+fn wave(engine: &Engine, max_steps: u64, occupied: usize) -> WaveSearch<'_> {
+    WaveSearch {
+        engine,
+        net: 1,
+        layer: 0,
+        grid: engine.input.rules.grid_nm,
+        guides: [engine.input.pads[0].at, engine.input.pads[1].at],
+        occupied,
+        max_steps,
+        wave: Default::default(),
+    }
+}
+
+#[test]
+fn clipped_line_stops_at_the_first_trace_and_revisits_spend_work_without_more_storage() {
+    let engine = engine(false);
+    let _scope = engine.work.scope();
+    let start = engine.input.pads[0].at;
+    let mut search = wave(&engine, 200, 0);
+    assert!(search.add_line(0, start, 0, None).unwrap().is_none());
+    assert_eq!(search.wave[0].lines[0].hi, 8_750_000);
+    assert_eq!(search.wave[0].lines[0].lo, 750_000);
+    let used = engine.work.used();
+    assert!(search.add_line(0, start, 0, None).unwrap().is_none());
+    assert_eq!(search.wave[0].lines.len(), 1);
+    assert!(engine.work.used() >= used + 2);
+
+    let mut full = wave(&engine, 200, engine.work.limits.max_search_entries);
+    assert_eq!(
+        full.add_line(0, start, 0, None).unwrap_err().status,
+        crate::model::Status::AdmissionExceeded
+    );
+}
+
+#[test]
+fn reconstructed_path_checks_the_full_segment_and_its_integer_cost() {
+    let engine = engine(false);
+    let _scope = engine.work.scope();
+    for (y, max_steps, expected) in [
+        (10_000_000, 56, false),
+        (2_000_000, 55, false),
+        (2_000_000, 56, true),
+    ] {
+        let mut search = wave(&engine, max_steps, 0);
+        let a = [3_000_000, y];
+        let b = [17_000_000, y];
+        // Fabricate predecessor entries so the final sweep and price checks
+        // get exercised independently of the interval-discovery checks.
+        for (side, pivot) in [a, b].into_iter().enumerate() {
+            search.wave[side].lines.push(Line {
+                pivot,
+                axis: side,
+                lo: pivot[side],
+                hi: pivot[side],
+                previous: None,
+                walked: 0,
+                depth: 0,
+            });
+        }
+        let path = search.connect_at([0, 0], b).unwrap();
+        assert_eq!(path.is_some(), expected);
+        if let Some(path) = path {
+            assert_eq!(path.steps, 56);
+        }
+    }
+    let short = Path {
+        edges: vec![PathEdge::Track {
+            start: [0, 0],
+            end: [1, 1],
+            layer: 0,
+        }],
+        points: vec![[0, 0], [1, 1]],
+        steps: 2,
+    };
+    assert_eq!(copper_length(&engine, &short, false).unwrap(), 1);
+    assert_eq!(copper_length(&engine, &short, true).unwrap(), 2);
+}
+
+#[test]
+fn a_one_probe_board_share_is_consumed_once() {
+    let mut engine = engine(false);
+    engine.surface_search_share = Some(1);
+    let _scope = engine.work.scope();
+    let goal = TargetBounds::new(
+        Copper::Pad(&engine.input.pads[1]),
+        engine.all_layers_slice(),
+        &engine.work,
+    )
+    .unwrap();
+    let mut expanded = 7;
+    let found = connect(
+        &engine,
+        1,
+        &[(engine.input.pads[0].at, 0, false)],
+        &[goal],
+        &[true; 4],
+        0,
+        40,
+        None,
+        None,
+        &mut TrialBudget::fixed(10_000),
+        &mut expanded,
+        None,
+    )
+    .unwrap();
+    assert!(found.is_none());
+    assert_eq!(expanded, 8);
+}
