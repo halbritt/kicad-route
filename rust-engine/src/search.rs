@@ -1,3 +1,5 @@
+mod pad_field;
+
 use crate::budget::WorkBudget;
 use crate::components::{span_mask, Copper};
 use crate::geometry;
@@ -440,22 +442,24 @@ fn join_components_inner(
             }
         }
     }
-    let mut search = |seeds: &[Copper<'_>], choices: &[Vec<Copper<'_>>], seed_layers| {
-        search_component_path(
-            engine,
-            net,
-            seeds,
-            choices,
-            seed_layers,
-            budget,
-            expanded,
-            history,
-            frontier.as_deref_mut(),
-            prefer_higher_g,
-        )
-    };
+    let mut search =
+        |seeds: &[Copper<'_>], choices: &[Vec<Copper<'_>>], seed_layers, extra_starts| {
+            search_component_path(
+                engine,
+                net,
+                seeds,
+                choices,
+                seed_layers,
+                extra_starts,
+                budget,
+                expanded,
+                history,
+                frontier.as_deref_mut(),
+                prefer_higher_g,
+            )
+        };
     if !fill_targets.is_empty() {
-        match search(source, &fill_targets, source_layers) {
+        match search(source, &fill_targets, source_layers, None) {
             Err(e) if e.status == Status::Unroutable => {}
             result => return result,
         }
@@ -463,31 +467,39 @@ fn join_components_inner(
     // The fill's own layer may prohibit tracks and vias. Existing through-hole
     // copper can still bond its regions from another layer; native refill and
     // validation determine whether that route preserves the pour.
-    let result = search(source, targets, u32::MAX);
+    let result = search(source, targets, u32::MAX, None);
     if !matches!(&result, Err(e) if e.status == Status::Unroutable) {
         return result;
     }
-    let ([first @ Copper::Pad(_)], [other]) = (source, targets) else {
-        return result;
-    };
-    let [second @ Copper::Pad(_)] = other.as_slice() else {
-        return result;
-    };
-    // Reverse A* uses the source lattice. A second isolated pad may provide
-    // a different grid phase with a legal passage into the first pad's copper.
-    let grid = engine.input.rules.grid_nm;
-    let origin = engine.input.bounds.min;
-    let phase = |p: Point| [p[0].rem_euclid(grid), p[1].rem_euclid(grid)];
-    let source_phases: Vec<_> = first.anchors(origin, grid).into_iter().map(phase).collect();
-    if second
-        .anchors(origin, grid)
-        .into_iter()
-        .map(phase)
-        .any(|p| !source_phases.contains(&p))
-    {
-        return search(other, &[vec![*first]], u32::MAX);
+    if let ([first @ Copper::Pad(_)], [other]) = (source, targets) {
+        if let [second @ Copper::Pad(_)] = other.as_slice() {
+            // The other isolated pad may already have a usable grid phase.
+            let grid = engine.input.rules.grid_nm;
+            let origin = engine.input.bounds.min;
+            let phase = |p: Point| p.map(|v| v.rem_euclid(grid));
+            let source_phases: Vec<_> =
+                first.anchors(origin, grid).into_iter().map(phase).collect();
+            if second
+                .anchors(origin, grid)
+                .into_iter()
+                .map(phase)
+                .any(|p| !source_phases.contains(&p))
+            {
+                match search(other, &[vec![*first]], u32::MAX, None) {
+                    Err(e) if e.status == Status::Unroutable => {}
+                    result => return result,
+                }
+            }
+        }
     }
-    result
+    // Only exhausted geometric frontiers reach this point. The same trial, expansion
+    // and work budgets apply as the ordinary search; typed stops return immediately.
+    let extra = pad_field::starts(engine, net, source, targets)?;
+    if extra.is_empty() {
+        result
+    } else {
+        search(source, targets, u32::MAX, Some(extra))
+    }
 }
 
 #[derive(Default)]
@@ -843,6 +855,7 @@ fn search_component_path(
     source: &[Copper<'_>],
     targets: &[Vec<Copper<'_>>],
     source_layers: u32,
+    additional_starts: Option<Vec<(Point, u8, bool)>>,
     budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
     history: Option<&crate::negotiate::CongestionHistory>,
@@ -860,14 +873,17 @@ fn search_component_path(
     let stackup = engine.all_layers_slice();
     let l_count = engine.layer_count();
     let via_cost = engine.effective_rules.via_cost.max(1);
-    let start_vec = component_starts(
-        engine,
-        net,
-        source,
-        targets,
-        source_layers,
-        frontier.as_deref_mut(),
-    )?;
+    let start_vec = match additional_starts {
+        Some(starts) => starts,
+        None => component_starts(
+            engine,
+            net,
+            source,
+            targets,
+            source_layers,
+            frontier.as_deref_mut(),
+        )?,
+    };
     if start_vec.is_empty() {
         let mut failure = Failure::new(
             Status::Unroutable,
