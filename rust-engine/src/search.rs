@@ -1196,7 +1196,8 @@ fn search_component_path(
     let barriers = if reversible
         && (!engine.copper.input().is_empty()
             || !engine.input.rule_areas.is_empty()
-            || !engine.pad_banks.is_empty())
+            || !engine.pad_banks.is_empty()
+            || engine.copper.has_generated_tracks())
     {
         engine
             .work
@@ -1247,6 +1248,9 @@ fn search_component_path(
             &engine.work,
         )?;
         engine.pad_banks.include(engine, net, &mut candidate)?;
+        if engine.copper.has_generated_tracks() {
+            candidate.include_routed_tracks(&engine.copper, net, &engine.work)?;
+        }
         if candidate.is_active() {
             engine.work.charge(start_vec.len() as u64)?;
             let source_mask = start_vec

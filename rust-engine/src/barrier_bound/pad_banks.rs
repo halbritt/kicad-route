@@ -2,7 +2,7 @@
 //! open forbidden interval for each foreign pad. Overlapping intervals form
 //! a planar barrier. A single elongated land can also force a detour past
 //! either end. The ends stay passable in the relaxed geometry.
-use super::{interval_gap, Barrier, BarrierBound};
+use super::{Barrier, BarrierBound};
 use crate::model::{Failure, Input, Pad, Shape, Status};
 use crate::rules::{DruItemKind, EffectiveRules};
 use crate::Engine;
@@ -158,12 +158,6 @@ impl PadBanks {
                 continue;
             }
             let j = 1 - axis;
-            let base = interval_gap(
-                bound.source.0[j],
-                bound.source.1[j],
-                bound.target.0[j],
-                bound.target.1[j],
-            );
             engine.work.charge(1)?;
             for (&(cut, layer), row) in rows.range((left, usize::MAX)..(right, 0)) {
                 engine.work.charge(1)?;
@@ -228,12 +222,7 @@ impl PadBanks {
                         lo: -(-lo).div_euclid(2),
                         hi: hi.div_euclid(2),
                     };
-                    let prior = bound.layers[layer][axis]
-                        .map_or(base, |c| c.detour(bound.source, bound.target));
-                    if b.lo < b.hi && b.detour(bound.source, bound.target) > prior {
-                        bound.layers[layer][axis] = Some(b);
-                        bound.active = true;
-                    }
+                    bound.retain_layer_wall(layer, b);
                 }
             }
         }

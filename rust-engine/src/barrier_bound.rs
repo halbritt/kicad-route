@@ -1,4 +1,4 @@
-//! Rectilinear lower bounds from fixed layer-specific barriers. Other geometry is
+//! Rectilinear lower bounds from layer-specific barriers fixed during a join. Other geometry is
 //! removed in this relaxation. No choice of barrier can exclude a physical route.
 
 mod pad_banks;
@@ -30,14 +30,13 @@ fn interval_gap(a: i64, b: i64, c: i64, d: i64) -> u64 {
 }
 
 impl Barrier {
-    fn from_track(track: &Track) -> Option<Self> {
-        let axis = (0..2)
-            .find(|&k| track.start[k] == track.end[k] && track.start[1 - k] != track.end[1 - k])?;
+    fn from_segment(start: Point, end: Point) -> Option<Self> {
+        let axis = (0..2).find(|&k| start[k] == end[k] && start[1 - k] != end[1 - k])?;
         Some(Self {
             axis,
-            cut: track.start[axis],
-            lo: track.start[1 - axis].min(track.end[1 - axis]),
-            hi: track.start[1 - axis].max(track.end[1 - axis]),
+            cut: start[axis],
+            lo: start[1 - axis].min(end[1 - axis]),
+            hi: start[1 - axis].max(end[1 - axis]),
         })
     }
 
@@ -272,7 +271,7 @@ impl BarrierBound {
         for t in tracks {
             work.charge(1)?;
             if t.net != net {
-                if let Some(b) = Barrier::from_track(t) {
+                if let Some(b) = Barrier::from_segment(t.start, t.end) {
                     if let Some(k) = layer_index(&t.layer)? {
                         consider(&mut retained[k], &mut scores[k], b);
                     }
@@ -389,6 +388,64 @@ impl BarrierBound {
             active: active || crossing_layers.iter().any(|c| !c.is_empty()),
             crossing_layers,
         })
+    }
+
+    /// A previous net's traces remain fixed during this join. Rebuild the
+    /// estimate after a negotiation changes the authoritative copper store.
+    pub(crate) fn include_routed_tracks(
+        &mut self,
+        copper: &crate::state::CopperStore,
+        net: u32,
+        work: &WorkBudget,
+    ) -> Result<(), Failure> {
+        use crate::spatial::SweptAabb;
+        use std::ops::ControlFlow;
+        // A separating segment that increases the closest Manhattan distance
+        // must intersect the rectangle between the closest points of the two
+        // envelopes. Overlapping intervals admit the same coordinate on both.
+        let mut a = [0; 2];
+        let mut b = [0; 2];
+        for axis in 0..2 {
+            a[axis] = self.target.0[axis].clamp(self.source.0[axis], self.source.1[axis]);
+            b[axis] = a[axis].clamp(self.target.0[axis], self.target.1[axis]);
+        }
+        if a == b {
+            return Ok(());
+        }
+        let region = SweptAabb::swept(a, b, 0, 0);
+        for layer in 0..self.layers.len() {
+            work.charge(1)?;
+            let _ = copper.visit_generated_layer_candidates(
+                layer,
+                region,
+                Some(net),
+                work,
+                |_, t| {
+                    if let Some(wall) = Barrier::from_segment(t.start, t.end) {
+                        self.retain_layer_wall(layer, wall);
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+        }
+        Ok(())
+    }
+
+    fn retain_layer_wall(&mut self, layer: usize, wall: Barrier) {
+        let axis = wall.axis;
+        let j = 1 - axis;
+        let baseline = interval_gap(
+            self.source.0[j],
+            self.source.1[j],
+            self.target.0[j],
+            self.target.1[j],
+        );
+        let prior =
+            self.layers[layer][axis].map_or(baseline, |b| b.detour(self.source, self.target));
+        if wall.lo < wall.hi && wall.detour(self.source, self.target) > prior {
+            self.layers[layer][axis] = Some(wall);
+            self.active = true;
+        }
     }
 
     /// Each required crossing may be traversed on any open layer. The set

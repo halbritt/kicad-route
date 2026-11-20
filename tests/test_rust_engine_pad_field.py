@@ -155,3 +155,36 @@ def test_single_long_surface_lead_allows_a_two_via_escape(tmp_path, guarded_cli)
     saved = pcbnew.LoadBoard(str(out))
     vias = [v for v in saved.GetTracks() if isinstance(v, pcbnew.PCB_VIA)]
     assert [v.GetNetname() for v in vias] == ["SENSE", "SENSE"]
+
+
+def test_second_surface_net_crosses_an_earlier_route(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=61192)
+    board.set_rect_outline(0, 0, 48_000_000, 48_000_000)
+    for net, endpoints in [("CLK", [(24, 8), (24, 30)]),
+                           ("DATA", [(3, 19), (43, 19)])]:
+        for index, (x, y) in enumerate(endpoints):
+            at = (x * 1_000_000, y * 1_000_000)
+            footprint = board.add_footprint(f"{net}{index+1}", at)
+            footprint.Reference().SetVisible(False)
+            footprint.Value().SetVisible(False)
+            board.add_pad(footprint, "1", net, at, size_nm=(650_000, 650_000),
+                          shape=pcbnew.PAD_SHAPE_RECT, layers=[pcbnew.F_Cu])
+    board.set_project_rules(rules=dict(min_track_width=.20, min_clearance=.16,
+                                       min_via_diameter=.60, min_copper_edge_clearance=.4),
+                            classes=[dict(name="Default", priority=0, clearance=.16,
+                                          track_width=.2, via_diameter=.6, via_drill=.3)])
+    source = board.save(tmp_path / "input").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 2 and not before["violations"]
+    output, operation = tmp_path / "routed.kicad_pcb", tmp_path / "operation.json"
+    run, _ = guarded_cli
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(output),
+         "--operation-result", str(operation)])
+    routed = json.loads(operation.read_bytes())["routing"]
+    # Both axial connections have a shortest legal path at their first state.
+    assert routed["expanded_states"] == 2
+    drc = run_native_drc(output, sidecar_source=source).raw
+    assert not drc["unconnected_items"] and not drc["violations"]
+    saved = pcbnew.LoadBoard(str(output))
+    vias = [t for t in saved.GetTracks() if isinstance(t, pcbnew.PCB_VIA)]
+    assert [v.GetNetname() for v in vias] == ["DATA", "DATA"]

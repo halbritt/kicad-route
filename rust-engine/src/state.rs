@@ -181,6 +181,10 @@ impl CopperStore {
         self.input.iter().chain(self.generated())
     }
 
+    pub(crate) fn has_generated_tracks(&self) -> bool {
+        !self.by_seq.is_empty()
+    }
+
     pub fn generated(&self) -> impl Iterator<Item = &Track> {
         self.by_seq.values().map(|&slot| {
             self.slots[slot as usize]

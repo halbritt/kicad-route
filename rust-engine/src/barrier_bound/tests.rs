@@ -1049,3 +1049,66 @@ fn one_layer_change_can_serve_crossings_on_both_axes() {
     assert_eq!(h.estimate(a, 0, &w).unwrap(), 46);
     compare_oracle(&h, 2, &solids, &[(0, b)], 0, 2, 3, 5, false);
 }
+
+#[test]
+fn generated_divider_tracks_the_live_net_layer_and_rollback() {
+    let input = article();
+    let layers = vec!["F.Cu".to_owned(), "B.Cu".to_owned()];
+    let mut copper = crate::state::CopperStore::new_multilayer(
+        Vec::new(),
+        Vec::new(),
+        layers.clone(),
+        Default::default(),
+        "0123456789abcdef0123456789abcdef",
+        0,
+    );
+    let from = [0, 7];
+    let to = [14, 7];
+    let w = budget();
+    let measure = |copper: &crate::state::CopperStore, net, work: &WorkBudget| {
+        let before = work.used();
+        let mut h = BarrierBound::for_join(
+            &input,
+            net,
+            &input.tracks,
+            &layers,
+            (from, from),
+            (to, to),
+            0,
+            1,
+            1,
+            3,
+            work,
+        )
+        .unwrap();
+        h.include_routed_tracks(copper, net, work).unwrap();
+        (h.with_terminal_layers(1, 1), work.used() - before)
+    };
+    copper.begin(&w).unwrap();
+    copper
+        .insert(track([6, 1], [6, 13], 2, "F.Cu"), &w)
+        .unwrap();
+    copper
+        .insert(track([11, 1], [11, 3], 3, "F.Cu"), &w)
+        .unwrap();
+    copper.commit();
+    let (bound, initial_work) = measure(&copper, 1, &w);
+    assert_eq!(bound.estimate(from, 0, &w).unwrap(), 20);
+    assert_eq!(bound.estimate(from, 1, &w).unwrap(), 17);
+    assert!(!measure(&copper, 2, &w).0.is_active());
+    let walls = [Solid {
+        layer: 0,
+        lo: [6, 1],
+        hi: [6, 13],
+    }];
+    compare_oracle(&bound, 2, &walls, &[(0, to)], 0, 1, 1, 3, false);
+    compare_oracle(&bound, 2, &walls, &[(0, from)], 0, 1, 1, 3, true);
+
+    copper.begin(&w).unwrap();
+    copper.remove_net(2, &w).unwrap();
+    assert!(!measure(&copper, 1, &w).0.is_active());
+    copper.rollback();
+    let (restored, restored_work) = measure(&copper, 1, &w);
+    assert_eq!(restored_work, initial_work);
+    assert_eq!(restored.estimate_reverse(to, 0, &w).unwrap(), 20);
+}
