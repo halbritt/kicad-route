@@ -21,7 +21,7 @@ use crate::Engine;
 use contact_bound::contact_steps;
 use contact_bound::TargetBounds;
 use std::cmp::Reverse;
-use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap};
+use std::collections::{BTreeSet, BinaryHeap, HashMap};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct PlacedViaKey {
@@ -632,29 +632,23 @@ fn join_components_inner(
 
 #[derive(Default)]
 struct PadAxes {
-    coordinates: [BTreeMap<i64, u32>; 2],
+    coordinates: [BTreeSet<i64>; 2],
     entries: usize,
 }
 
 impl PadAxes {
-    fn new(
-        targets: &[Vec<Copper<'_>>],
-        stackup: &[String],
-        work: &WorkBudget,
-    ) -> Result<Self, Failure> {
+    fn new(targets: &[Vec<Copper<'_>>], work: &WorkBudget) -> Result<Self, Failure> {
         let mut axes = Self::default();
         for target in targets.iter().flatten() {
             work.charge(1)?;
             if let Copper::Pad(pad) = target {
                 let center = pad.copper_center();
-                let mask = target.layer_mask(stackup);
                 for (axis, coordinates) in axes.coordinates.iter_mut().enumerate() {
-                    let entry = coordinates.entry(center[axis]);
-                    if matches!(entry, std::collections::btree_map::Entry::Vacant(_)) {
+                    if !coordinates.contains(&center[axis]) {
+                        work.search_storage(axes.entries + 1)?;
+                        coordinates.insert(center[axis]);
                         axes.entries += 1;
-                        work.search_storage(axes.entries)?;
                     }
-                    *entry.or_default() |= mask;
                 }
             }
         }
@@ -680,7 +674,13 @@ fn trace_taps(
                 let axis = 1 - fixed;
                 let at = pad.copper_center()[axis];
                 let (a, b) = (track.start[axis], track.end[axis]);
-                if terminal.layer_mask(stackup) & mask != 0 && a.min(b) < at && at < a.max(b) {
+                // A connected trunk can serve a pad on a different layer.
+                // Seed the real copper here. The search must supply the via.
+                if a.min(b) < at
+                    && at < a.max(b)
+                    && (terminal.layer_mask(stackup) & mask != 0
+                        || trace_ends_connected(track, source, stackup, work)?)
+                {
                     let mut point = track.start;
                     point[axis] = at;
                     anchors.push(point);
@@ -691,7 +691,7 @@ fn trace_taps(
     }
     let axes = match axes {
         Some(axes) => axes,
-        None => axes.insert(PadAxes::new(targets, stackup, work)?),
+        None => axes.insert(PadAxes::new(targets, work)?),
     };
     let mut connected = false;
     for (axis, coordinates) in axes.coordinates.iter().enumerate() {
@@ -703,11 +703,8 @@ fn trace_taps(
             std::ops::Bound::Excluded(a.min(b)),
             std::ops::Bound::Excluded(a.max(b)),
         );
-        for (&at, &layers) in coordinates.range(interval) {
+        for &at in coordinates.range(interval) {
             work.charge(1)?;
-            if mask & layers == 0 {
-                continue;
-            }
             let other = 1 - axis;
             let delta = i128::from(b - a);
             let offset = i128::from(at - a) * i128::from(track.end[other] - track.start[other]);

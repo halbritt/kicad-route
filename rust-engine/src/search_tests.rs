@@ -5833,3 +5833,48 @@ fn necessary_vias_considers_every_start_and_every_target_layer() {
         1
     );
 }
+
+#[test]
+fn cross_layer_branches_use_only_terminated_tracks_and_exact_intersections() {
+    let stack = ["F.Cu".into(), "In1.Cu".into(), "B.Cu".into()];
+    let mut target = pad(1, 1, [4_001, 18_000], Shape::Circle { radius_nm: 250 });
+    target.layers = vec!["B.Cu".into()];
+    let groups = vec![vec![Copper::Pad(&target)]];
+    for (end, interior) in [
+        ([10_000, 2_000], Some([4_001, 2_000])),
+        ([12_001, 5_000], Some([4_001, 3_000])),
+        ([10_000, 5_000], None),
+    ] {
+        let mut trunk = track(3, 1, [1, 2_000], end, 200);
+        trunk.layer = "In1.Cu".into();
+        let terminal = |id, at| {
+            let mut land = pad(id, 1, at, Shape::Circle { radius_nm: 250 });
+            land.layers = vec![trunk.layer.clone()];
+            land
+        };
+        let first = terminal(4, trunk.start);
+        let second = terminal(5, trunk.end);
+        let mut source = vec![Copper::Track(&trunk), Copper::Pad(&first)];
+        for joined in [false, true] {
+            if joined {
+                source.push(Copper::Pad(&second));
+            }
+            let mut taps = Vec::new();
+            trace_taps(
+                &trunk,
+                &source,
+                &groups,
+                &stack,
+                2,
+                &WorkBudget::new(Limits::default()),
+                &mut None,
+                &mut taps,
+            )
+            .unwrap();
+            assert_eq!(
+                taps,
+                interior.filter(|_| joined).into_iter().collect::<Vec<_>>()
+            );
+        }
+    }
+}

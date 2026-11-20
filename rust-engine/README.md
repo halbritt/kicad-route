@@ -385,6 +385,11 @@ three arms must clear the design rules and use less copper than the shortest
 two pairwise octilinear spans. The complete proposal is inserted together and
 the router checks the resulting connected components.
 
+A track whose two ends are already connected can launch a branch from an
+interior point aligned with a target pad on another layer. The starting point
+must lie exactly on the track centerline. The search still has to find a legal
+via and an uninterrupted copper path to the pad.
+
 Already-connected pad groups and disconnected incumbent tracks participate
 equally; a net succeeds only when all required copper is connected. This can
 produce branches but does not optimize a Steiner tree or promise invariance

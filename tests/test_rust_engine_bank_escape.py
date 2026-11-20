@@ -415,3 +415,54 @@ def test_negotiated_routes_between_perpendicular_connector_banks(tmp_path, guard
     assert not after["unconnected_items"] and not after["violations"]
     reopened = pcbnew.LoadBoard(str(saved))
     assert reopened.GetCopperLayerCount() == 4 and len(list(reopened.GetPads())) == 18
+
+
+def test_surface_branch_reaches_the_middle_of_a_locked_inner_trace(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=13142)
+    board.set_rect_outline(0, 0, 64_000_000, 38_000_000)
+    stack = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+
+    def point(x, y):
+        return round((64 - x) * 1_000_000), round((38 - y) * 1_000_000)
+
+    def block(layers, x, y, right, top, *, tracks=False, vias=False):
+        board.add_keepout(layers, [point(x, y), point(right, y), point(right, top), point(x, top)],
+                          no_tracks=tracks, no_vias=vias)
+
+    a, b = point(3.25, 27.55), point(59.25, 34.55)
+    for i, at in enumerate([a, b, point(31.25, 3.55), point(3, 3), point(9, 3)]):
+        fp = board.add_footprint(f"J{i + 1}", at, side="B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        if i < 2:
+            board.add_pad(fp, "1", "SIG", at, attrib=pcbnew.PAD_ATTRIB_PTH,
+                          layers=[*stack, pcbnew.F_Mask, pcbnew.B_Mask], size_nm=(1_350_000,) * 2,
+                          drill_size_nm=(600_000,) * 2, shape=pcbnew.PAD_SHAPE_CIRCLE)
+        else:
+            board.add_pad(fp, "1", "SIG" if i == 2 else "REF", at, layers=[pcbnew.B_Cu],
+                          size_nm=(800_000, 650_000), shape=pcbnew.PAD_SHAPE_RECT)
+    board.add_track("SIG", a, b, 200_000, layer=pcbnew.In2_Cu, locked=True)
+    block([pcbnew.F_Cu, pcbnew.B_Cu], -1, 7.5, 65, 25, tracks=True)
+    block(stack, -1, 7.5, 65, 39, vias=True)
+    for y, left, right in [(11.5, 32.75, 34.25), (16.5, 36.35, 37.85), (21.5, 33.25, 34.75)]:
+        block(stack[1:3], -1, y, left, y + .8, tracks=True)
+        block(stack[1:3], right, y, 65, y + .8, tracks=True)
+    board.set_project_rules()
+    source = board.save(tmp_path / "input").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 2 and not before["violations"]
+    run, _ = guarded_cli
+    saved = tmp_path / "routed.kicad_pcb"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved)])
+    after = run_native_drc(saved, sidecar_source=source).raw
+    assert not after["unconnected_items"] and not after["violations"]
+    reopened = pcbnew.LoadBoard(str(saved))
+    tracks = list(reopened.GetTracks())
+    assert len([item for item in tracks if isinstance(item, pcbnew.PCB_VIA)]) == 1
+    original = [t for t in tracks if not isinstance(t, pcbnew.PCB_VIA) and t.IsLocked()]
+    assert len(original) == 1 and {tuple(original[0].GetStart()), tuple(original[0].GetEnd())} == {a, b}
+    contacts = [tuple(endpoint) for t in tracks if not isinstance(t, pcbnew.PCB_VIA)
+                and not t.IsLocked() and t.GetLayer() == pcbnew.In2_Cu
+                for endpoint in (t.GetStart(), t.GetEnd())]
+    assert any(min(a[0], b[0]) < x < max(a[0], b[0]) and (x - a[0]) == 8 * (y - a[1])
+               for x, y in contacts)
