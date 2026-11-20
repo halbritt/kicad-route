@@ -51,6 +51,9 @@ for each result.
 On reversible multilayer joins, the router uses fixed tracks and solid
 rectangular keepouts to estimate how far a trace must travel around an
 obstacle. A layer-specific obstruction can be crossed by changing layers.
+A route that must finish on the face where it started needs a second via
+to return if it takes this detour. A via may itself finish a connection
+when the target copper and board rules permit it.
 A keepout spanning every layer still requires a planar detour. Tracks added
 while routing are checked for clearance at each step and remain available
 for negotiation.

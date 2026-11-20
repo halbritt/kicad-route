@@ -1221,7 +1221,28 @@ fn search_component_path(
             engine.layer_policy.scale(via_cost),
             &engine.work,
         )?;
-        candidate.is_active().then_some(candidate)
+        if candidate.is_active() {
+            engine
+                .work
+                .charge((start_vec.len() + goal_bounds.len()) as u64)?;
+            let source_mask = start_vec
+                .iter()
+                .fold(0u32, |mask, &(_, layer, _)| mask | (1u32 << layer));
+            let target_mask = if disallow_smd_via_in_pad && net != 0 {
+                goal_bounds
+                    .iter()
+                    .try_fold(0u32, |mask, b| {
+                        matches!(b.copper, Copper::Pad(p) if p.drill.is_none())
+                            .then_some(mask | b.mask)
+                    })
+                    .unwrap_or(u32::MAX)
+            } else {
+                u32::MAX
+            };
+            Some(candidate.with_terminal_layers(source_mask, target_mask))
+        } else {
+            None
+        }
     } else {
         None
     };

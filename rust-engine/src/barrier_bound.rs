@@ -203,6 +203,8 @@ fn solid_rectangle(area: &RuleArea) -> Option<Envelope> {
 pub(crate) struct BarrierBound {
     source: Envelope,
     target: Envelope,
+    source_layers: u32,
+    target_layers: u32,
     layers: Vec<[Option<Barrier>; 2]>,
     through_stack: [Option<Barrier>; 2],
     ordered: [Option<OrderedBounds>; 2],
@@ -357,6 +359,8 @@ impl BarrierBound {
         Ok(Self {
             source,
             target,
+            source_layers: u32::MAX,
+            target_layers: u32::MAX,
             layers: retained,
             through_stack,
             ordered,
@@ -369,6 +373,14 @@ impl BarrierBound {
 
     pub(crate) fn is_active(&self) -> bool {
         self.active
+    }
+
+    /// A via that can finish directly on target copper may terminate on a
+    /// different layer. Leave every target layer open in that case.
+    pub(crate) fn with_terminal_layers(mut self, source: u32, target: u32) -> Self {
+        self.source_layers = source;
+        self.target_layers = target;
+        self
     }
 
     pub(crate) fn estimate(
@@ -418,12 +430,22 @@ impl BarrierBound {
             Ok::<_, Failure>(h)
         };
         let local = planar_bound(&self.layers[layer])?;
-        // A via may bypass all layer-local barriers in one transition, but
-        // its center never moves. Any through-stack divider must still be
-        // passed before reaching the (via-radius-expanded) goal envelope.
-        let escaped = self
-            .layer_change
-            .map_or(local, |cost| local.min(base.saturating_add(cost)));
+        let terminal_layers = if backward {
+            self.source_layers
+        } else {
+            self.target_layers
+        };
+        let current = 1u32 << layer;
+        let escaped = match self.layer_change {
+            None => local,
+            Some(via) if terminal_layers & current == 0 => base.saturating_add(via),
+            Some(via) => {
+                // With just one terminal layer, a path that leaves it to
+                // avoid a barrier must return before making planar contact.
+                let transitions = if terminal_layers == current { 2 } else { 1 };
+                local.min(base.saturating_add(via.saturating_mul(transitions)))
+            }
+        };
         let mut bound = escaped;
         for axis in 0..2 {
             let travel = if let Some(ordered) = &self.ordered[axis] {

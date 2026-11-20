@@ -73,6 +73,10 @@ fn foreign_centerline_forces_either_end_with_layer_escape_and_clipped_contact() 
     assert_eq!(both.estimate([0, 4], 0, &w).unwrap(), 23); // 6 steps plus one layer change
     assert_eq!(both.estimate([0, 4], 1, &w).unwrap(), 18);
     assert_eq!(both.estimate_reverse([12, 4], 0, &w).unwrap(), 23);
+    let front_landings = both.with_terminal_layers(1, 1);
+    assert_eq!(front_landings.estimate([0, 4], 0, &w).unwrap(), 28);
+    assert_eq!(front_landings.estimate([0, 4], 1, &w).unwrap(), 23);
+    assert_eq!(front_landings.estimate_reverse([12, 4], 0, &w).unwrap(), 28);
     let clipped = build(&layers, 2);
     assert_eq!(clipped.estimate([10, 4], 0, &w).unwrap(), 0);
     assert_eq!(clipped.estimate([9, 4], 0, &w).unwrap(), 3);
@@ -328,6 +332,29 @@ fn finite_world_oracle_all_states_edges_layers_phases_and_partial_final_edges() 
                     );
                     total +=
                         compare_oracle(&h, stack, &solids, &[(0, a)], 0, grid, step, via, true);
+                    let on_front = h.with_terminal_layers(1u32 << (stack - 1), 1);
+                    total += compare_oracle(
+                        &on_front,
+                        stack,
+                        &solids,
+                        &[(0, b)],
+                        radius,
+                        grid,
+                        step,
+                        via,
+                        false,
+                    );
+                    total += compare_oracle(
+                        &on_front,
+                        stack,
+                        &solids,
+                        &[(stack - 1, a)],
+                        0,
+                        grid,
+                        step,
+                        via,
+                        true,
+                    );
                 }
             }
         }
