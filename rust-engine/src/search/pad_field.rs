@@ -165,7 +165,10 @@ fn cell_phase(
             bounds.1 = bounds.1.min(edge);
         }
     }
-    if bounds.0 > bounds.1 {
+    // Widely spaced pads can form rectangles across an entire board. When
+    // none of their via keepouts reaches this cross-section, the midpoint is
+    // free space and supplies no pad-defined escape passage.
+    if bounds.0 > bounds.1 || bounds == (low, high) {
         return Ok(None);
     }
     let mut site = [midline; 2];

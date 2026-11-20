@@ -5274,6 +5274,48 @@ fn staggered_barriers_certify_the_cheaper_path_for_off_grid_pads() {
 }
 
 #[test]
+fn a_wide_rectangle_of_unrelated_pads_does_not_propose_a_via_escape_phase() {
+    let mut input: Input = serde_json::from_value(serde_json::json!({
+        "version": 1, "source_id": "a".repeat(64), "layer": "F.Cu",
+        "layers": ["F.Cu", "B.Cu"],
+        "bounds": {"min": [0, 0], "max": [16_000_000, 16_000_000]},
+        "rules": {"grid_nm": 250_000, "width_nm": 200_000, "clearance_nm": 200_000,
+                  "edge_clearance_nm": 500_000},
+        "nets": [{"id": 1, "name": "signal"}, {"id": 2, "name": "shield"}],
+        "pads": [], "tracks": [], "max_expansions": 100_000
+    }))
+    .unwrap();
+    let lo = 2_000_000;
+    let hi = 9_100_000;
+    for (index, (net, at)) in [(1, [lo, lo]), (2, [hi, lo]), (2, [lo, hi]), (1, [hi, hi])]
+        .into_iter()
+        .enumerate()
+    {
+        let mut p = pad(
+            index as u64 + 1,
+            net,
+            at,
+            Shape::Rect {
+                half_size_nm: [275_000; 2],
+            },
+        );
+        p.layers = vec!["F.Cu".into()];
+        input.pads.push(p);
+    }
+    let engine = Engine::new(input).unwrap();
+    let _scope = engine.work.scope();
+    let pads = &engine.input.pads;
+    let starts = pad_field::starts(
+        &engine,
+        1,
+        &[Copper::Pad(&pads[0])],
+        &[vec![Copper::Pad(&pads[3])]],
+    )
+    .unwrap();
+    assert!(starts.is_empty());
+}
+
+#[test]
 fn straight_certificate_uses_the_first_contact_cell_and_checks_the_entire_track() {
     let mut input: Input = serde_json::from_value(serde_json::json!({
         "version": 1, "source_id": "a".repeat(64), "layer": "F.Cu",
