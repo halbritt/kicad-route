@@ -1870,6 +1870,56 @@ def test_sigkill_after_board_publication_preserves_board_and_original_rules(
     assert all(path.read_bytes() == data for path, data in originals.items())
 
 
+@pytest.mark.parametrize(('failed_directory', 'syscall'), [
+    (None, 'fsync'), ('board', 'fsync'), ('board', 'openat'), ('request', 'fsync'), ('report', 'fsync'),
+])
+def test_native_publication_reports_directory_sync_errors(tmp_path, guarded_cli, failed_directory, syscall):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    source = ROOT / 'fixtures/route_demo/route_demo.kicad_pcb'
+    destinations = {}
+    for kind, name in [('board', 'routed.kicad_pcb'), ('request', 'input.json'), ('report', 'operation.json')]:
+        folder = tmp_path / kind
+        folder.mkdir()
+        destinations[kind] = folder / name
+    output, request, report = (destinations[k] for k in ('board', 'request', 'report'))
+    trace = tmp_path / 'sync.log'
+    watched = destinations[failed_directory or 'board'].parent
+    command = ['strace', '-y', '-o', str(trace), '-P', str(watched), '-e', f'trace={syscall}']
+    if failed_directory:
+        command += ['-e', f'inject={syscall}:error=EIO']
+    result = run([*command, str(engine), 'route-native', str(source), str(output),
+                  '--save-request', str(request), '--operation-result', str(report)], check=False)
+    syncs = [line for line in trace.read_text().splitlines() if line.startswith(f'{syscall}(')]
+    assert len(syncs) == 1 and str(watched) in syncs[0], syncs
+    assert ('EIO' in syncs[0]) == bool(failed_directory), syncs
+    assert result.returncode == (8 if failed_directory else 0), result.stderr
+    final = json.loads(result.stdout)
+    saved = json.loads(report.read_bytes())
+    assert final['publication']['published'] and final['publication']['commit_point_reached']
+    assert final['publication']['output_sha256'] == hashlib.sha256(output.read_bytes()).hexdigest()
+    assert final['publication']['output_bytes'] == output.stat().st_size
+    assert final['publication']['ambiguous_termination'] == bool(failed_directory)
+    assert final['status'] == ('ambiguous_termination' if failed_directory else 'complete')
+    assert final['staging']['cleaned_up']
+    assert request.exists() == (failed_directory != 'board')
+    if request.exists():
+        assert final['request']['saved_request_path'] == str(request)
+        assert hashlib.sha256(request.read_bytes()).hexdigest() == final['request']['request_sha256']
+    if failed_directory:
+        assert str(destinations[failed_directory]) in final['publication']['reconciliation_note']
+        assert 'Input/output error' in final['reason']
+    if failed_directory == 'report':
+        # The operation report was already linked with the pre-sync state.
+        # The process exit and stdout record the subsequent error.
+        assert saved['status'] == 'complete'
+        assert saved['publication']['output_sha256'] == final['publication']['output_sha256']
+    else:
+        assert saved == final
+    phase = next(p for p in final['phases'] if p['phase'] == 'final_publish')
+    assert phase['status'] == ('failed' if failed_directory in ('board', 'request') else 'ok')
+
+
 def test_native_route_preserves_stencil_only_smd_apertures(native_board, guarded_cli):
     run, _ = guarded_cli
     board = pcbnew.LoadBoard(str(native_board))

@@ -36,6 +36,13 @@ failed or the board that was published. Read both the process exit code and
 the result. Run `route-native --help` on the executable for options covering
 rules, limits, pair routing and length matching.
 
+After linking a board, saved request or operation report, the controller opens
+and syncs its containing directory. A failure after the board link preserves
+the board and its recorded digest and returns exit 8 with
+`ambiguous_termination`. If the operation report's own directory sync fails,
+the linked report contains the state before that sync. The final stdout result
+and process exit include the error.
+
 On Linux, each standalone operation keeps a private staging directory and
 launches the native phase in a dedicated process group. If the router dies
 during a native phase, a surviving helper terminates that group and releases

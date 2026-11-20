@@ -615,11 +615,30 @@ fn parent_dir_or_dot(path: &Path) -> &Path {
     }
 }
 
+/// The destination link is already visible. Any subsequent error must keep
+/// that fact in the caller's result and leave the linked file in place.
+fn sync_published_directory(destination: &Path) -> std::io::Result<()> {
+    let parent = parent_dir_or_dot(destination);
+    File::open(parent)
+        .and_then(|dir| dir.sync_all())
+        .map_err(|e| {
+            std::io::Error::new(
+                e.kind(),
+                format!(
+                    "{} was linked, but syncing its directory {} failed: {e}",
+                    destination.display(),
+                    parent.display()
+                ),
+            )
+        })
+}
+
 fn atomic_hard_link_publish(
     destination: &Path,
     bytes: &[u8],
     op_id: &str,
     mode: u32,
+    on_link: impl FnOnce(),
 ) -> std::io::Result<()> {
     let parent = parent_dir_or_dot(destination);
     let mut pub_dir = OwnedTempDir::create_in(parent, ".kicad-route-pub-", op_id)?;
@@ -632,9 +651,8 @@ fn atomic_hard_link_publish(
         .join(name);
     write_file_create_new(&candidate, bytes, mode)?;
     fs::hard_link(&candidate, destination)?;
-    if let Ok(dir) = File::open(parent) {
-        let _ = dir.sync_all();
-    }
+    on_link();
+    sync_published_directory(destination)?;
     let _ = pub_dir.cleanup();
     Ok(())
 }
@@ -2743,8 +2761,12 @@ fn execute_staged_phases(
             result.publication.published = true;
             result.publication.output_sha256 = Some(candidate_sha256);
             result.publication.output_bytes = Some(candidate_bytes_len);
-            if let Ok(dir) = File::open(dest_parent) {
-                let _ = dir.sync_all();
+            if let Err(e) = sync_published_directory(&config.output) {
+                result.publication.ambiguous_termination = true;
+                let note = e.to_string();
+                result.publication.reconciliation_note = Some(note.clone());
+                push_failed_phase(result, "final_publish", t_pub.elapsed(), note.clone(), None);
+                return Err((OperationStatus::AmbiguousTermination, note));
             }
             let _ = pub_dir.cleanup();
         }
@@ -2801,7 +2823,9 @@ fn execute_staged_phases(
     }
 
     if let Some(save_req) = &config.save_request {
-        if let Err(e) = atomic_hard_link_publish(save_req, &request_bytes, op_id, 0o644) {
+        if let Err(e) = atomic_hard_link_publish(save_req, &request_bytes, op_id, 0o644, || {
+            result.request.saved_request_path = Some(save_req.display().to_string());
+        }) {
             result.publication.ambiguous_termination = true;
             let note = format!(
                 "destination board was published, but saving --save-request {} failed: {e}",
@@ -2817,7 +2841,6 @@ fn execute_staged_phases(
             });
             return Err((OperationStatus::AmbiguousTermination, note));
         }
-        result.request.saved_request_path = Some(save_req.display().to_string());
     }
 
     result.phases.push(PhaseRecord {
@@ -3745,6 +3768,7 @@ pub fn run_cli(args: &[OsString]) -> u8 {
                         &bytes,
                         &result.operation_id,
                         0o644,
+                        || {},
                     ) {
                         if result.publication.published {
                             result.publication.ambiguous_termination = true;
