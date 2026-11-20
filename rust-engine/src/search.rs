@@ -620,6 +620,222 @@ fn trace_ends_connected(
     Ok(true)
 }
 
+/// A track/via keepout can cover the pad center while leaving other copper
+/// available for a connection. Reuse the pad's original search-grid phase.
+/// The bounding box only enumerates candidates; the actual pad and the
+/// ordinary seed legality/contact checks decide which sites are usable.
+fn visit_pad_interior(
+    pad: &crate::model::Pad,
+    engine: &Engine,
+    mut visit: impl FnMut(Point) -> Result<(), Failure>,
+) -> Result<(), Failure> {
+    let parts = pad.shape.parts();
+    engine.work.charge(parts.len() as u64)?;
+    let shape_work = parts
+        .iter()
+        .map(|part| match part {
+            crate::model::Shape::ConvexPolygon { vertices, .. } => 1 + vertices.len() as u64,
+            _ => 1,
+        })
+        .sum::<u64>();
+    engine.work.charge(shape_work)?;
+    let (lo, hi) = pad.copper_bounds();
+    let center = pad.copper_center();
+    let grid = engine.input.rules.grid_nm;
+    let first: Point = std::array::from_fn(|k| {
+        let min = lo[k].max(engine.input.bounds.min[k]);
+        min + (center[k] - min).rem_euclid(grid)
+    });
+    let last: Point = std::array::from_fn(|k| hi[k].min(engine.input.bounds.max[k]));
+    if first[1] > last[1] {
+        return Ok(());
+    }
+    for x in (first[0]..=last[0]).step_by(grid as usize) {
+        for y in (first[1]..=last[1]).step_by(grid as usize) {
+            engine.work.charge(shape_work)?;
+            if geometry::point_in_pad([x, y], pad) {
+                visit([x, y])?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn component_starts(
+    engine: &Engine,
+    net: u32,
+    source: &[Copper<'_>],
+    targets: &[Vec<Copper<'_>>],
+    source_layers: u32,
+    mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
+) -> Result<Vec<(Point, u8, bool)>, Failure> {
+    let stackup = engine.all_layers_slice();
+    let l_count = engine.layer_count();
+    let via_cost = engine.effective_rules.via_cost.max(1);
+    let mut track_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
+    let mut via_only_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
+    let mut via_seed_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
+    let mut seed_blocked_vias: Vec<(u8, u8, bool)> = Vec::new();
+    let mut pad_axes = None;
+    for interior_only in [false, true] {
+        if interior_only && (!track_starts.is_empty() || !via_only_starts.is_empty()) {
+            break;
+        }
+        for c in source {
+            engine.work.charge(1)?;
+            if interior_only && !matches!(c, Copper::Pad(_)) {
+                continue;
+            }
+            let c_mask = c.layer_mask(stackup);
+            let mut anchors = c.anchors(engine.input.bounds.min, engine.input.rules.grid_nm);
+            if let Copper::Track(t) = c {
+                trace_taps(
+                    t,
+                    source,
+                    targets,
+                    stackup,
+                    c_mask,
+                    &engine.work,
+                    &mut pad_axes,
+                    &mut anchors,
+                )?;
+            }
+            for l_idx in 0..l_count {
+                if (c_mask & source_layers & (1u32 << l_idx)) == 0 {
+                    continue;
+                }
+                let l_name = engine.layer_name(l_idx);
+                let width_opt = match engine.effective_rules.track_width_for(net, l_name) {
+                    Ok(w) => Some(w),
+                    Err(e) if e.status == Status::Unroutable => None,
+                    Err(e) => return Err(e),
+                };
+                let mut try_seed = |p: Point| -> Result<(), Failure> {
+                    engine.work.charge(1)?;
+                    let key = (p, l_idx as u8);
+                    let mut track_ok = false;
+                    engine.clear_last_block_generated();
+                    if let Some(width_nm) = width_opt {
+                        if engine.legal_edge_on(net, l_idx, p, p)? {
+                            let probe = Track {
+                                id: String::new(),
+                                net,
+                                start: p,
+                                end: p,
+                                width_nm,
+                                locked: false,
+                                layer: l_name.to_owned(),
+                            };
+                            for s in source {
+                                if s.touches_route(&probe, stackup, &engine.work)? {
+                                    track_ok = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    let track_block_generated = !track_ok && engine.last_block_generated();
+                    let mut via_ok = false;
+                    seed_blocked_vias.clear();
+                    if track_ok {
+                        via_only_starts.remove(&key);
+                        engine.work.search_storage(
+                            track_starts.len()
+                                + via_only_starts.len()
+                                + usize::from(!track_starts.contains(&key)),
+                        )?;
+                        track_starts.insert(key);
+                    } else if l_count > 1
+                        && !track_starts.contains(&key)
+                        && !via_only_starts.contains(&key)
+                    {
+                        via_seed_buf.clear();
+                        push_legal_via_transitions_with_blocked(
+                            engine,
+                            net,
+                            p,
+                            l_idx,
+                            via_cost,
+                            &[],
+                            &mut via_seed_buf,
+                            frontier.as_deref().map(|_| &mut seed_blocked_vias),
+                        )?;
+                        'via_seed: for &(_, pv, _) in &via_seed_buf {
+                            let kind = match pv.kind {
+                                0 => ViaKind::Through,
+                                1 => ViaKind::BlindBuried,
+                                _ => ViaKind::Micro,
+                            };
+                            let span_layers =
+                                &stackup[pv.start_layer as usize..=pv.end_layer as usize];
+                            if let Ok((diam, drill)) = engine.effective_rules.via_dims_for(
+                                net,
+                                kind == ViaKind::Micro,
+                                span_layers,
+                            ) {
+                                let probe_via = Via {
+                                    id: String::new(),
+                                    net,
+                                    at: p,
+                                    diameter_nm: diam,
+                                    drill_nm: drill,
+                                    start_layer: stackup[pv.start_layer as usize].clone(),
+                                    end_layer: stackup[pv.end_layer as usize].clone(),
+                                    kind,
+                                    locked: false,
+                                };
+                                for s in source {
+                                    if (s.layer_mask(stackup) & (1u32 << l_idx)) != 0
+                                        && s.touches_via(&probe_via, stackup, &engine.work)?
+                                    {
+                                        via_ok = true;
+                                        break 'via_seed;
+                                    }
+                                }
+                            }
+                        }
+                        if via_ok {
+                            engine
+                                .work
+                                .search_storage(track_starts.len() + via_only_starts.len() + 1)?;
+                            via_only_starts.insert(key);
+                        }
+                    }
+                    let usable = track_ok
+                        || via_ok
+                        || track_starts.contains(&key)
+                        || via_only_starts.contains(&key);
+                    if !usable {
+                        if let Some(f) = frontier.as_deref_mut() {
+                            f.push_edge_classified(l_idx as u8, p, p, track_block_generated);
+                            for &(s_lo, s_hi, via_gen) in &seed_blocked_vias {
+                                f.push_via_site_classified(s_lo, s_hi, p, via_gen);
+                            }
+                        }
+                    }
+                    Ok(())
+                };
+                if interior_only {
+                    if let Copper::Pad(pad) = c {
+                        visit_pad_interior(pad, engine, try_seed)?;
+                    }
+                } else {
+                    for &p in &anchors {
+                        try_seed(p)?;
+                    }
+                }
+            }
+        }
+    }
+    let mut start_vec: Vec<(Point, u8, bool)> = track_starts
+        .iter()
+        .map(|&(p, l)| (p, l, false))
+        .chain(via_only_starts.iter().map(|&(p, l)| (p, l, true)))
+        .collect();
+    start_vec.sort_unstable();
+    Ok(start_vec)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn search_component_path(
     engine: &Engine,
@@ -644,146 +860,18 @@ fn search_component_path(
     let stackup = engine.all_layers_slice();
     let l_count = engine.layer_count();
     let via_cost = engine.effective_rules.via_cost.max(1);
-    let mut track_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
-    let mut via_only_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
-    let mut via_seed_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
-    let mut seed_blocked_vias: Vec<(u8, u8, bool)> = Vec::new();
-    let mut pad_axes = None;
-    for c in source {
-        engine.work.charge(1)?;
-        let c_mask = c.layer_mask(stackup);
-        let mut anchors = c.anchors(engine.input.bounds.min, engine.input.rules.grid_nm);
-        if let Copper::Track(t) = c {
-            trace_taps(
-                t,
-                source,
-                targets,
-                stackup,
-                c_mask,
-                &engine.work,
-                &mut pad_axes,
-                &mut anchors,
-            )?;
-        }
-        for l_idx in 0..l_count {
-            if (c_mask & source_layers & (1u32 << l_idx)) == 0 {
-                continue;
-            }
-            let l_name = engine.layer_name(l_idx);
-            let width_opt = match engine.effective_rules.track_width_for(net, l_name) {
-                Ok(w) => Some(w),
-                Err(e) if e.status == Status::Unroutable => None,
-                Err(e) => return Err(e),
-            };
-            for &p in &anchors {
-                engine.work.charge(1)?;
-                let key = (p, l_idx as u8);
-                let mut track_ok = false;
-                engine.clear_last_block_generated();
-                if let Some(width_nm) = width_opt {
-                    if engine.legal_edge_on(net, l_idx, p, p)? {
-                        let probe = Track {
-                            id: String::new(),
-                            net,
-                            start: p,
-                            end: p,
-                            width_nm,
-                            locked: false,
-                            layer: l_name.to_owned(),
-                        };
-                        for s in source {
-                            if s.touches_route(&probe, stackup, &engine.work)? {
-                                track_ok = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                let track_block_generated = !track_ok && engine.last_block_generated();
-                let mut via_ok = false;
-                seed_blocked_vias.clear();
-                if track_ok {
-                    via_only_starts.remove(&key);
-                    engine.work.search_storage(
-                        track_starts.len()
-                            + via_only_starts.len()
-                            + usize::from(!track_starts.contains(&key)),
-                    )?;
-                    track_starts.insert(key);
-                } else if l_count > 1
-                    && !track_starts.contains(&key)
-                    && !via_only_starts.contains(&key)
-                {
-                    via_seed_buf.clear();
-                    push_legal_via_transitions_with_blocked(
-                        engine,
-                        net,
-                        p,
-                        l_idx,
-                        via_cost,
-                        &[],
-                        &mut via_seed_buf,
-                        frontier.as_deref().map(|_| &mut seed_blocked_vias),
-                    )?;
-                    'via_seed: for &(_, pv, _) in &via_seed_buf {
-                        let kind = match pv.kind {
-                            0 => ViaKind::Through,
-                            1 => ViaKind::BlindBuried,
-                            _ => ViaKind::Micro,
-                        };
-                        let span_layers = &stackup[pv.start_layer as usize..=pv.end_layer as usize];
-                        if let Ok((diam, drill)) = engine.effective_rules.via_dims_for(
-                            net,
-                            kind == ViaKind::Micro,
-                            span_layers,
-                        ) {
-                            let probe_via = Via {
-                                id: String::new(),
-                                net,
-                                at: p,
-                                diameter_nm: diam,
-                                drill_nm: drill,
-                                start_layer: stackup[pv.start_layer as usize].clone(),
-                                end_layer: stackup[pv.end_layer as usize].clone(),
-                                kind,
-                                locked: false,
-                            };
-                            for s in source {
-                                if (s.layer_mask(stackup) & (1u32 << l_idx)) != 0
-                                    && s.touches_via(&probe_via, stackup, &engine.work)?
-                                {
-                                    via_ok = true;
-                                    break 'via_seed;
-                                }
-                            }
-                        }
-                    }
-                    if via_ok {
-                        engine
-                            .work
-                            .search_storage(track_starts.len() + via_only_starts.len() + 1)?;
-                        via_only_starts.insert(key);
-                    }
-                }
-                if !track_ok
-                    && !via_ok
-                    && !track_starts.contains(&key)
-                    && !via_only_starts.contains(&key)
-                {
-                    if let Some(f) = frontier.as_deref_mut() {
-                        f.push_edge_classified(l_idx as u8, p, p, track_block_generated);
-                        for &(s_lo, s_hi, via_gen) in &seed_blocked_vias {
-                            f.push_via_site_classified(s_lo, s_hi, p, via_gen);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    if track_starts.is_empty() && via_only_starts.is_empty() {
+    let start_vec = component_starts(
+        engine,
+        net,
+        source,
+        targets,
+        source_layers,
+        frontier.as_deref_mut(),
+    )?;
+    if start_vec.is_empty() {
         let mut failure = Failure::new(
             Status::Unroutable,
-            "component has no legal pad-center or incumbent-endpoint search seed",
+            "component has no legal search seed on its copper",
         );
         failure.work_used = engine.work.used();
         failure.expanded_states = *expanded;
@@ -945,12 +1033,6 @@ fn search_component_path(
     );
     let conflict_radius_sq_upper = conflict_radius_upper * conflict_radius_upper;
 
-    let mut start_vec: Vec<(Point, u8, bool)> = track_starts
-        .iter()
-        .map(|&(p, l)| (p, l, false))
-        .chain(via_only_starts.iter().map(|&(p, l)| (p, l, true)))
-        .collect();
-    start_vec.sort_unstable();
     let bwd_starts: Vec<(Point, u8)> = start_vec.iter().map(|&(p, l, _)| (p, l)).collect();
     let has_zone_target = targets
         .iter()

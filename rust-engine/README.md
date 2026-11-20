@@ -155,7 +155,11 @@ adapter checks it against the original board bytes. CLI input is at most 16 MiB.
 Search uses four orthogonal directions, uniform one-step cost and an incoming
 heading in the dominance key. All multi-component and two-pad nets use multi-source A* from every
 legal pad center and track endpoint in the first component, targeting all other
-components. A final pad can also branch perpendicularly from a straight track.
+components. If all ordinary starts in the source component are blocked, the
+router checks grid points inside the actual source pads on their original grid
+phases. A track or via keepout covering the pad center can leave a usable end
+of the land exposed. Each candidate consumes work and the usual track, via and
+contact rules apply. A final pad can also branch perpendicularly from a straight track.
 When both ends of a source track already connect to other copper in its
 component, a terminal can branch from an interior point sharing its x or y
 coordinate, including an exact integer point on a diagonal trace. Its heuristic
@@ -294,7 +298,7 @@ outer changes intact. `route` preserves already-connected copper; `reroute`
 removes only generated copper for that net before searching. Both require a
 known nonzero net and a budget of 1..=1,000,000 expansions for that operation.
 Unroutable errors from all three methods name the fixed current copper, grid
-and pad-center/track-endpoint seed domain, without claiming global infeasibility.
+and source-copper search seeds, without claiming global infeasibility.
 `route_all` retains its existing batch-wide expansion budget. The enclosing
 transaction shares one total-work limit across all nested calls; expansion
 limits remain per operation.

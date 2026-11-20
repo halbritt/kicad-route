@@ -152,6 +152,50 @@ fn single_offset_net_reaches_its_goal_on_an_equal_cost_plateau() {
 }
 
 #[test]
+fn blocked_pad_centers_allow_only_exposed_copper_to_start_a_route() {
+    let mut input = base();
+    input.rules.grid_nm = 2;
+    for (i, pad) in input.pads.iter_mut().enumerate() {
+        let [x, y] = pad.at;
+        pad.shape = Shape::Rect {
+            half_size_nm: [9, 4],
+        };
+        input.rule_areas.push(RuleArea {
+            id: id(3 + i as u64),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![
+                [x - 3, y - 6],
+                [x + 3, y - 6],
+                [x + 3, y + 6],
+                [x - 3, y + 6],
+            ],
+            holes: vec![],
+            extra_polygons: vec![],
+            no_tracks: true,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        });
+    }
+    let output = run(input.clone());
+    assert_eq!(output.status, Status::Complete, "{output:?}");
+    assert!(output.added_vias.is_empty());
+    assert_eq!(output.added_tracks.len(), 1);
+    let track = &output.added_tracks[0];
+    assert!(point_in_pad(track.start, &input.pads[0]));
+    assert!(point_in_pad(track.end, &input.pads[1]));
+    assert!(track.start[0] > 13 && track.end[0] < 47);
+    for pad in &mut input.pads {
+        pad.shape = Shape::Circle { radius_nm: 3 };
+    }
+    let sealed = run(input);
+    assert_eq!(sealed.status, Status::Unroutable);
+    assert!(sealed.added_tracks.is_empty() && sealed.added_vias.is_empty());
+}
+
+#[test]
 fn off_grid_smd_escape_uses_the_other_pad_phase_after_exhaustion() {
     let mut input = base();
     input.bounds.max = [6_000_000, 4_000_000];
@@ -1026,7 +1070,7 @@ fn direct_route_and_reroute_failures_name_the_search_domain() {
         assert!(failure.reason.contains("current copper"));
         assert!(failure
             .reason
-            .contains("fixed grid and pad-center/track-endpoint seeds"));
+            .contains("fixed grid and source-copper search seeds"));
         assert_eq!(
             failure
                 .reason

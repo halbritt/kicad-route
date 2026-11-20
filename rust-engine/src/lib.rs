@@ -3530,7 +3530,7 @@ impl Engine {
 }
 pub(crate) fn scoped_routing_failure(mut e: Failure, net: u32) -> Failure {
     if e.status == Status::Unroutable {
-        e.reason = format!("net {net}: {}; failure for fixed net order/current copper, fixed grid and pad-center/track-endpoint seeds; not proof of global infeasibility", e.reason);
+        e.reason = format!("net {net}: {}; failure for fixed net order/current copper, fixed grid and source-copper search seeds; not proof of global infeasibility", e.reason);
     }
     e
 }
