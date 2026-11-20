@@ -34,9 +34,8 @@ pub(super) fn between_pads(
     let layer = layer_mask.trailing_zeros() as usize;
     let a = source.copper_center();
     let b = target.copper_center();
-    // Axis-only routes belong to the existing grid search. Some custom pads
-    // have a center outside copper; a geometric center is never a landing by itself.
-    if a[0] == b[0] || a[1] == b[1] {
+    // A custom pad can have its geometric center outside its copper.
+    if a == b {
         return Ok(None);
     }
     engine.work.charge(2)?;
@@ -49,7 +48,7 @@ pub(super) fn between_pads(
     }
     let grid = engine.input.rules.grid_nm;
     let mut best: Option<Path> = None;
-    for points in octilinear_elbow_paths(a, b) {
+    let mut try_path = |points: Vec<crate::model::Point>| -> Result<bool, Failure> {
         budget.check_before_expand(engine, *expanded, frontier)?;
         *expanded += 1;
         engine.work.charge(1)?;
@@ -94,12 +93,104 @@ pub(super) fn between_pads(
                 edges,
                 steps: cost,
             });
-            // Both elbows sweep the same axis distance and layer. Their costs
-            // can differ only in the presence of congestion history.
-            if history.is_none() {
-                break;
+            return Ok(true);
+        }
+        Ok(false)
+    };
+    let mut found = false;
+    for points in octilinear_elbow_paths(a, b) {
+        found |= try_path(points)?;
+        if found && history.is_none() {
+            break;
+        }
+    }
+    if !found {
+        diagonal_exits(engine, net, layer, a, b, try_path)?;
+    }
+    Ok(best)
+}
+
+type Point = crate::model::Point;
+
+// From both pads, find the farthest legal nanometre on each 45-degree ray.
+// Two points on these rays can share a horizontal or vertical middle leg.
+// Intersect the two legal distance intervals before testing any complete path.
+fn diagonal_exits(
+    engine: &Engine,
+    net: u32,
+    layer: usize,
+    a: Point,
+    b: Point,
+    mut visit: impl FnMut(Vec<Point>) -> Result<bool, Failure>,
+) -> Result<(), Failure> {
+    let bounds = engine.input.bounds;
+    let rays = |p: Point| -> Result<Vec<(Point, i64)>, Failure> {
+        let mut open = Vec::new();
+        for d in [[1, 1], [1, -1], [-1, 1], [-1, -1]] {
+            engine.work.charge(1)?;
+            let extent = |k: usize| {
+                if d[k] > 0 {
+                    bounds.max[k] - p[k]
+                } else {
+                    p[k] - bounds.min[k]
+                }
+            };
+            let end = extent(0).min(extent(1)).max(0);
+            let span = super::monotone_trunk::clear_span(end, |s| {
+                engine.legal_edge_on(net, layer, p, along(p, d, s))
+            })?;
+            if span > 0 {
+                open.push((d, span));
+            }
+        }
+        Ok(open)
+    };
+    let (first, last) = (rays(a)?, rays(b)?);
+    for (u, first_max) in first {
+        for &(v, last_max) in &last {
+            for axis in 0..2 {
+                engine.work.charge(1)?;
+                // t = base + slope*s at the two ends of an axial bridge.
+                let base = (a[axis] - b[axis]) * v[axis];
+                let slope = u[axis] * v[axis];
+                let at_lo = (1 - base) * slope;
+                let at_hi = (last_max - base) * slope;
+                let lo = 1.max(at_lo.min(at_hi));
+                let hi = first_max.min(at_lo.max(at_hi));
+                if lo > hi {
+                    continue;
+                }
+                let k = 1 - axis;
+                let speed = u[k] - v[k] * slope;
+                let near = if speed == 0 {
+                    lo
+                } else {
+                    ((b[k] + v[k] * base - a[k]) / speed).clamp(lo, hi)
+                };
+                let samples = [near, hi, lo, lo.midpoint(hi)];
+                for (i, &s) in samples.iter().enumerate() {
+                    if samples[..i].contains(&s) {
+                        continue;
+                    }
+                    engine.work.charge(1)?;
+                    let left = along(a, u, s);
+                    let right = along(b, v, base + slope * s);
+                    let points = if left == right {
+                        vec![a, left, b]
+                    } else {
+                        if geometry::intersects(a, left, b, right) {
+                            continue;
+                        }
+                        vec![a, left, right, b]
+                    };
+                    visit(points)?;
+                }
             }
         }
     }
-    Ok(best)
+    Ok(())
+}
+
+fn along(p: Point, d: Point, s: i64) -> Point {
+    [p[0] + d[0] * s, p[1] + d[1] * s]
 }

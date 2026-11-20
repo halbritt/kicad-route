@@ -93,7 +93,10 @@ fn chamfer_corner(
 // Shorter swept axial copper is contained in a longer legal run. Some
 // diagonals may skip an obstacle at larger sizes; subdivision then finds a
 // smaller valid chamfer. Always validate the assembled path separately.
-fn clear_span(last: i64, legal: impl Fn(i64) -> Result<bool, Failure>) -> Result<i64, Failure> {
+pub(super) fn clear_span(
+    last: i64,
+    legal: impl Fn(i64) -> Result<bool, Failure>,
+) -> Result<i64, Failure> {
     if last == 0 || legal(last)? {
         return Ok(last);
     }

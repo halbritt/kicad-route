@@ -236,3 +236,43 @@ def test_staggered_surface_keepouts_admit_a_shortest_trunk(tmp_path, guarded_cli
     assert segments and all(t.GetLayer() == face and t.GetWidth() == 200_000 for t in segments)
     assert any(0 < abs(t.GetStartX() - t.GetEndX()) == abs(t.GetStartY() - t.GetEndY())
                for t in segments)
+
+
+@pytest.mark.parametrize("bridge_width", [0, 3_000_000])
+def test_two_diagonal_pad_exits_meet_in_a_surface_channel(tmp_path, guarded_cli, bridge_width):
+    board = BoardBuilder(copper_layers=4, seed=40757)
+    side = 20_000_000
+    board.set_rect_outline(0, 0, side, side)
+    a = (3_000_000, 4_000_000)
+    corner = (7_000_000, 8_000_000)
+    z = (11_000_000 + bridge_width, 4_000_000)
+    for reference, at in [("J1", a), ("J2", z)]:
+        fp = board.add_footprint(reference, at)
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", "DATA", at, size_nm=(500_000, 500_000), layers=[pcbnew.F_Cu])
+    center = [(0, 1_000_000), corner]
+    if bridge_width:
+        center.append((corner[0] + bridge_width, corner[1]))
+    center.append((side, z[1] - (side - z[0])))
+    for off, outer_y in [(159_000, side), (-159_000, -side)]:
+        wall = [(x, y + off) for x, y in center] + [(side, outer_y), (0, outer_y)]
+        board.add_keepout([pcbnew.F_Cu], wall, no_tracks=True, no_vias=True)
+    stack = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+    board.add_keepout(stack, [(-1, -1), (side + 1, -1), (side + 1, side + 1), (-1, side + 1)],
+                      no_tracks=False, no_vias=True)
+    source = board.save(tmp_path / "input").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 1 and not before["violations"]
+    output = tmp_path / "routed.kicad_pcb"
+    run, _ = guarded_cli
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(output)])
+    saved = pcbnew.LoadBoard(str(output))
+    tracks = list(saved.GetTracks())
+    assert len(tracks) == 2 + bool(bridge_width)
+    assert all(t.GetNetname() == "DATA" and t.GetLayer() == pcbnew.F_Cu and
+               not isinstance(t, pcbnew.PCB_VIA) for t in tracks)
+    deltas = [(abs(t.GetEndX() - t.GetStartX()), abs(t.GetEndY() - t.GetStartY())) for t in tracks]
+    assert sum(dx == dy and dx > 0 for dx, dy in deltas) == 2
+    after = run_native_drc(output, sidecar_source=source).raw
+    assert not after["unconnected_items"] and not after["violations"]
