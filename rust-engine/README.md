@@ -231,8 +231,13 @@ entries do not count. Frontier exhaustion and budget exhaustion are distinct.
 The component search covers a finite set of seed points. The grid can miss
 a legal corridor or another usable point inside a source track. Along each
 searched edge, the convex-interval calculation covers integer terminal
-endpoints. Multi-terminal routing repeatedly joins the first current component to a
-reachable target component and recomputes connectivity after every join.
+endpoints. Multi-terminal routing first tries to join the first component to any
+other component. When the search exhausts against fixed geometry and the net
+contains only pads, tracks and vias, each remaining component can become the
+source in turn. Its pad or trace may offer a different grid phase or reach a
+third island. Generated-copper obstructions return to negotiation. All attempts
+share the work and expansion limits, and each join must reduce the number of
+disconnected components.
 Already-connected pad groups and disconnected incumbent tracks participate
 equally; a net succeeds only when all required copper is connected. This can
 produce branches but does not optimize a Steiner tree or promise invariance

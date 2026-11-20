@@ -2901,14 +2901,22 @@ impl Engine {
         Ok(groups)
     }
     fn route_net(&mut self, net: u32, limit: u64, expanded: &mut u64) -> Result<(), Failure> {
+        let mut budget = negotiate::TrialBudget::fixed(limit);
         let mut groups = self.components(net)?;
         loop {
             let before = groups.len();
             if before <= 1 {
                 return Ok(());
             }
-            let path =
-                search::join_components(self, net, &groups[0], &groups[1..], limit, expanded)?;
+            let path = search::join_open_components(
+                self,
+                net,
+                &mut groups,
+                &mut budget,
+                expanded,
+                None,
+                None,
+            )?;
             self.insert_path(net, path)?;
             groups = self.components(net)?;
             if groups.len() >= before {
@@ -2962,15 +2970,14 @@ impl Engine {
                 }
             }
             let mut frontier = negotiate::BlockedFrontier::new();
-            match search::join_components_negotiated_with_budget(
+            match search::join_open_components(
                 self,
                 net,
-                &groups[0],
-                &groups[1..],
+                &mut groups,
                 budget,
                 expanded,
-                history,
-                &mut frontier,
+                Some(history),
+                Some(&mut frontier),
             ) {
                 Ok(path) => match self.insert_path(net, path) {
                     Ok(()) => {
