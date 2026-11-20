@@ -347,7 +347,11 @@ between source and destination drills before accepting the path. When
 direct departures cannot reach a drill, a local search follows legal surface
 segments around obstacles up to two lattice pitches from the contact. It
 uses the nearest reachable drilling window and charges each explored point
-to the same expansion allowance as the remaining lattice search.
+to the same expansion allowance as the remaining lattice search. A rectangular
+through-via exclusion covering that whole local window rules out every drill
+in it. Where a contact can already reach the routing lattice, its optional
+drill search shares the remaining allowance with the other contacts and
+the search between them.
 When a coarse frontier runs out of reachable points, the router can halve
 the number of grid steps between lattice lines, rounding up to a whole step.
 All resolutions draw from the same expansion allowance. The ordinary search

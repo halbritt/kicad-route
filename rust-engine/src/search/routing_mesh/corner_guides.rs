@@ -10,7 +10,7 @@ use std::ops::ControlFlow;
 impl Mesh<'_> {
     /// If both ends lie inside one convex no-via area, a through via cannot
     /// leave the direct channel. Seek a continuous in-layer detour there.
-    fn same_no_via_region(&self, a: Point, b: Point) -> Result<bool, Failure> {
+    pub(super) fn same_no_via_region(&self, a: Point, b: Point) -> Result<bool, Failure> {
         for area in &self.engine.input.rule_areas {
             self.engine.work.charge(1)?;
             if area.no_vias && !area.layers.is_empty() {

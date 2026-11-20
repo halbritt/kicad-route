@@ -55,6 +55,7 @@ impl Mesh<'_> {
         layer: u8,
         allowed: &[bool],
         occupied: usize,
+        optional_expansions: u64,
         expand: &mut impl FnMut() -> Result<bool, Failure>,
     ) -> Result<Vec<Portal>, Failure> {
         let mut result = self.portals(p, layer)?;
@@ -106,14 +107,24 @@ impl Mesh<'_> {
         // neighboring coarse cell. The ordinary search can go farther.
         let grid = self.grid as i64;
         let radius = self.pitch * 2;
+        // Every site considered by this local drill search is inside the
+        // square. A through-via exclusion on any crossed layer covers it.
+        if self.same_no_via_region(p.map(|v| v - radius), p.map(|v| v + radius))? {
+            return Ok(result);
+        }
         self.storage(occupied + result.len() + 2)?;
         let mut parents = HashMap::from([(p, p)]);
         let mut queue = VecDeque::from([(p, 0usize)]);
         let mut found_level = None;
+        let mut extra_used = 0;
         while let Some((at, level)) = queue.pop_front() {
-            if found_level.is_some_and(|found| level > found) || !expand()? {
+            if (surface != 0 && extra_used >= optional_expansions)
+                || found_level.is_some_and(|found| level > found)
+                || !expand()?
+            {
                 break;
             }
+            extra_used += 1;
             self.engine.work.charge(1)?;
             if self
                 .engine
@@ -175,6 +186,56 @@ mod tests {
     use crate::Engine;
 
     #[test]
+    fn a_drill_exclusion_covering_the_search_window_needs_no_surface_expansion() {
+        let mut input: Input = serde_json::from_str(include_str!(
+            "../../../tests/fixtures/multiterminal-native-two-nets.json"
+        ))
+        .unwrap();
+        input.layers = vec![
+            "F.Cu".into(),
+            "In1.Cu".into(),
+            "In2.Cu".into(),
+            "B.Cu".into(),
+        ];
+        input.pads.clear();
+        input.tracks.clear();
+        input.rule_areas.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"350dcdff-86b7-4e9d-8a69-2833fbc18ddd","layers":["In1.Cu"],
+                "outer":[[0,0],[40000000,0],[40000000,20000000],[0,20000000]],
+                "no_tracks":false,"no_vias":true
+            }))
+            .unwrap(),
+        );
+        let engine = Engine::new(input).unwrap();
+        let mesh = Mesh {
+            engine: &engine,
+            net: 1,
+            grid: 250_000,
+            pitch: 1_000_000,
+            via_step: 5,
+            history: None,
+            occupied_entries: 0,
+        };
+        let p = [13_150_000, 8_350_000];
+        let expected = mesh.portals(p, 0).unwrap();
+        let mut used = 0;
+        let got = mesh
+            .contact_portals(p, 0, &[true; 4], 0, 1000, &mut || {
+                used += 1;
+                Ok(true)
+            })
+            .unwrap();
+        assert!(!expected.is_empty());
+        assert_eq!(used, 0);
+        assert_eq!(got.len(), expected.len());
+        assert!(got.iter().all(|((_, layer), _, edges)| *layer == 0
+            && edges
+                .iter()
+                .all(|e| matches!(e, PathEdge::Track { layer: 0, .. }))));
+    }
+
+    #[test]
     fn bent_surface_drill_access_consumes_the_available_local_expansions() {
         let mut input: Input = serde_json::from_str(include_str!(
             "../../../tests/fixtures/multiterminal-native-two-nets.json"
@@ -205,10 +266,10 @@ mod tests {
             .legal_via(1, hole, 0, 1, ViaKind::Through, &[])
             .unwrap()
             .is_some());
-        let measure = |limit| {
+        let measure = |limit, optional| {
             let mut used = 0;
             let portals = mesh
-                .contact_portals(pad, 0, &[true, true], 0, &mut || {
+                .contact_portals(pad, 0, &[true, true], 0, optional, &mut || {
                     if used == limit {
                         return Ok(false);
                     }
@@ -218,10 +279,13 @@ mod tests {
                 .unwrap();
             (used, portals)
         };
-        let (used, short) = measure(1);
+        let (paid, surface_only) = measure(1000, 1);
+        assert_eq!(paid, 1);
+        assert!(surface_only.iter().all(|((_, layer), _, _)| *layer == 0));
+        let (used, short) = measure(1, u64::MAX);
         assert_eq!(used, 1);
         assert!(short.iter().all(|((_, layer), _, _)| *layer == 0));
-        let (used, complete) = measure(1000);
+        let (used, complete) = measure(1000, u64::MAX);
         assert!(used > 1 && used < 1000);
         let (_, _, edges) = complete
             .iter()

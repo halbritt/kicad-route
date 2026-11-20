@@ -243,6 +243,11 @@ impl Mesh<'_> {
     ) -> Result<Option<Path>, Failure> {
         let engine = self.engine;
         let net = self.net;
+        // Existing planar entries already reach the lattice. Divide
+        // supplemental drill exploration among the competing attachments,
+        // leaving a share to search between the registered entries.
+        let optional_expansions =
+            stop.saturating_sub(*expanded) / (starts.len() + targets.len() + 1) as u64;
         let mut expand = || {
             if *expanded >= stop {
                 return Ok(false);
@@ -262,7 +267,14 @@ impl Mesh<'_> {
                     // and keep its existing hole out of the list of new drills.
                     self.portals(center, layer)?
                 } else {
-                    self.contact_portals(center, layer, track_ok, goals.len(), &mut expand)?
+                    self.contact_portals(
+                        center,
+                        layer,
+                        track_ok,
+                        goals.len(),
+                        optional_expansions,
+                        &mut expand,
+                    )?
                 };
                 for (node, cost, edges) in portals {
                     if goals.get(&node).is_none_or(|(n, _)| cost < *n) {
@@ -316,6 +328,7 @@ impl Mesh<'_> {
                 layer,
                 track_ok,
                 costs.len() + open.len() + roots.len() + goals.len(),
+                optional_expansions,
                 &mut expand,
             )? {
                 if costs.get(&node).is_none_or(|&c| cost < c) {
