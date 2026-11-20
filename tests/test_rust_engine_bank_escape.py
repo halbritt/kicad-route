@@ -95,3 +95,46 @@ def test_offset_gap_connects_two_surfaces_on_the_internal_layers(tmp_path, guard
     inner = [p for p in reopened.GetTracks() if p.GetNetname() == "SIGNAL"
              and p.GetLayer() in (pcbnew.In1_Cu, pcbnew.In2_Cu)]
     assert inner and any(max(t.GetStartY(), t.GetEndY()) > pcbnew.FromMM(20) for t in inner)
+
+
+def test_displaced_slots_on_inner_layers_connect_all_terminals(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=29701)
+    board.set_rect_outline(0, 0, 48_000_000, 32_000_000)
+
+    def point(x, y):
+        return pcbnew.FromMM(x), pcbnew.FromMM(y)
+
+    def wall(layers, left, bottom, right, top):
+        ring = [point(left, bottom), point(right, bottom), point(right, top), point(left, top)]
+        board.add_keepout(layers, ring, no_tracks=True, no_vias=False)
+
+    for ref, net, xy, face in [("A", "DATA", (4.1, 8.35), pcbnew.F_Cu),
+                               ("Z", "DATA", (43.55, 21.1), pcbnew.F_Cu),
+                               ("C", "CLK", (2, 3), pcbnew.B_Cu),
+                               ("D", "CLK", (7, 3), pcbnew.B_Cu)]:
+        at = point(*xy)
+        fp = board.add_footprint(ref, at, side="F" if face == pcbnew.F_Cu else "B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", net, at, size_nm=point(.7, .6),
+                      shape=pcbnew.PAD_SHAPE_RECT, layers=[face])
+    wall([pcbnew.F_Cu, pcbnew.B_Cu], 9, -1, 39, 33)
+    inner = [pcbnew.In1_Cu, pcbnew.In2_Cu]
+    for x, y in [(12, 12.35), (23, 17.65), (32, 13.95)]:
+        wall(inner, x, -1, x + 2, y - .28)
+        wall(inner, x, y + .28, x + 2, 33)
+    board.set_project_rules()
+    source = board.save(tmp_path / "source").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 2 and not before["violations"]
+
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    saved, op = tmp_path / "routed.kicad_pcb", tmp_path / "op.json"
+    run([str(engine), "route-native", str(source), str(saved), "--operation-result", str(op)])
+    routing = json.loads(op.read_bytes())["routing"]
+    assert routing["status"] == "complete" and routing["expanded_states"] <= 100_000
+    drc = run_native_drc(saved, sidecar_source=source).raw
+    assert not drc["unconnected_items"] and not drc["violations"]
+    reopened = pcbnew.LoadBoard(str(saved))
+    assert sum(isinstance(piece, pcbnew.PCB_VIA) for piece in reopened.GetTracks()) == 2
