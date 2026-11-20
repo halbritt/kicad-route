@@ -63,6 +63,122 @@ impl Barrier {
     }
 }
 
+/// Longer families keep the single strongest divider. This bounds the quadratic
+/// preparation of the two directional profiles independently of the search.
+const MAX_ORDERED_CUTS: usize = 16;
+
+struct Passage {
+    wall: Barrier,
+    // Remaining transverse travel from each open end to the terminal interval.
+    remaining: [Option<u64>; 2],
+}
+
+impl Passage {
+    fn detour(&self, y: i64) -> Option<u64> {
+        let [lower, upper] = self.remaining;
+        if lower.is_some() && y <= self.wall.lo || upper.is_some() && y >= self.wall.hi {
+            return None;
+        }
+        lower
+            .map(|v| v.saturating_add(y.abs_diff(self.wall.lo)))
+            .into_iter()
+            .chain(upper.map(|v| v.saturating_add(y.abs_diff(self.wall.hi))))
+            .min()
+    }
+}
+
+/// Each gate independently permits crossing on either half-line outside its
+/// solid interval. A legal track center is strictly inside the board bounds,
+/// so a wall meeting a board edge has no passage on that side.
+struct PassageProfile {
+    // Closest to the terminal first, so both build and query traverse the
+    // relevant suffix in physical crossing order by walking backwards.
+    passages: Vec<Passage>,
+    increasing: bool,
+}
+
+impl PassageProfile {
+    fn build(
+        ordered: &[Barrier],
+        target: Envelope,
+        board: Envelope,
+        work: &WorkBudget,
+    ) -> Result<Self, Failure> {
+        let axis = ordered[0].axis;
+        let j = 1 - axis;
+        let increasing = ordered[0].cut < target.0[axis];
+        let mut profile = Self {
+            passages: Vec::with_capacity(ordered.len()),
+            increasing,
+        };
+        for i in 0..ordered.len() {
+            work.charge(1)?;
+            let wall = ordered[if increasing { ordered.len() - 1 - i } else { i }];
+            let mut remaining = [None; 2];
+            for (k, (y, open)) in [
+                (wall.lo, wall.lo > board.0[j]),
+                (wall.hi, wall.hi < board.1[j]),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                if open {
+                    remaining[k] =
+                        Some(profile.transverse(y, (target.0[j], target.1[j]), work, |_| true)?);
+                }
+            }
+            if remaining != [None; 2] {
+                profile.passages.push(Passage { wall, remaining });
+            }
+        }
+        Ok(profile)
+    }
+
+    /// Distance-to-go through the remaining gates is 1-Lipschitz in y. If
+    /// the current y is allowed at a gate, crossing there cannot cost more
+    /// than changing y first. Otherwise the optimum passes through one of
+    /// its open ends, whose suffix costs were computed during preparation.
+    fn transverse(
+        &self,
+        y: i64,
+        terminal: (i64, i64),
+        work: &WorkBudget,
+        between: impl Fn(i64) -> bool,
+    ) -> Result<u64, Failure> {
+        for passage in self.passages.iter().rev() {
+            work.charge(1)?;
+            if between(passage.wall.cut) {
+                if let Some(distance) = passage.detour(y) {
+                    return Ok(distance);
+                }
+            }
+        }
+        Ok(interval_gap(y, y, terminal.0, terminal.1))
+    }
+
+    fn estimate(
+        &self,
+        axis: usize,
+        p: Point,
+        target: Envelope,
+        work: &WorkBudget,
+    ) -> Result<u64, Failure> {
+        let j = 1 - axis;
+        self.transverse(p[j], (target.0[j], target.1[j]), work, |cut| {
+            if self.increasing {
+                p[axis] < cut
+            } else {
+                p[axis] > cut
+            }
+        })
+    }
+}
+
+struct OrderedBounds {
+    forward: PassageProfile,
+    reverse: PassageProfile,
+}
+
 /// A ring with four alternating axis-aligned nonempty sides bounds its full
 /// rectangle. An optional repeated closing vertex does not change the ring.
 fn solid_rectangle(area: &RuleArea) -> Option<Envelope> {
@@ -89,6 +205,7 @@ pub(crate) struct BarrierBound {
     target: Envelope,
     layers: Vec<[Option<Barrier>; 2]>,
     through_stack: [Option<Barrier>; 2],
+    ordered: [Option<OrderedBounds>; 2],
     grid: u64,
     step: u64,
     layer_change: Option<u64>,
@@ -123,6 +240,8 @@ impl BarrierBound {
         let mut scores = vec![[0; 2]; layers.len()];
         let mut through_stack = [None; 2];
         let mut through_scores = [0; 2];
+        let mut parallel = [Vec::new(), Vec::new()];
+        let mut too_many = [false; 2];
         let mut active = false;
         let mut consider = |slots: &mut [Option<Barrier>; 2], scores: &mut [u64; 2], b: Barrier| {
             let j = 1 - b.axis;
@@ -188,6 +307,17 @@ impl BarrierBound {
                 };
                 if mask == all {
                     consider(&mut through_stack, &mut through_scores, b);
+                    if !too_many[axis]
+                        && ((source.1[axis] < b.cut && b.cut < target.0[axis])
+                            || (target.1[axis] < b.cut && b.cut < source.0[axis]))
+                    {
+                        if parallel[axis].len() == MAX_ORDERED_CUTS {
+                            too_many[axis] = true;
+                        } else {
+                            work.search_storage(parallel[axis].len() + 1)?;
+                            parallel[axis].push(b);
+                        }
+                    }
                 } else {
                     for k in 0..layers.len() {
                         work.charge(1)?;
@@ -198,11 +328,38 @@ impl BarrierBound {
                 }
             }
         }
+        let mut ordered = [None, None];
+        for (axis, mut walls) in parallel.into_iter().enumerate() {
+            if too_many[axis] || walls.len() < 2 {
+                continue;
+            }
+            work.search_storage(2 * walls.len())?;
+            // Input rectangles already have deterministic board order. Insert
+            // the small retained family in cut order and charge each comparison.
+            let key = |b: Barrier| (b.cut, b.lo, b.hi);
+            for end in 1..walls.len() {
+                for i in (1..=end).rev() {
+                    work.charge(1)?;
+                    if key(walls[i - 1]) <= key(walls[i]) {
+                        break;
+                    }
+                    walls.swap(i - 1, i);
+                }
+            }
+            let board = (input.bounds.min, input.bounds.max);
+            let forward = PassageProfile::build(&walls, target, board, work)?;
+            let reverse = PassageProfile::build(&walls, source, board, work)?;
+            if forward.passages.len() == walls.len() {
+                ordered[axis] = Some(OrderedBounds { forward, reverse });
+                active = true;
+            }
+        }
         Ok(Self {
             source,
             target,
             layers: retained,
             through_stack,
+            ordered,
             grid: grid_nm as u64,
             step: minimum_step,
             layer_change: (layers.len() > 1).then_some(via_cost),
@@ -220,7 +377,7 @@ impl BarrierBound {
         layer: usize,
         work: &WorkBudget,
     ) -> Result<u64, Failure> {
-        self.toward(p, layer, self.target, work)
+        self.toward(p, layer, self.target, false, work)
     }
 
     pub(crate) fn estimate_reverse(
@@ -229,7 +386,7 @@ impl BarrierBound {
         layer: usize,
         work: &WorkBudget,
     ) -> Result<u64, Failure> {
-        self.toward(p, layer, self.source, work)
+        self.toward(p, layer, self.source, true, work)
     }
 
     fn toward(
@@ -237,6 +394,7 @@ impl BarrierBound {
         p: Point,
         layer: usize,
         target: Envelope,
+        backward: bool,
         work: &WorkBudget,
     ) -> Result<u64, Failure> {
         work.charge(1)?;
@@ -266,7 +424,30 @@ impl BarrierBound {
         let escaped = self
             .layer_change
             .map_or(local, |cost| local.min(base.saturating_add(cost)));
-        Ok(escaped.max(planar_bound(&self.through_stack)?))
+        let mut bound = escaped;
+        for axis in 0..2 {
+            let travel = if let Some(ordered) = &self.ordered[axis] {
+                let profile = if backward {
+                    &ordered.reverse
+                } else {
+                    &ordered.forward
+                };
+                profile.estimate(axis, p, target, work)?
+            } else if let Some(wall) = self.through_stack[axis] {
+                work.charge(1)?;
+                wall.detour((p, p), target)
+            } else {
+                continue;
+            };
+            // Round transverse travel once. Each physical planar edge moves
+            // one axis by at most one grid pitch, including clipped contacts.
+            bound = bound.max(
+                steps[axis]
+                    .saturating_add(travel.div_ceil(self.grid))
+                    .saturating_mul(self.step),
+            );
+        }
+        Ok(bound)
     }
 }
 
