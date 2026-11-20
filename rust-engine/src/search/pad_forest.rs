@@ -66,7 +66,9 @@ pub(super) fn between(
         return Ok(None);
     };
     let n = groups.len();
-    if n < 4 {
+    // A forest must join at least two pad pairs. Leave a smaller allowance
+    // to the ordinary single-join search.
+    if n < 4 || share.min(budget.current_limit.saturating_sub(*expanded)) < 2 {
         return Ok(None);
     }
     engine.work.charge(n as u64)?;
@@ -289,7 +291,11 @@ mod tests {
                 None,
             )
             .unwrap();
-            assert!((1..=share).contains(&used));
+            if share < 2 {
+                assert_eq!(used, 0);
+            } else {
+                assert!((1..=share).contains(&used));
+            }
             let edges = result.unwrap_or_default();
             assert_eq!(edges.len(), expected);
             let mut barrel = false;
