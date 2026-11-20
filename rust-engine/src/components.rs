@@ -111,7 +111,7 @@ impl<'a> Copper<'a> {
         }
     }
 
-    fn touches(self, other: Self, stackup: &[String]) -> bool {
+    pub(crate) fn touches(self, other: Self, stackup: &[String]) -> bool {
         if (self.layer_mask(stackup) & other.layer_mask(stackup)) == 0 {
             return false;
         }

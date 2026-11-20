@@ -40,9 +40,12 @@ routing either whole net. Those branches use the board's search budget and
 remain available for rip-up. During an initial two-pad search, a generated net
 that blocks through-via sites and track moves on every inner layer can be
 tried for early rip-up. The trial charges the board's budget and restores the
-previous copper and congestion costs if either net cannot reconnect. The
-controller stages the resulting edits and publishes the board after native
-checks.
+previous copper and congestion costs if either net cannot reconnect.
+During local repair, a multi-pad net can keep branches it has already connected.
+If the repair displaces another multi-pad net, the controller can reuse a whole
+branch that still joins two pads and passes clearance checks against the changed
+copper. The controller stages the resulting edits and publishes the board after
+native checks.
 
 ## Native compatibility interface
 

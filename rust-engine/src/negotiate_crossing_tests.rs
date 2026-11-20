@@ -160,6 +160,7 @@ fn failed_exchange_restores_victim_ids_prices_and_paid_expansions() {
                         Some(100),
                         true,
                         Some(1000),
+                        &BTreeMap::new(),
                         &mut no_cap,
                         &mut 0,
                     )
@@ -188,4 +189,65 @@ fn failed_exchange_restores_victim_ids_prices_and_paid_expansions() {
             .unwrap()
     };
     assert_eq!(run(true), run(false));
+}
+
+#[test]
+fn a_requester_reuses_its_joined_terminals_only_during_local_repair() {
+    for retain in [false, true] {
+        let mut input = tests::test_input();
+        input.nets.push(Net {
+            id: 2,
+            name: "WALL".into(),
+        });
+        let mut middle = input.pads[0].clone();
+        middle.id = "10000000-0000-4000-8000-000000000003".into();
+        middle.at = [30, 50];
+        input.pads.push(middle);
+        let mut engine = Engine::new(input).unwrap();
+        engine
+            .transaction(|tx| -> Result<(), Failure> {
+                tx.engine.insert_edges(
+                    2,
+                    vec![PathEdge::Track {
+                        start: [50, 1],
+                        end: [50, 99],
+                        layer: 0,
+                    }],
+                )?;
+                let mut budget = TrialBudget::fixed(10_000);
+                budget.retain_completed_branches = retain;
+                let mut expanded = 0;
+                let prices = CongestionHistory::new();
+                let result = tx.engine.route_net_negotiated_with_budget(
+                    1,
+                    &mut budget,
+                    &mut expanded,
+                    &prices,
+                );
+                assert!(matches!(result, Err(UnitRouteError::Blocked(_))));
+                let saved: Vec<_> = tx
+                    .engine
+                    .copper
+                    .net_generated_tracks(1)
+                    .into_iter()
+                    .cloned()
+                    .collect();
+                assert_eq!(saved.len(), usize::from(retain));
+                assert_eq!(tx.engine.components(1)?.len(), if retain { 2 } else { 3 });
+                let spent = expanded;
+                tx.engine.remove_generated_net(2)?;
+                tx.engine
+                    .route_net_negotiated(1, 10_000, &mut expanded, &prices)
+                    .unwrap();
+                assert!(expanded >= spent);
+                assert_eq!(tx.engine.components(1)?.len(), 1);
+                assert!(saved.iter().all(|old| tx
+                    .engine
+                    .copper
+                    .net_generated_tracks(1)
+                    .contains(&old)));
+                Ok(())
+            })
+            .unwrap();
+    }
 }

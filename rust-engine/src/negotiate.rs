@@ -12,6 +12,8 @@ use std::{
     ops::ControlFlow,
 };
 
+mod restored_branches;
+
 const BASE_CONTEST_INC: u64 = 4;
 const RIP_FOOTPRINT_INC: u64 = 4;
 const FRONTIER_INC: u64 = 1;
@@ -572,6 +574,7 @@ pub(crate) struct TrialBudget<'a> {
     pub(crate) current_limit: u64,
     pub(crate) batch_limit: u64,
     pub(crate) aborted: bool,
+    pub(crate) retain_completed_branches: bool,
     on_trial_limit: Option<&'a mut dyn FnMut(&Engine, &BlockedFrontier) -> Result<bool, Failure>>,
     crossing: Option<CrossingCheck<'a>>,
 }
@@ -634,6 +637,7 @@ impl<'a> TrialBudget<'a> {
             current_limit: limit,
             batch_limit: limit,
             aborted: false,
+            retain_completed_branches: false,
             crossing: None,
             on_trial_limit: None,
         }
@@ -648,6 +652,7 @@ impl<'a> TrialBudget<'a> {
             current_limit: trial_limit.min(batch_limit),
             batch_limit,
             aborted: false,
+            retain_completed_branches: false,
             crossing: None,
             on_trial_limit: Some(on_trial_limit),
         }
@@ -1634,6 +1639,11 @@ enum TryUnitErr {
     Fatal(Failure),
 }
 
+enum InitialRepair<'a> {
+    Interlayer(&'a mut Option<u64>),
+    RetainBranches,
+}
+
 struct TrialRipFilter<'a> {
     ripped_in_round: &'a BTreeSet<RouteUnitId>,
     local_rip_deltas: &'a BTreeMap<RouteUnitId, u32>,
@@ -1661,8 +1671,9 @@ fn try_unit_with_cap(
     trial_cap: Option<u64>,
     rip_counts: &BTreeMap<RouteUnitId, u32>,
     rip_filter: Option<TrialRipFilter<'_>>,
-    early_allowance: Option<&mut Option<u64>>,
+    initial_repair: Option<InitialRepair<'_>>,
 ) -> Result<(), TryUnitErr> {
+    let retain = matches!(initial_repair, Some(InitialRepair::RetainBranches));
     let remaining = batch_limit.saturating_sub(*expanded);
     if remaining == 0 {
         return Err(TryUnitErr::Fatal(Failure::new(
@@ -1705,7 +1716,9 @@ fn try_unit_with_cap(
                         Ok(false)
                     }
                 };
-            if let (Some(allowance), RouteUnitId::SingleNet(net)) = (early_allowance, unit.id) {
+            if let (Some(InitialRepair::Interlayer(allowance)), RouteUnitId::SingleNet(net)) =
+                (initial_repair, unit.id)
+            {
                 let inner = crate::components::span_mask(1, engine.layer_count() - 2);
                 let start = *expanded;
                 let mut observe =
@@ -1750,6 +1763,11 @@ fn try_unit_with_cap(
                     next_effort: (batch_limit / (net_to_unit.len().max(1) as u64)).max(1),
                     observe: &mut observe,
                 });
+                engine.route_net_negotiated_with_budget(net, &mut budget, expanded, history)
+            } else if let (true, RouteUnitId::SingleNet(net)) = (retain, unit.id) {
+                let mut budget =
+                    TrialBudget::with_trial(trial_limit, batch_limit, &mut on_trial_limit);
+                budget.retain_completed_branches = true;
                 engine.route_net_negotiated_with_budget(net, &mut budget, expanded, history)
             } else {
                 adapter.route_unit_with_trial(
@@ -1806,16 +1824,21 @@ fn try_unit_with_cap(
             Err(UnitRouteError::Fatal(e)) => Err(TryUnitErr::Fatal(e)),
         };
     }
-    adapter
-        .route_unit(engine, unit.id, history, batch_limit, expanded)
-        .map_err(|e| match e {
-            UnitRouteError::Blocked(f) => TryUnitErr::Blocked {
-                frontier: f,
-                blockers: None,
-                hit_trial_cap: false,
-            },
-            UnitRouteError::Fatal(f) => TryUnitErr::Fatal(f),
-        })
+    let result = if let (true, RouteUnitId::SingleNet(net)) = (retain, unit.id) {
+        let mut budget = TrialBudget::fixed(batch_limit);
+        budget.retain_completed_branches = true;
+        engine.route_net_negotiated_with_budget(net, &mut budget, expanded, history)
+    } else {
+        adapter.route_unit(engine, unit.id, history, batch_limit, expanded)
+    };
+    result.map_err(|e| match e {
+        UnitRouteError::Blocked(f) => TryUnitErr::Blocked {
+            frontier: f,
+            blockers: None,
+            hit_trial_cap: false,
+        },
+        UnitRouteError::Fatal(f) => TryUnitErr::Fatal(f),
+    })
 }
 
 enum RoundOutcome {
@@ -1866,6 +1889,7 @@ fn try_local_ripup_round(
     trial_cap: Option<u64>,
     is_trial_attempt: bool,
     first_exchange_allowance: Option<u64>,
+    pad_counts: &BTreeMap<u32, usize>,
     no_trial_cap: &mut BTreeSet<RouteUnitId>,
     max_ok_unit_exp: &mut u64,
 ) -> Result<(bool, Option<BlockerScore>), Failure> {
@@ -1900,7 +1924,7 @@ fn try_local_ripup_round(
 
     let res = tx.transaction(
         |round_tx| -> Result<(Vec<RouteUnitId>, u64), RoundOutcome> {
-            let mut reroute_queue: VecDeque<RouteUnitId> = VecDeque::new();
+            let mut reroute_queue = VecDeque::new();
             let mut ripped_in_round: BTreeSet<RouteUnitId> = BTreeSet::new();
             ripped_in_round.insert(unit.id);
             let mut rips_this_round = 0usize;
@@ -1931,14 +1955,14 @@ fn try_local_ripup_round(
                     .stamp_unit_footprint_logged(v_spec, round_tx.engine, hist_ckpt.as_mut())
                     .map_err(RoundOutcome::Fatal)?;
             }
-            adapter
-                .rip_unit(round_tx.engine, first_victim)
-                .map_err(RoundOutcome::Fatal)?;
+            let archived =
+                restored_branches::rip(round_tx.engine, adapter, first_victim, pad_counts)
+                    .map_err(RoundOutcome::Fatal)?;
             *local_rip_deltas.entry(first_victim).or_insert(0) += 1;
             rips_this_round += 1;
             local_units_ripped += 1;
             ripped_in_round.insert(first_victim);
-            reroute_queue.push_back(first_victim);
+            reroute_queue.push_back((first_victim, archived));
 
             let mut co_victims = 1usize;
             loop {
@@ -2049,15 +2073,15 @@ fn try_local_ripup_round(
                                     )
                                     .map_err(RoundOutcome::Fatal)?;
                             }
-                            adapter
-                                .rip_unit(round_tx.engine, co_v)
-                                .map_err(RoundOutcome::Fatal)?;
+                            let archived =
+                                restored_branches::rip(round_tx.engine, adapter, co_v, pad_counts)
+                                    .map_err(RoundOutcome::Fatal)?;
                             *local_rip_deltas.entry(co_v).or_insert(0) += 1;
                             rips_this_round += 1;
                             co_victims += 1;
                             local_units_ripped += 1;
                             ripped_in_round.insert(co_v);
-                            reroute_queue.push_back(co_v);
+                            reroute_queue.push_back((co_v, archived));
                         } else if u_hit_cap {
                             adapter
                                 .rip_unit(round_tx.engine, unit.id)
@@ -2102,7 +2126,11 @@ fn try_local_ripup_round(
                 return Err(RoundOutcome::Unroutable);
             }
 
-            while let Some(victim_id) = reroute_queue.pop_front() {
+            while let Some((victim_id, archived)) = reroute_queue.pop_front() {
+                if let (RouteUnitId::SingleNet(net), Some(range)) = (victim_id, archived) {
+                    restored_branches::restore(round_tx.engine, net, range)
+                        .map_err(RoundOutcome::Fatal)?;
+                }
                 round_tx
                     .engine
                     .charge_work(1)
@@ -2206,15 +2234,15 @@ fn try_local_ripup_round(
                                     )
                                     .map_err(RoundOutcome::Fatal)?;
                             }
-                            adapter
-                                .rip_unit(round_tx.engine, w_id)
-                                .map_err(RoundOutcome::Fatal)?;
+                            let archived =
+                                restored_branches::rip(round_tx.engine, adapter, w_id, pad_counts)
+                                    .map_err(RoundOutcome::Fatal)?;
                             *local_rip_deltas.entry(w_id).or_insert(0) += 1;
                             rips_this_round += 1;
                             local_units_ripped += 1;
                             ripped_in_round.insert(w_id);
-                            reroute_queue.push_back(w_id);
-                            reroute_queue.push_front(victim_id);
+                            reroute_queue.push_back((w_id, archived));
+                            reroute_queue.push_front((victim_id, None));
                         } else if v_hit_cap {
                             adapter
                                 .rip_unit(round_tx.engine, victim_id)
@@ -2414,6 +2442,17 @@ fn solve_with_adapter_units(
             && history.is_empty()
             && adapter.as_single_ended().is_some()
             && matches!(u.id, RouteUnitId::SingleNet(n) if pad_counts.get(&n) == Some(&2) && !tx.engine.copper.has_generated_for_net(n));
+        // Removing another net cannot invalidate these already inserted branches.
+        // Restrict retention to the first attempt on a previously empty requester,
+        // so an unsuccessful exchange can restore its exact original copper.
+        let retain_branches = can_rip_any
+            && adapter.as_single_ended().is_some()
+            && matches!(u.id, RouteUnitId::SingleNet(n) if pad_counts.get(&n).is_some_and(|&n| n > 2) && !tx.engine.copper.has_generated_for_net(n));
+        let repair = if can_check {
+            Some(InitialRepair::Interlayer(&mut proof_allowance))
+        } else {
+            retain_branches.then_some(InitialRepair::RetainBranches)
+        };
         match try_unit_with_cap(
             tx.engine,
             adapter,
@@ -2426,7 +2465,7 @@ fn solve_with_adapter_units(
             t_cap,
             &rip_counts,
             None,
-            can_check.then_some(&mut proof_allowance),
+            repair,
         ) {
             Ok(()) => {
                 max_ok_unit_exp = max_ok_unit_exp.max(expanded.saturating_sub(unit_exp_before));
@@ -2473,6 +2512,7 @@ fn solve_with_adapter_units(
                     round_cap,
                     hit_trial_cap,
                     proof_allowance,
+                    &pad_counts,
                     &mut no_trial_cap,
                     &mut max_ok_unit_exp,
                 )
@@ -2484,6 +2524,15 @@ fn solve_with_adapter_units(
                     tx.engine.set_last_negotiation_stats(Some(stats));
                     e
                 })?;
+                if !resolved
+                    && retain_branches
+                    && matches!(u.id, RouteUnitId::SingleNet(n) if tx.engine.copper.has_generated_for_net(n))
+                {
+                    adapter.rip_unit(tx.engine, u.id).map_err(|mut err| {
+                        err.expanded_states = *expanded;
+                        err
+                    })?;
+                }
                 if resolved {
                     routed_any_count += 1;
                     if u.rippable_by_single {
@@ -2580,7 +2629,6 @@ fn solve_with_adapter_units(
         remaining_units.next();
         checked_exchange = false;
     }
-    drop(pad_counts);
 
     if failed_units.is_empty() {
         stats.history_cells_peak = history.peak_len();
@@ -2692,6 +2740,7 @@ fn solve_with_adapter_units(
                             round_cap,
                             hit_trial_cap,
                             None,
+                            &pad_counts,
                             &mut no_trial_cap,
                             &mut max_ok_unit_exp,
                         ) {

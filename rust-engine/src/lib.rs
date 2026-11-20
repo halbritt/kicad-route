@@ -3019,7 +3019,8 @@ impl Engine {
                     Err(e) => return Err(negotiate::UnitRouteError::Fatal(e)),
                 },
                 Err(e) if e.status == Status::Unroutable => {
-                    if joins_done > 0 && !had_generated_before {
+                    if joins_done > 0 && !had_generated_before && !budget.retain_completed_branches
+                    {
                         self.copper
                             .remove_net(net, &self.work)
                             .map_err(negotiate::UnitRouteError::Fatal)?;

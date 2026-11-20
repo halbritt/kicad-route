@@ -716,6 +716,25 @@ impl CopperStore {
         Ok(())
     }
 
+    pub(crate) fn journal_len(&self) -> usize {
+        self.journal.len()
+    }
+
+    /// A rip within an open round leaves the original geometry in its undo log.
+    pub(crate) fn removed_copper(
+        &self,
+        range: std::ops::Range<usize>,
+    ) -> Vec<crate::components::Copper<'_>> {
+        self.journal[range]
+            .iter()
+            .filter_map(|entry| match entry {
+                Undo::RemovedTrack(_, t) => Some(crate::components::Copper::Track(t)),
+                Undo::RemovedVia(_, v) => Some(crate::components::Copper::Via(v)),
+                _ => None,
+            })
+            .collect()
+    }
+
     pub(crate) fn remove_net(&mut self, net: u32, work: &WorkBudget) -> Result<(), Failure> {
         let track_count = self.by_net.get(&net).map_or(0, BTreeSet::len);
         let via_count = self.via_by_net.get(&net).map_or(0, BTreeSet::len);
