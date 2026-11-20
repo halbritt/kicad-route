@@ -920,6 +920,47 @@ fn a_pad_can_branch_from_the_interior_of_an_existing_trace() {
 }
 
 #[test]
+fn several_new_pads_can_tap_the_middle_of_a_protected_trace() {
+    let mut board = fixture(&[[10, 40], [90, 40], [40, 60], [70, 20]]);
+    board.tracks.push(track(9, 1, [10, 40], [90, 40], true));
+    let result = run(board.clone());
+    assert_eq!(result.status, Status::Complete, "{:?}", result.reason);
+    valid_complete(&board, &result.added_tracks);
+    assert!(result.removed_track_ids.is_empty());
+    assert!(result.added_vias.is_empty());
+    let mut branches = BTreeSet::new();
+    for t in &result.added_tracks {
+        assert_eq!(t.start[0], t.end[0]);
+        assert!(t.start[1] == 40 || t.end[1] == 40);
+        assert!(t.start[1].abs_diff(t.end[1]) <= 20);
+        branches.insert(t.start[0]);
+    }
+    assert_eq!(branches, BTreeSet::from([40, 70]));
+}
+
+#[test]
+fn a_terminal_can_tap_an_exact_point_on_a_sloped_track() {
+    for downward in [false, true] {
+        let point = |x, y| [x, if downward { 100 - y } else { y }];
+        let mut board = fixture(&[point(10, 10), point(80, 80), point(40, 60)]);
+        board
+            .tracks
+            .push(track(9, 1, point(10, 10), point(80, 80), true));
+        let result = run(board);
+        assert_eq!(result.status, Status::Complete, "{:?}", result.reason);
+        assert!(result.removed_track_ids.is_empty());
+        let [tap] = result.added_tracks.as_slice() else {
+            panic!("expected one branch, got {:?}", result.added_tracks);
+        };
+        assert!([tap.start, tap.end]
+            .into_iter()
+            .any(|[x, y]| y == point(x, x)[1]));
+        let length = tap.start[0].abs_diff(tap.end[0]) + tap.start[1].abs_diff(tap.end[1]);
+        assert!(length <= 20);
+    }
+}
+
+#[test]
 fn offset_copper_tree_escapes_surface_keepouts_on_a_four_layer_board() {
     // Coordinates in hundredths of the 0.25 mm grid. Each protected branch
     // end can start a search on a different grid phase.
