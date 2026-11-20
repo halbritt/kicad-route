@@ -72,6 +72,43 @@ fn base() -> Input {
         routing_options: None,
     }
 }
+#[test]
+fn sparse_project_requires_resolved_consistent_electrical_settings() {
+    use kicad_route_engine::rules::{resolve_effective_rules, BoardDesignSettings, NetClassDef};
+    let mut input = base();
+    input.project_rules = Some("{}".into());
+    assert!(resolve_effective_rules(&mut input)
+        .unwrap_err()
+        .reason
+        .contains("resolved native Default"));
+    let default = NetClassDef {
+        name: "Default".into(),
+        track_width_nm: 200_000,
+        clearance_nm: 200_000,
+        via_diameter_nm: 600_000,
+        via_drill_nm: 300_000,
+        ..Default::default()
+    };
+    input.board_design_settings = Some(BoardDesignSettings {
+        netclasses: vec![default.clone()],
+        ..Default::default()
+    });
+    let eff = resolve_effective_rules(&mut input).unwrap();
+    assert_eq!(eff.net(1).width_nm, default.track_width_nm);
+    assert_eq!(eff.net(1).via_diameter_nm, default.via_diameter_nm);
+    input.project_rules = Some(
+        json!({"net_settings":{"classes":[{
+            "name":"Default","track_width":0.4,"clearance":0.2,
+            "via_diameter":0.6,"via_drill":0.3
+        }]}})
+        .to_string(),
+    );
+    assert!(resolve_effective_rules(&mut input)
+        .unwrap_err()
+        .reason
+        .contains("disagrees"));
+}
+
 fn wire(n: u64, net: u32, a: Point, b: Point) -> Track {
     Track {
         id: id(n),

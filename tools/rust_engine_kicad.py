@@ -209,9 +209,16 @@ def _check_pro_framing(raw: bytes):
         raise ValueError(f'malformed .kicad_pro JSON: {exc}') from exc
     if not isinstance(doc, dict):
         raise ValueError('.kicad_pro root must be a JSON object')
-    meta = doc.get('meta')
-    if not isinstance(meta, dict) or type(meta.get('version')) is not int or meta['version'] not in (1, 2, 3):
-        raise UnsupportedBoard('.kicad_pro requires meta.version in 1..=3')
+    if 'meta' in doc:
+        meta = doc['meta']
+        if not isinstance(meta, dict):
+            raise ValueError('.kicad_pro meta must be an object')
+        if 'version' in meta:
+            version = meta['version']
+            if type(version) is not int or version < 0:
+                raise ValueError('.kicad_pro meta.version must be an unsigned integer')
+            if version not in (1, 2, 3):
+                raise UnsupportedBoard(f'unsupported .kicad_pro meta.version {version}')
 
 
 def _check_dru_framing(raw: bytes):
@@ -2164,21 +2171,25 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     pro_min_spokes = None
     pro_use_height = None
     if pro_text is not None:
-        try:
-            pro_doc = json.loads(pro_text)
-            board_doc = pro_doc.get('board') if isinstance(pro_doc, dict) else None
-            ds_doc = board_doc.get('design_settings', {}) if isinstance(board_doc, dict) else None
-            if isinstance(ds_doc, dict):
-                rules_doc = ds_doc.get('rules', {})
-                if isinstance(rules_doc, dict):
-                    if type(rules_doc.get('use_height_for_length_calcs')) is bool:
-                        pro_use_height = rules_doc['use_height_for_length_calcs']
-                    val = rules_doc.get('min_resolved_spokes')
-                    if type(val) is int and val >= 0:
-                        pro_min_spokes = val
-        except (ValueError, AttributeError):
-            pro_min_spokes = None
-            pro_use_height = None
+        # resolve_sidecars validated JSON and project metadata on these same bytes.
+        pro_doc = json.loads(pro_text)
+        if 'version' not in pro_doc.get('meta', {}) and (
+                default_nc is None or default_nc.GetTrackWidth() <= 0
+                or default_nc.GetClearance() < 0 or default_nc.GetViaDrill() <= 0
+                or default_nc.GetViaDiameter() <= default_nc.GetViaDrill()):
+            raise UnsupportedBoard(
+                'unversioned .kicad_pro requires resolved native Default netclass '
+                'track width, clearance, and via dimensions')
+        board_doc = pro_doc.get('board')
+        ds_doc = board_doc.get('design_settings', {}) if isinstance(board_doc, dict) else None
+        if isinstance(ds_doc, dict):
+            rules_doc = ds_doc.get('rules', {})
+            if isinstance(rules_doc, dict):
+                if type(rules_doc.get('use_height_for_length_calcs')) is bool:
+                    pro_use_height = rules_doc['use_height_for_length_calcs']
+                val = rules_doc.get('min_resolved_spokes')
+                if type(val) is int and val >= 0:
+                    pro_min_spokes = val
     if pro_use_height is not None:
         bds['use_height_for_length_calcs'] = pro_use_height
     min_resolved_spokes = pro_min_spokes if pro_min_spokes is not None else int(getattr(settings, 'm_MinResolvedSpokes', 2))

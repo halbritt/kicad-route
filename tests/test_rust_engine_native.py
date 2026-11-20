@@ -1093,7 +1093,7 @@ def test_export_cli_reports_input_failures_without_publication(native_board, gua
     if case == 'native_floor':
         rules['width_nm'] = 1
     if case == 'project_rules':
-        native_board.with_suffix('.kicad_pro').write_text('{}')
+        native_board.with_suffix('.kicad_pro').write_text('{"meta":{"version":99}}')
     rules_path = native_board.with_name('rules.json')
     rules_path.write_text(json.dumps(rules))
     source = native_board.with_name('missing.kicad_pcb') if case == 'missing_source' else native_board
@@ -1952,7 +1952,7 @@ def test_route_native_rejects_bad_and_dangling_sidecars_before_python(
 
     source = native_board
     if mode == 'unsupported_pro':
-        native_board.with_suffix('.kicad_pro').write_text('{}')
+        native_board.with_suffix('.kicad_pro').write_text('{"meta":{"version":99}}')
     elif mode == 'unsupported_dru':
         native_board.with_suffix('.kicad_dru').write_text('(version 99)')
     elif mode == 'dangling_pro':
@@ -2038,6 +2038,60 @@ def test_route_native_accepts_valid_sidecars_and_multilayer_vias_end_to_end(
     assert {(via['start_layer'], via['end_layer'])
             for via in roundtrip['vias']} == {('F.Cu', 'B.Cu')}
     assert {layer for pad in roundtrip['pads'] for layer in pad['layers']} == {'F.Cu', 'B.Cu'}
+
+
+@pytest.mark.parametrize('project', [
+    {},
+    {'meta': {}, 'board': {'design_settings': {
+        'rules': {'min_track_width': 0.35},
+        'rule_severities': {'lib_footprint_issues': 'ignore'}}}},
+])
+def test_route_native_sparse_project_uses_kicad_rules(native_board, guarded_cli, project):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    sidecar = native_board.with_suffix('.kicad_pro')
+    original = json.dumps(project).encode()
+    sidecar.write_bytes(original)
+    board = pcbnew.LoadBoard(str(native_board))
+    settings = board.GetDesignSettings()
+    default = settings.m_NetSettings.GetDefaultNetclass()
+    width = max(default.GetTrackWidth(), settings.m_TrackMinWidth)
+    assert width == (350000 if project else 200000)
+    assert default.GetClearance() == 200000
+    assert (default.GetViaDiameter(), default.GetViaDrill()) == (600000, 300000)
+
+    output = native_board.with_name('sparse-routed.kicad_pcb')
+    result = run([str(engine), 'route-native', str(native_board), str(output)], check=False)
+    op = json.loads(result.stdout)
+    assert op['status'] == 'complete', op.get('reason')
+    assert op['request']['project_sha256'] == hashlib.sha256(original).hexdigest()
+    assert sidecar.read_bytes() == original
+    saved = pcbnew.LoadBoard(str(output))
+    saved.BuildConnectivity()
+    assert saved.GetConnectivity().GetUnconnectedCount(False) == 0
+    tracks = [track for track in saved.GetTracks() if track.GetNetname() == 'SIGNAL']
+    assert tracks
+    assert {track.GetWidth() for track in tracks if not isinstance(track, pcbnew.PCB_VIA)} == {width}
+
+
+@pytest.mark.parametrize(('project', 'reason'), [
+    ({'meta': None}, 'meta must be an object'),
+    ({'meta': {'version': True}}, 'meta.version must be an unsigned integer'),
+    ({'net_settings': {'classes': {}}}, 'classes must be an array'),
+    ({'board': {'design_settings': {'rules': {'min_track_width': '0.35'}}}}, 'min_track_width'),
+    ({'net_settings': {'classes': [{'name': 'Default', 'track_width': 0.3, 'clearance': 0.2}]}},
+     'resolved native Default netclass'),
+])
+def test_route_native_rejects_invalid_or_unresolved_sparse_project(
+        native_board, guarded_cli, project, reason):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    native_board.with_suffix('.kicad_pro').write_text(json.dumps(project))
+    output = native_board.with_name('unpublished.kicad_pcb')
+    result = run([str(engine), 'route-native', str(native_board), str(output)], check=False)
+    op = json.loads(result.stdout)
+    assert result.returncode != 0 and reason in op['reason'], op
+    assert not output.exists()
 
 
 def test_route_native_accepts_explicit_matching_project_flag(
