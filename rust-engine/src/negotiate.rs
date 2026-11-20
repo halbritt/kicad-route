@@ -682,6 +682,59 @@ fn existing_pad_escape(engine: &Engine, pad: &crate::model::Pad) -> Result<bool,
     Ok(via.is_break())
 }
 
+/// A single conservative envelope per net and layer includes all possible pour
+/// and graphic copper there. Pads inside can keep their ordinary schedule even
+/// when the native refill will change the precise extent of a zone.
+fn terminal_artwork_bounds<'a>(
+    engine: &'a Engine,
+    eligible: &BTreeMap<u32, (usize, u8)>,
+) -> Result<BTreeMap<(u32, &'a str), CopperAabb>, Failure> {
+    let input = engine.input();
+    let mut bounds = BTreeMap::<(u32, &'a str), CopperAabb>::new();
+    let mut include = |net, name: &'a str, area: CopperAabb| -> Result<(), Failure> {
+        engine.work.charge(1)?;
+        let size = bounds.len();
+        match bounds.entry((net, name)) {
+            std::collections::btree_map::Entry::Occupied(mut v) => {
+                *v.get_mut() = v.get().union(area);
+            }
+            std::collections::btree_map::Entry::Vacant(v) => {
+                engine.work.search_storage(eligible.len() + size + 1)?;
+                v.insert(area);
+            }
+        }
+        Ok(())
+    };
+    engine
+        .work
+        .charge((input.zones.len() + input.graphics.len()) as u64)?;
+    for zone in &input.zones {
+        if eligible.contains_key(&zone.net) {
+            engine.work.charge(zone.outer.len() as u64)?;
+            let mut area = crate::ring_aabb(&zone.outer);
+            for ring in &zone.extra_polygons {
+                engine.work.charge(1 + ring.outer.len() as u64)?;
+                area = area.union(crate::ring_aabb(&ring.outer));
+            }
+            for layer in &zone.layers {
+                include(zone.net, layer, area)?;
+            }
+        }
+    }
+    for g in &input.graphics {
+        if eligible.contains_key(&g.net) {
+            if let crate::model::GraphicShape::Polygon { outer, holes, .. } = &g.shape {
+                engine.work.charge((outer.len() + holes.len()) as u64)?;
+                for hole in holes {
+                    engine.work.charge(hole.len() as u64)?;
+                }
+            }
+            include(g.net, &g.layer, CopperAabb::from_bounds(g.copper_bounds()))?;
+        }
+    }
+    Ok(bounds)
+}
+
 /// A new surface net with very few usable pad exits can lose those exits
 /// when a more flexible net routes first. Existing net order breaks ties.
 pub(crate) fn prioritize_pad_escapes(engine: &Engine, nets: &mut [u32]) -> Result<(), Failure> {
@@ -695,18 +748,6 @@ pub(crate) fn prioritize_pad_escapes(engine: &Engine, nets: &mut [u32]) -> Resul
     for net in nets.iter().copied() {
         eligible.insert(net, (0, 3));
     }
-    // A pour or copper artwork can supply a separate escape from the land.
-    engine
-        .work
-        .charge((input.zones.len() + input.graphics.len()) as u64)?;
-    for net in input
-        .zones
-        .iter()
-        .map(|z| z.net)
-        .chain(input.graphics.iter().map(|g| g.net))
-    {
-        eligible.remove(&net);
-    }
     engine.work.charge(input.pads.len() as u64)?;
     for p in &input.pads {
         if let Some((count, _)) = eligible.get_mut(&p.net) {
@@ -717,10 +758,23 @@ pub(crate) fn prioritize_pad_escapes(engine: &Engine, nets: &mut [u32]) -> Resul
     if eligible.is_empty() {
         return Ok(());
     }
+    let artwork = terminal_artwork_bounds(engine, &eligible)?;
     engine.work.charge(input.pads.len() as u64)?;
     for p in &input.pads {
         if let Some((_, rank)) = eligible.get_mut(&p.net) {
             if *rank > 1 {
+                let layer = p.layers.first().unwrap_or(&input.layer).as_str();
+                if let Some(area) = artwork.get(&(p.net, layer)) {
+                    engine.work.charge(p.shape.parts().len() as u64)?;
+                    for part in p.shape.parts() {
+                        if let crate::model::Shape::ConvexPolygon { vertices, .. } = part {
+                            engine.work.charge(vertices.len() as u64)?;
+                        }
+                    }
+                    if area.overlaps(CopperAabb::from_bounds(p.copper_bounds())) {
+                        continue;
+                    }
+                }
                 let pad_rank = crate::search::pad_escape_rank(engine, p)?;
                 if pad_rank < *rank && !existing_pad_escape(engine, p)? {
                     *rank = pad_rank;

@@ -1940,6 +1940,53 @@ fn constrained_surface_terminal_gets_its_exit_before_a_flexible_crossing() {
             assert_eq!(ordered[0].id, RouteUnitId::SingleNet(expected));
         }
 
+        // Art on the opposite land or the other face cannot carry this pad out.
+        // A refillable zone may change shape, so its local outline still counts.
+        for (x, layer, expected) in [
+            (2100, "F.Cu", 1),
+            (6100, "F.Cu", constrained),
+            (2100, "B.Cu", constrained),
+        ] {
+            let mut graphic = board.clone();
+            graphic.graphics.push(CopperGraphic {
+                id: id(23),
+                net: constrained,
+                layer: layer.into(),
+                shape: GraphicShape::Segment {
+                    start: xy(x, 4000),
+                    end: xy(x + 50, 4000),
+                    width_nm: 100_000,
+                },
+            });
+            let mut poured = board.clone();
+            let outline = [
+                xy(x - 25, 3975),
+                xy(x + 25, 3975),
+                xy(x + 25, 4025),
+                xy(x - 25, 4025),
+            ];
+            poured.zones.push(
+                serde_json::from_value(serde_json::json!({
+                    "id": id(24), "net": constrained, "layers": [layer], "outer": outline,
+                    "refillable": true, "min_thickness_nm": 100_000, "connection": "solid",
+                }))
+                .unwrap(),
+            );
+            for input in [poured, graphic] {
+                let engine = Engine::new(input.clone()).unwrap();
+                let ordered = negotiate::SingleEndedAdapter::all().units(&engine).unwrap();
+                assert_eq!(ordered[0].id, RouteUnitId::SingleNet(expected));
+
+                let mut limited = input;
+                limited.limits.max_search_entries = 2;
+                let engine = Engine::new(limited).unwrap();
+                let error = negotiate::SingleEndedAdapter::all()
+                    .units(&engine)
+                    .unwrap_err();
+                assert_eq!(error.status, Status::AdmissionExceeded);
+            }
+        }
+
         let mut open = board.clone();
         open.rule_areas.clear();
         let e = Engine::new(open).unwrap();
