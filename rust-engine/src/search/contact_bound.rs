@@ -135,6 +135,28 @@ impl<'a> TargetBounds<'a> {
         if !allowed[layer] {
             return Ok(None);
         }
+        Ok(Self::contact_center(pad, work)?.map(|center| (center, layer)))
+    }
+
+    /// A uniform native plated pad can end a route on each copper layer
+    /// present in its padstack. A mounting hole has no copper layer mask.
+    pub(super) fn plated_contact(
+        &self,
+        work: &WorkBudget,
+    ) -> Result<Option<(Point, u32)>, Failure> {
+        let Copper::Pad(pad) = self.copper else {
+            return Ok(None);
+        };
+        if pad.drill.is_none() || self.mask == 0 {
+            return Ok(None);
+        }
+        Ok(Self::contact_center(pad, work)?.map(|center| (center, self.mask)))
+    }
+
+    fn contact_center(
+        pad: &crate::model::Pad,
+        work: &WorkBudget,
+    ) -> Result<Option<Point>, Failure> {
         work.charge(pad.shape.parts().len() as u64)?;
         for part in pad.shape.parts() {
             if let crate::model::Shape::ConvexPolygon { vertices, .. } = part {
@@ -142,7 +164,7 @@ impl<'a> TargetBounds<'a> {
             }
         }
         let center = pad.copper_center();
-        Ok(geometry::point_in_pad(center, pad).then_some((center, layer)))
+        Ok(geometry::point_in_pad(center, pad).then_some(center))
     }
 
     /// Lower bound to a superset of all endpoint-cap contacts with this target.

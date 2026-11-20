@@ -240,18 +240,36 @@ impl Mesh<'_> {
         let mut goals = HashMap::<Node, (u64, Vec<PathEdge>)>::new();
         let mut ends = Vec::new();
         for target in targets {
-            let Some((center, layer)) = target.surface_contact(track_ok, &engine.work)? else {
-                continue;
-            };
-            let layer = layer as u8;
-            ends.push((center, layer));
-            for (node, cost, edges) in
-                self.contact_portals(center, layer, track_ok, goals.len(), &mut expand)?
-            {
-                if goals.get(&node).is_none_or(|(n, _)| cost < *n) {
-                    self.storage(goals.len() + 1)?;
-                    goals.insert(node, (cost, edges));
+            let mut attach = |center, layer, plated| -> Result<(), Failure> {
+                let layer = layer as u8;
+                ends.push((center, layer));
+                let portals = if plated {
+                    // The barrel already reaches this layer. Connect with a trace
+                    // and keep its existing hole out of the list of new drills.
+                    self.portals(center, layer)?
+                } else {
+                    self.contact_portals(center, layer, track_ok, goals.len(), &mut expand)?
+                };
+                for (node, cost, edges) in portals {
+                    if goals.get(&node).is_none_or(|(n, _)| cost < *n) {
+                        self.storage(goals.len() + ends.len() + 1)?;
+                        goals.insert(node, (cost, edges));
+                    }
                 }
+                Ok(())
+            };
+            if let Some((center, mask)) = target.plated_contact(&engine.work)? {
+                for (layer, &allowed) in track_ok.iter().enumerate() {
+                    engine.work.charge(1)?;
+                    if allowed
+                        && mask & (1 << layer) != 0
+                        && self.clear(center, center, layer as u8)?
+                    {
+                        attach(center, layer, true)?;
+                    }
+                }
+            } else if let Some((center, layer)) = target.surface_contact(track_ok, &engine.work)? {
+                attach(center, layer, false)?;
             }
         }
         if goals.is_empty() {
@@ -381,6 +399,70 @@ impl Mesh<'_> {
 mod tests {
     use super::*;
     use crate::model::Input;
+
+    #[test]
+    fn plated_terminal_connects_on_its_listed_inner_layer_without_a_new_hole() {
+        use crate::components::Copper;
+        use crate::model::DrillShape;
+
+        let mut input: Input = serde_json::from_str(include_str!(
+            "../../tests/fixtures/multiterminal-native-two-nets.json"
+        ))
+        .unwrap();
+        input.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+            .map(str::to_owned)
+            .to_vec();
+        input.pads.truncate(1);
+        input.pads[0].layers = vec!["F.Cu".into(), "In2.Cu".into(), "B.Cu".into()];
+        input.pads[0].drill = Some(DrillShape::Circle {
+            diameter_nm: 400_000,
+        });
+        input.tracks.clear();
+        let engine = Engine::new(input).unwrap();
+        let goal = TargetBounds::new(
+            Copper::Pad(&engine.input.pads[0]),
+            engine.all_layers_slice(),
+            &engine.work,
+        )
+        .unwrap();
+        let mesh = Mesh {
+            engine: &engine,
+            net: 1,
+            grid: 250_000,
+            pitch: 1_000_000,
+            via_step: 5,
+            history: None,
+            occupied_entries: 0,
+        };
+        for (layer, expected) in [(1, false), (2, true)] {
+            let mut allowed = [false; 4];
+            allowed[layer] = true;
+            let mut expanded = 0;
+            let path = mesh
+                .search(
+                    &[([12_000_000, 10_000_000], layer as u8, false)],
+                    std::slice::from_ref(&goal),
+                    &allowed,
+                    &mut TrialBudget::fixed(5_000),
+                    &mut expanded,
+                    None,
+                    5_000,
+                )
+                .unwrap();
+            assert_eq!(path.is_some(), expected);
+            if let Some(path) = path {
+                assert_eq!(
+                    path.points.last(),
+                    Some(&engine.input.pads[0].copper_center())
+                );
+                assert!(!path.edges.is_empty());
+                assert!(path
+                    .edges
+                    .iter()
+                    .all(|e| matches!(*e, PathEdge::Track { layer: 2, .. })));
+            }
+        }
+    }
 
     #[test]
     fn mesh_checks_hole_spacing_between_new_drills_before_returning_a_route() {
