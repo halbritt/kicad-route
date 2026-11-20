@@ -2584,6 +2584,78 @@ mod tests {
     }
 
     #[test]
+    fn path_publication_removes_only_covered_collinear_copper() {
+        // A route doubles back over a protected track, then leaves it. The
+        // visible ends survive in traversal order at every track inclination.
+        for step in [[1, 0], [0, 1], [1, 1], [2, 1], [1, -1], [-2, 1]] {
+            let point = |i: i64| [50 + i * step[0], 50 + i * step[1]];
+            let mut input = test_input();
+            let existing = Track {
+                id: "20000000-0000-4000-8000-000000000001".into(),
+                net: 1,
+                layer: "F.Cu".into(),
+                width_nm: 2,
+                locked: true,
+                start: point(4),
+                end: point(-4),
+            };
+            input.tracks.push(existing.clone());
+            let mut engine = Engine::new(input).unwrap();
+            let (start, end) = (point(12), point(-12));
+            // A parallel segment, a thinner segment and copper on another
+            // layer do not cover the proposed track, even at the same bounds.
+            let proposal = Track {
+                start,
+                end,
+                ..existing.clone()
+            };
+            let narrower = Track {
+                width_nm: 1,
+                ..proposal.clone()
+            };
+            let backside = Track {
+                layer: "B.Cu".into(),
+                ..proposal.clone()
+            };
+            let shift = |p: Point| [p[0] - step[1], p[1] + step[0]];
+            let parallel = Track {
+                start: shift(start),
+                end: shift(end),
+                ..proposal.clone()
+            };
+            assert_eq!(
+                engine
+                    .covered_centerline_intervals(&proposal, &[narrower, backside, parallel])
+                    .unwrap(),
+                vec![(
+                    existing.start.min(existing.end),
+                    existing.start.max(existing.end)
+                )]
+            );
+            let path = crate::search::Path {
+                points: vec![start, end],
+                edges: vec![crate::search::PathEdge::Track {
+                    start,
+                    end,
+                    layer: 0,
+                }],
+                steps: 1,
+            };
+            engine.insert_path(1, path).unwrap();
+            let mut segments: Vec<_> = engine
+                .copper
+                .generated()
+                .map(|t| (t.start, t.end))
+                .collect();
+            segments.sort_unstable();
+            let mut expected = [(start, point(4)), (point(-4), end)];
+            expected.sort_unstable();
+            assert_eq!(segments, expected, "step {step:?}");
+            assert!(engine.copper.tracks().any(|t| t == &existing));
+        }
+    }
+
+    #[test]
     fn c_m3_03_collinear_uturn_does_not_coalesce_to_zero_length() {
         let mut engine = Engine::new(test_input()).unwrap();
         let uturn = crate::search::Path {
