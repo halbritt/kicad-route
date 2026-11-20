@@ -425,7 +425,7 @@ def test_three_surface_contacts_share_the_same_physical_junction(tmp_path, guard
     assert not routed["unconnected_items"] and not routed["violations"]
 
 
-@pytest.mark.parametrize(("count", "rear", "keyways"), [(9, True, True), (12, False, False)])
+@pytest.mark.parametrize(("count", "rear", "keyways"), [(9, True, True), (12, False, False), (12, False, True)])
 def test_negotiated_routes_between_perpendicular_connector_banks(tmp_path, guarded_cli, count, rear, keyways):
     board = BoardBuilder(copper_layers=4, seed=4997)
     board.set_rect_outline(0, 0, 62_000_000, 52_000_000)
