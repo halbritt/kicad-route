@@ -4,7 +4,7 @@ import json
 import pcbnew
 import pytest
 
-from tests.e2e_rust_router.kicad_verify import BoardBuilder
+from tests.e2e_rust_router.kicad_verify import BoardBuilder, run_native_drc
 from test_rust_engine_native import _built_rust_engine, bridge, guarded_cli as guarded_cli
 
 
@@ -59,7 +59,7 @@ def test_native_terminal_slot_uses_reachable_phase(tmp_path, guarded_cli, offset
         assert not output.exists()
         return
     assert (code, op["status"]) == (0, "complete"), op.get("reason")
-    verified = bridge.native_violations(output, tmp_path / "saved-drc.json")
+    verified = run_native_drc(output, sidecar_source=source).raw
     assert not verified["violations"] and not verified["unconnected_items"]
     assert op["routing"]["added_track_count"] == 2 and op["routing"]["added_via_count"] == 0
     if offset == 140_000:

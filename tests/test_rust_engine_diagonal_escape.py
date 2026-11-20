@@ -4,7 +4,7 @@ import json
 import pcbnew
 import pytest
 
-from tests.e2e_rust_router.kicad_verify import BoardBuilder
+from tests.e2e_rust_router.kicad_verify import BoardBuilder, run_native_drc
 from test_rust_engine_native import _built_rust_engine, bridge, guarded_cli as guarded_cli
 
 
@@ -82,7 +82,7 @@ def test_saved_octilinear_escape(tmp_path, guarded_cli, offset, shift, layer, ac
     saved = pcbnew.LoadBoard(str(output))
     fixed = [t for t in saved.GetTracks() if t.GetNetname() == "FIXED"]
     assert len(fixed) == 1 and fixed[0].IsLocked() and fixed[0].m_Uuid.AsString() == locked_id
-    drc = bridge.native_violations(output, tmp_path / "drc.json")
+    drc = run_native_drc(output, sidecar_source=source).raw
     assert not drc["unconnected_items"] and not drc["violations"]
     tracks = [t for t in saved.GetTracks() if t.GetNetname() == "DATA"]
     assert all(not isinstance(t, pcbnew.PCB_VIA) and t.GetLayer() == layer and t.GetWidth() == 200_000 for t in tracks)
@@ -132,7 +132,7 @@ def test_multilayer_board_uses_legal_diagonal_into_surface_pad(tmp_path, guarded
     engine = _built_rust_engine(run)
     run([str(engine), "route-native", str(source), str(output), "--operation-result", str(op)])
     assert json.loads(op.read_bytes())["status"] == "complete"
-    drc = bridge.native_violations(output, tmp_path / "drc.json")
+    drc = run_native_drc(output, sidecar_source=source).raw
     assert not drc["unconnected_items"] and not drc["violations"]
     saved = pcbnew.LoadBoard(str(output))
     tracks = [t for t in saved.GetTracks() if t.GetNetname() == "SENSE"]
@@ -181,7 +181,7 @@ def test_opposite_surface_lands_with_a_remote_via(tmp_path, guarded_cli, reverse
         assert result["status"] == "unroutable" and not output.exists()
         return
     assert result["status"] == "complete"
-    drc = bridge.native_violations(output, tmp_path / "drc.json")
+    drc = run_native_drc(output, sidecar_source=source).raw
     assert not drc["violations"] and not drc["unconnected_items"]
     saved = pcbnew.LoadBoard(str(output))
     copper = [t for t in saved.GetTracks() if t.GetNetname() == "SENSE"]
@@ -229,7 +229,7 @@ def test_staggered_surface_keepouts_admit_a_shortest_trunk(tmp_path, guarded_cli
     routing = json.loads(op.read_bytes())["routing"]
     assert (routing["status"], routing["expanded_states"], routing["added_via_count"]) == (
         "complete", 2, 0)
-    drc = bridge.native_violations(output, tmp_path / "drc.json")
+    drc = run_native_drc(output, sidecar_source=source).raw
     assert not drc["violations"] and not drc["unconnected_items"]
     saved = pcbnew.LoadBoard(str(output))
     segments = [t for t in saved.GetTracks() if t.GetNetname() == "SIG"]

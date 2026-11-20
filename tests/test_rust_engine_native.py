@@ -13,6 +13,8 @@ import uuid
 import pcbnew
 import pytest
 
+from tests.e2e_rust_router.kicad_verify import run_native_drc
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('rust_engine_kicad', ROOT / 'tools/rust_engine_kicad.py')
@@ -301,7 +303,7 @@ def test_multiterminal_native_connectivity_preservation_and_drc(native_board, gu
     assert {track['id']: track for track in actual['tracks']} == {
         track['id']: track for track in data['tracks'] + plan['added_tracks']}
     before = bridge.native_violations(native_board, native_board.with_name('multi-before-drc.json'))
-    after = bridge.native_violations(output, native_board.with_name('multi-after-drc.json'))
+    after = run_native_drc(output, sidecar_source=native_board).raw
     assert before['unconnected_items'] and after['unconnected_items'] == []
     key = lambda violation: json.dumps(violation, sort_keys=True)
     assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
@@ -383,7 +385,7 @@ def test_multiterminal_multipin_and_isolated_incumbent_components(native_board, 
     assert {track['id']: track for track in actual['tracks']} == {
         track['id']: track for track in data['tracks'] + plan['added_tracks']}
     before = bridge.native_violations(native_board, native_board.with_name('multipin-before-drc.json'))
-    after = bridge.native_violations(output, native_board.with_name('multipin-after-drc.json'))
+    after = run_native_drc(output, sidecar_source=native_board).raw
     assert before['unconnected_items'] and after['unconnected_items'] == []
     key = lambda violation: json.dumps(violation, sort_keys=True)
     assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
@@ -1738,7 +1740,7 @@ def test_multiterminal_t_corridor_normalizes_collinear_overlaps(native_board, gu
     run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
          str(native_board), str(plan_path), str(output), '--request', str(request)])
     before = bridge.native_violations(native_board, native_board.with_name('t-before-drc.json'))
-    after = bridge.native_violations(output, native_board.with_name('t-after-drc.json'))
+    after = run_native_drc(output, sidecar_source=native_board).raw
     assert before['unconnected_items'] and after['unconnected_items'] == []
     key = lambda violation: json.dumps(violation, sort_keys=True)
     assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
@@ -1805,7 +1807,7 @@ def test_multiterminal_t_corridor_partial_overlap_trims_cleanly(native_board, gu
     run(['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
          str(native_board), str(plan_path), str(output), '--request', str(request)])
     before = bridge.native_violations(native_board, native_board.with_name('t-partial-before-drc.json'))
-    after = bridge.native_violations(output, native_board.with_name('t-partial-after-drc.json'))
+    after = run_native_drc(output, sidecar_source=native_board).raw
     assert before['unconnected_items'] and after['unconnected_items'] == []
     key = lambda violation: json.dumps(violation, sort_keys=True)
     assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
@@ -2174,7 +2176,7 @@ def test_route_native_embedded_default_netclass_fallback_and_dru_whitespace(
     res = run([str(engine), 'route-native', str(native_board), str(output)], check=False)
     assert res.returncode == 0, res.stderr
     before = bridge.native_violations(native_board, tmp_path / 'before-drc.json')
-    after = bridge.native_violations(output, tmp_path / 'after-drc.json')
+    after = run_native_drc(output, sidecar_source=native_board).raw
     assert after['unconnected_items'] == []
     key = lambda v: json.dumps(v, sort_keys=True)
     assert not (Counter(map(key, after['violations'])) - Counter(map(key, before['violations'])))
@@ -3040,7 +3042,7 @@ def test_copper_pcb_text_avoidance_preservation_and_fail_closed_knockout(tmp_pat
     assert routed.GetConnectivity().GetUnconnectedCount(False) == 0
     preserved_texts = [d for d in routed.GetDrawings() if type(d) is pcbnew.PCB_TEXT and d.m_Uuid.AsString() == text_uuid]
     assert len(preserved_texts) == 1 and preserved_texts[0].GetText() == 'CU'
-    drc = bridge.native_violations(out, tmp_path / 'copper_text_drc.json')
+    drc = run_native_drc(out, sidecar_source=src).raw
     assert drc['unconnected_items'] == [] and drc['violations'] == []
 
     # Fail-closed controls: knockout PCB_TEXT and PCB_DIMENSION_BASE on F.Cu must still be refused.
@@ -3130,7 +3132,7 @@ def test_pad_interior_track_attachment_native_collision(tmp_path, guarded_cli):
         pad = next(iter(fp.Pads()))
         shape = pad.GetEffectiveShape(pcbnew.F_Cu)
         assert any(shape.Collide(pt, 0) for pt in endpoints), f'pad {fp.GetReference()} lacks interior track vertex'
-    drc = bridge.native_violations(out, tmp_path / 'rf_interior_drc.json')
+    drc = run_native_drc(out, sidecar_source=src).raw
     assert drc['unconnected_items'] == [] and drc['violations'] == []
 
 
@@ -3218,7 +3220,7 @@ def test_footprint_owned_zones_and_rule_areas_export_avoidance_and_preservation(
     routed = pcbnew.LoadBoard(str(out))
     routed.BuildConnectivity()
     assert routed.GetConnectivity().GetUnconnectedCount(False) == 0
-    drc = bridge.native_violations(out, tmp_path / 'fp_ra_drc.json')
+    drc = run_native_drc(out, sidecar_source=src).raw
     assert drc['unconnected_items'] == [] and drc['violations'] == []
     tracks = [t for t in routed.GetTracks() if type(t) is pcbnew.PCB_TRACK]
     ko_box = pcbnew.SHAPE_RECT(8_000_000, 8_000_000, 4_000_000, 4_000_000)
@@ -3302,7 +3304,7 @@ def test_teardrop_enabled_board_without_copper_pours_refills_and_saves_teardrops
     td_zones = [z for z in routed.Zones() if z.IsTeardropArea()]
     assert len(td_zones) > 0
     assert all(p.GetTeardropsEnabled() for p in routed.GetPads())
-    drc = bridge.native_violations(out, tmp_path / 'td_drc.json')
+    drc = run_native_drc(out, sidecar_source=src).raw
     assert drc['unconnected_items'] == [] and drc['violations'] == []
 
     # Control: without SetTeardropsEnabled or copper pours, no teardrop zones are generated.
@@ -3561,7 +3563,7 @@ def test_solder_mask_zero_to_copper_shape_and_text_detour_and_drc(tmp_path, guar
     out = tmp_path / f'{case}_routed.kicad_pcb'
     res = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
     assert res.returncode == 0, (case, res.stdout, res.stderr)
-    drc = bridge.native_violations(out, tmp_path / f'{case}_drc.json')
+    drc = run_native_drc(out, sidecar_source=src).raw
     assert drc['unconnected_items'] == [] and drc['violations'] == [], (case, drc)
 
 
@@ -3604,7 +3606,7 @@ def test_solder_mask_expansion_zero_to_copper_detour_and_drc(tmp_path, guarded_c
     out = tmp_path / 'mask_exp_routed.kicad_pcb'
     res = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
     assert res.returncode == 0, (res.stdout, res.stderr)
-    drc = bridge.native_violations(out, tmp_path / 'mask_exp_drc.json')
+    drc = run_native_drc(out, sidecar_source=src).raw
     assert drc['unconnected_items'] == [] and drc['violations'] == [], drc
 
 
@@ -3855,7 +3857,7 @@ def test_native_diff_pair_zero_mask_rules_and_expansion_detour_drc(tmp_path, gua
             '--diff-pairs', 'auto', '--pair-layers', 'F.Cu',
         ], check=False)
         assert res.returncode == 0, (tag, res.stdout, res.stderr)
-        drc = bridge.native_violations(out, tmp_path / f'dp_{tag}_drc.json')
+        drc = run_native_drc(out, sidecar_source=src).raw
         assert drc['unconnected_items'] == [] and drc['violations'] == [], (tag, drc)
 
 
