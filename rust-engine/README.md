@@ -375,6 +375,13 @@ source in turn. Its pad or trace may offer a different grid phase or reach a
 third island. Generated-copper obstructions return to negotiation. All attempts
 share the work and expansion limits, and each join must reduce the number of
 disconnected components.
+For three separate surface pads on the same layer in a multi-net batch, the
+router also checks a common junction at the Cartesian or diagonal coordinate
+median. Each arm must be straight, horizontal, vertical or 45 degrees. The
+three arms must clear the design rules and use less copper than the shortest
+two pairwise octilinear spans. The complete proposal is inserted together and
+the router checks the resulting connected components.
+
 Already-connected pad groups and disconnected incumbent tracks participate
 equally; a net succeeds only when all required copper is connected. This can
 produce branches but does not optimize a Steiner tree or promise invariance

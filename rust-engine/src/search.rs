@@ -7,6 +7,7 @@ mod octilinear_terminal;
 mod pad_field;
 mod reverse_sources;
 mod routing_mesh;
+mod three_pad_branch;
 use reverse_sources::ReverseSources;
 
 use crate::barrier_bound::BarrierBound;
@@ -409,9 +410,23 @@ pub(crate) fn join_open_components(
     expanded: &mut u64,
     history: Option<&crate::negotiate::CongestionHistory>,
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
-) -> Result<Path, Failure> {
+) -> Result<Vec<PathEdge>, Failure> {
     let batch = frontier.is_some() && engine.prefer_higher_g();
     let history = history.filter(|h| !h.is_empty());
+    if batch
+        && history.is_none()
+        && engine
+            .input
+            .routing_options
+            .as_ref()
+            .is_none_or(|o| o.bus.is_none())
+    {
+        if let Some(path) =
+            three_pad_branch::between(engine, net, groups, budget, expanded, frontier.as_deref())?
+        {
+            return Ok(path);
+        }
+    }
     let mut try_from = |groups: &[Vec<Copper<'_>>], frontier: Option<&mut _>| {
         join_components_inner(
             engine,
@@ -424,6 +439,7 @@ pub(crate) fn join_open_components(
             frontier,
             batch,
         )
+        .map(|p| p.edges)
     };
     let mut result = try_from(groups, frontier.as_deref_mut());
     if matches!(groups, [a, b] if matches!(a.as_slice(), [Copper::Pad(_)]) &&

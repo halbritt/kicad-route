@@ -2922,7 +2922,7 @@ impl Engine {
             if before <= 1 {
                 return Ok(());
             }
-            let path = search::join_open_components(
+            let edges = search::join_open_components(
                 self,
                 net,
                 &mut groups,
@@ -2931,7 +2931,7 @@ impl Engine {
                 None,
                 None,
             )?;
-            self.insert_path(net, path)?;
+            self.insert_edges(net, edges)?;
             groups = self.components(net)?;
             if groups.len() >= before {
                 return Err(Failure::new(
@@ -2993,7 +2993,7 @@ impl Engine {
                 Some(history),
                 Some(&mut frontier),
             ) {
-                Ok(path) => match self.insert_path(net, path) {
+                Ok(edges) => match self.insert_edges(net, edges) {
                     Ok(()) => {
                         joins_done += 1;
                         groups = self
@@ -3043,13 +3043,18 @@ impl Engine {
             }
         }
     }
+    #[cfg(test)]
     fn insert_path(&mut self, net: u32, path: search::Path) -> Result<(), Failure> {
+        self.insert_edges(net, path.edges)
+    }
+
+    fn insert_edges(&mut self, net: u32, edges: Vec<search::PathEdge>) -> Result<(), Failure> {
         let mut raw_tracks: Vec<Track> = Vec::new();
         let mut pending_vias: Vec<(search::PlacedViaKey, Via)> = Vec::new();
         let mut prior_vias: Vec<search::PlacedViaKey> = Vec::new();
         let mut can_coalesce_last = false;
 
-        for edge in path.edges {
+        for edge in edges {
             self.work.charge(1)?;
             match edge {
                 search::PathEdge::Track { start, end, layer } => {

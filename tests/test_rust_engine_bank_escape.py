@@ -338,3 +338,35 @@ def test_eight_backplane_channels_share_the_board_search_budget(tmp_path, guarde
         net = [p for p in pieces if p.GetNetname() == f"BUS{index}"]
         assert sum(isinstance(p, pcbnew.PCB_VIA) for p in net) == 2
         assert any(p.GetLayer() in inner for p in net)
+
+
+def test_three_surface_contacts_share_the_same_physical_junction(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=7280)
+    board.set_rect_outline(0, 0, 40_000_000, 40_000_000)
+    pins = [(5_200_000, 5_600_000), (21_950_000, 11_850_000), (16_700_000, 31_800_000)]
+    for i, at in enumerate([*pins, (3_000_000, 34_000_000), (11_000_000, 34_000_000)]):
+        fp = board.add_footprint(f"J{i + 1}", at, side="B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", "CLK" if i < 3 else "REF", at, size_nm=(700_000, 700_000),
+                      shape=pcbnew.PAD_SHAPE_CIRCLE, layers=[pcbnew.B_Cu])
+    board.set_project_rules()
+    source = board.save(tmp_path / "input").pcb_path
+    original = run_native_drc(source).raw
+    assert len(original["unconnected_items"]) == 3 and not original["violations"]
+
+    run, _ = guarded_cli
+    saved, op = tmp_path / "routed.kicad_pcb", tmp_path / "operation.json"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved),
+         "--operation-result", str(op)])
+    assert json.loads(op.read_bytes())["status"] == "complete"
+    board = pcbnew.LoadBoard(str(saved))
+    joint = (16_700_000, 17_100_000)
+    arms = [t for t in board.GetTracks() if t.GetNetname() == "CLK"]
+    assert all(not isinstance(t, pcbnew.PCB_VIA) and t.GetLayer() == pcbnew.B_Cu for t in arms)
+    assert len(arms) == 3
+    assert {frozenset((tuple(t.GetStart()), tuple(t.GetEnd()))) for t in arms} == {
+        frozenset((joint, p)) for p in pins
+    }
+    routed = run_native_drc(saved, sidecar_source=source).raw
+    assert not routed["unconnected_items"] and not routed["violations"]
