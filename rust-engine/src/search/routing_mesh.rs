@@ -14,6 +14,7 @@ use std::collections::{BinaryHeap, HashMap};
 mod corner_guides;
 mod drill_access;
 mod plane_approach;
+mod portal_visibility;
 
 type Node = (Point, u8);
 
@@ -477,6 +478,27 @@ impl Mesh<'_> {
         if let MeshPricing::Observe(rejected) = self.pricing {
             rejected.set(false);
         }
+        // Share the remaining mesh allowance between complete visible
+        // connections and exploration through the ordinary graph.
+        let visibility_stop = *expanded + stop.saturating_sub(*expanded) / 2;
+        let proposal = if *expanded < visibility_stop {
+            self.visible_entries(
+                &roots,
+                &costs,
+                &goals,
+                costs.len() + open.len() + roots.len() + goals.len() + parents.len(),
+                &mut || {
+                    if *expanded >= visibility_stop {
+                        return Ok(false);
+                    }
+                    budget.check_before_expand(engine, *expanded, frontier)?;
+                    *expanded += 1;
+                    Ok(true)
+                },
+            )?
+        } else {
+            None
+        };
         let mut preferred = if priced && !ends.is_empty() && !starts.is_empty() {
             self.common_approach(starts[0].0, ends[0].0, &roots, &goals)?
         } else {
@@ -498,7 +520,7 @@ impl Mesh<'_> {
                 }
             }
         }
-        let mut best_path: Option<Path> = None;
+        let mut best_path: Option<Path> = proposal;
         loop {
             if preferred.is_some() && (open.is_empty() || best_path.is_some()) {
                 engine.work.charge(deferred.len() as u64)?;

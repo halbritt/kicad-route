@@ -278,6 +278,14 @@ obstacle corners. Those corners are candidates. The router sweeps the full
 track width and clearance along every segment and charges each expanded
 position to the existing mesh allowance.
 
+When a terminal can reach a common plane through a new via and the other
+already has copper there, the mesh compares the cheapest registered pair
+on each plane. From both ends it checks an elbow after the first clear
+mesh step and after the last clear point along each axial or 45-degree
+direction. The resulting route pays the actual terminal, trace and via
+costs, including congestion along its full path. The regular mesh search
+can still replace it within the same expansion budget.
+
 A board-wide multilayer search can also follow a same-layer detour by
 extending horizontal and vertical lines from both contacts. It checks the
 track's full swept width up to each line end, then tries perpendicular lines
