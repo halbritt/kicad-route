@@ -1,3 +1,4 @@
+mod octilinear_exit;
 mod pad_field;
 
 use crate::budget::WorkBudget;
@@ -495,11 +496,33 @@ fn join_components_inner(
     // Only exhausted geometric frontiers reach this point. The same trial, expansion
     // and work budgets apply as the ordinary search; typed stops return immediately.
     let extra = pad_field::starts(engine, net, source, targets)?;
-    if extra.is_empty() {
+    let result = if extra.is_empty() {
         result
     } else {
         search(source, targets, u32::MAX, Some(extra))
+    };
+    if !matches!(&result, Err(e) if e.status == Status::Unroutable)
+        || frontier.as_deref().is_some_and(|f| !f.probes().is_empty())
+    {
+        // Preserve successful grid routes and negotiated rip-up of generated blockers.
+        return result;
     }
+    octilinear_exit::between_pads(
+        engine,
+        net,
+        source,
+        targets,
+        history,
+        budget,
+        expanded,
+        frontier.as_deref(),
+    )
+    .and_then(|candidate| candidate.map_or(result, Ok))
+    .map_err(|mut e| {
+        e.expanded_states = *expanded;
+        e.work_used = engine.work.used();
+        e
+    })
 }
 
 #[derive(Default)]
