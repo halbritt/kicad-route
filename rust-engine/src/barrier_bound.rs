@@ -7,7 +7,7 @@ pub(crate) use pad_banks::PadBanks;
 use slanted::SlantedWall;
 
 use crate::budget::WorkBudget;
-use crate::model::{Failure, Input, Point, RuleArea, Track};
+use crate::model::{Failure, Input, Point, Track};
 use std::collections::BTreeMap;
 
 type Envelope = (Point, Point);
@@ -183,27 +183,6 @@ struct OrderedBounds {
     reverse: PassageProfile,
 }
 
-/// A ring with four alternating axis-aligned nonempty sides bounds its full
-/// rectangle. An optional repeated closing vertex does not change the ring.
-fn solid_rectangle(area: &RuleArea) -> Option<Envelope> {
-    if !area.no_tracks || !area.holes.is_empty() || !area.extra_polygons.is_empty() {
-        return None;
-    }
-    let p = match area.outer.as_slice() {
-        [a, b, c, d] => [a, b, c, d],
-        [a, b, c, d, end] if a == end => [a, b, c, d],
-        _ => return None,
-    };
-    let lo = [p[0][0].min(p[2][0]), p[0][1].min(p[2][1])];
-    let hi = [p[0][0].max(p[2][0]), p[0][1].max(p[2][1])];
-    if (0..2).any(|k| lo[k].abs_diff(hi[k]) < 2) {
-        return None;
-    }
-    let corners = [[p[0][0], p[2][1]], [p[2][0], p[0][1]]];
-    ((*p[1] == corners[0] && *p[3] == corners[1]) || (*p[1] == corners[1] && *p[3] == corners[0]))
-        .then_some((lo, hi))
-}
-
 pub(crate) struct BarrierBound {
     source: Envelope,
     target: Envelope,
@@ -297,7 +276,10 @@ impl BarrierBound {
         let mut rectangles = BTreeMap::<Envelope, u64>::new();
         for area in &input.rule_areas {
             work.charge(1)?;
-            if let Some(rect) = solid_rectangle(area) {
+            if !area.no_tracks {
+                continue;
+            }
+            if let Some(rect) = area.rectangular_bounds() {
                 let mut mask = 0;
                 for name in &area.layers {
                     if let Some(k) = layer_index(name)? {
