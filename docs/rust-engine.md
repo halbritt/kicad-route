@@ -64,6 +64,15 @@ so its preferences files do not appear beside the source. Process termination ca
 leave private temporary files; publication is atomic in visibility, not fsynced
 for crash durability.
 
+The standalone Linux `route-native` command also supervises the native child
+process group and its private staging directory. A killed native child causes
+exit 7 with `child_process_error` and the terminating signal. In a 64 MiB
+memory-limited run, the kernel killed the export child. The router removed
+its staging files and preserved the original board. The destination remained
+absent. If the router itself dies during a native phase, a surviving
+helper terminates its descendants and removes the staging directory. If the host kills both the router and every helper, the caller or its
+temporary filesystem owns any remaining staging files.
+
 The native adapter accepts boards with two to 32 copper layers and reads the
 project and custom-rule files beside the source board. Copper geometry uses
 KiCad's standard layer names, such as `F.Cu` and `In1.Cu`. When the board

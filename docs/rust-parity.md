@@ -30,6 +30,19 @@ missing native rules are identified.
 | Zones, planes, thermals and keepouts | Native zones/rule areas/plane plan with refill. Preserve component partitions, pad contact, thermal spokes and pour integrity. | T4-03 exercises filled power and ground zones, thermal pads, keepouts and via spans on four layers. The native fixture `route_demo` exercises refill and measures surviving pour area, islands and spokes. On the external two-layer `complex_hierarchy` board, Rust reconnects ground islands after native refill and passes the original pour check. The bridge refuses unsupported zone geometry, including curved polygon outlines. |
 | Execution, publication and routing quality | Real process success/failure, stale results, resource limits, source mutation and destination races. Require current execution success, expected-request identity and native validation. Attribute performance on frozen representative inputs and tools. | Structured failures, request identity and native apply controls exist. M2.1 integrates leaf-bucketed (`STATIC_LEAF_CAP = 32`) `StaticSpatialIndex` (`pad_spatial`/`input_spatial`) + iterative deterministic Treap broad-phase (`generated_spatial: SpatialIndex<u64, u32>`, `TreapNode <= 112 B` with `net`/`subtree_uniform_net`/`subtree_len` and `TREAP_UNIFORM_SKIP_CAP = 32`, `tests/spatial.rs` RoundRect/oval + `0` post-rollback work diffs across nets `0..=4`, `80/80` non-equivalent mutants killed (`84` total incl. `4` mathematically equivalent) including `M5_uncharged_pruned_query_visit_treap`, `NEW_uniform_net_charge_bulk_no_fallback`, `ITER3_treap_uniform_net_charge_bulk_no_fallback`, `CopperAabb::overlaps` 4-direction tangency, `point_near_segment` zero-gap boundary, and all `consistent()` / `TREAP_UNIFORM_SKIP_CAP` boundary checks), passing the unified 22-cell `RE-08` matrix vs `1ca08e72` (`0.0006x–0.0381x` route_all speedup on S1/S2/dense_cluster/dense_xy_overlap/scale_50k/N1, `0.0071x` D2_churn, `0.1268x–1.0555x` across all dense static/treap/corridor/mixed cells including `0.1752x`/`0.1268x` isolated `generated_treap_overlap_samenet` and `0.6056x` `mixed_95_5`, `diag_overlap_2000` default `100M` completion at `75.33M`, `1.1415x` GNU / `1.0261x` `/proc` RSS on 50k items); M6 post-landing audit pending. Rust `route-native` stages the operation, validates the result and publishes the saved board. The orchestration tests exercise cancellation, timeouts and destination collisions. Full resource guarantees and representative-board performance acceptance remain open. Matching incomplete KRT output is not success. |
 
+At `72b6c1b`, the native five-tier suite passed all 148 cases. In T4-04,
+the saved four-layer board connected all 24 three-pad nets with zero opens
+and zero DRC violations. Repeated runs produced identical copper. The case
+used 851,586 of its specified 1,000,000 expansions and 167,434,192 of its
+250,000,000 work units. The external-board runs below use the production
+default of 100,000 expansions.
+
+On the protected CAN control, native KiCad reported zero opens and zero DRC
+violations before routing. The two preserved tracks measured 10.120 mm and
+10.000 mm. The Rust router refused the requested 0.100 mm skew limit and
+left the output absent. T5-02 separately connected an open net while
+preserving the original locked track's identity, endpoints and layer.
+
 On 2026-11-19, release builds of `4859553` and `36f7b11` produced identical
 copper signatures for each of the three T4-07 fixtures under KiCad 10.0.8.
 The inputs had six opens on `route_demo`, ten on `bus_routing` and four on
