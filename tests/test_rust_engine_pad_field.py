@@ -111,3 +111,44 @@ def test_surface_pad_field_escape(tmp_path, guarded_cli, family, sealed):
             assert (proc.returncode, observed["status"]) == (code, status), observed
             assert observed["routing"][counter] == limit
             assert not unbuilt.exists() and source.read_bytes() == before
+
+
+def test_single_long_surface_lead_allows_a_two_via_escape(tmp_path, guarded_cli):
+    from tests.e2e_rust_router.kicad_verify import run_native_drc
+
+    board = BoardBuilder(copper_layers=4, seed=813)
+    board.set_rect_outline(0, 0, 36_000_000, 36_000_000)
+
+    def foot(ref, xy, side="F"):
+        fp = board.add_footprint(ref, xy, side=side)
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        return fp
+
+    source_xy = (7_150_000, 15_100_000)
+    connector = foot("J1", source_xy)
+    for number, net, xy, size in [
+        ("1", "LEFT", (5_880_000, 14_850_000), (320_000, 22_000_000)),
+        ("2", "SENSE", source_xy, (300_000, 1_050_000)),
+        ("3", "RIGHT", (8_420_000, 15_250_000), (320_000, 22_000_000)),
+    ]:
+        board.add_pad(connector, number, net, xy, size_nm=size,
+                      shape=pcbnew.PAD_SHAPE_RECT, layers=[pcbnew.F_Cu])
+    for ref, net, xy, layer in [
+        ("R1", "SENSE", (18_250_000, 15_350_000), pcbnew.F_Cu),
+        ("T1", "AUX", (3_000_000, 32_000_000), pcbnew.B_Cu),
+        ("T2", "AUX", (17_000_000, 32_000_000), pcbnew.B_Cu),
+    ]:
+        fp = foot(ref, xy, "F" if layer == pcbnew.F_Cu else "B")
+        board.add_pad(fp, "1", net, xy, size_nm=(880_000, 880_000), layers=[layer])
+    source = board.save(tmp_path / "input").pcb_path
+    out, operation = tmp_path / "saved.kicad_pcb", tmp_path / "operation.json"
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    # The initial forward phase can connect both terminals beneath the lead.
+    run([str(engine), "route-native", str(source), str(out),
+         "--operation-result", str(operation), "--max-expansions", "256"])
+    routed = json.loads(operation.read_bytes())["routing"]
+    assert routed["status"] == "complete" and routed["added_via_count"] == 2
+    drc = run_native_drc(out, sidecar_source=source).raw
+    assert not drc["violations"] and not drc["unconnected_items"]

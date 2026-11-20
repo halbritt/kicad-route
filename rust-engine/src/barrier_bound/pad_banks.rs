@@ -1,6 +1,7 @@
 //! A cut through the common centerline of a bank of surface lands has an
 //! open forbidden interval for each foreign pad. Overlapping intervals form
-//! a planar barrier. The ends stay passable in the relaxed geometry.
+//! a planar barrier. A single elongated land can also force a detour past
+//! either end. The ends stay passable in the relaxed geometry.
 use super::{interval_gap, Barrier, BarrierBound};
 use crate::model::{Failure, Input, Pad, Shape, Status};
 use crate::rules::{DruItemKind, EffectiveRules};
@@ -12,10 +13,11 @@ struct PadInterval {
     index: usize,
     lo2: i64,
     hi2: i64,
+    elongated: bool,
 }
 
 struct PadRow {
-    pads: Vec<PadInterval>,
+    pads: std::ops::Range<usize>,
     // Widest possible forbidden interval over all admitted nets.
     lo2: i64,
     hi2: i64,
@@ -25,6 +27,8 @@ struct PadRow {
 pub(crate) struct PadBanks {
     // Cut coordinate, then layer. At most two entries per single-layer pad.
     rows: [BTreeMap<(i64, usize), PadRow>; 2],
+    // A row with one elongated flank does not need a separate allocation.
+    intervals: [Vec<PadInterval>; 2],
 }
 
 /// For these shapes both center cuts span the full copper width or height.
@@ -65,8 +69,8 @@ impl PadBanks {
             return result;
         }
         // Like the static pad spatial index, this initialization is bounded by
-        // the admitted input item count. Only rows with a possible overlapping
-        // pair survive. Sparse boards need no per-row heap allocation.
+        // the admitted input item count. Retain possible connected banks and
+        // the transverse cuts of elongated leads.
         let mut entries = [Vec::new(), Vec::new()];
         let max_margin2 = rules.max_track_width_nm + 2 * rules.max_pair_clearance_nm.max(max_local);
         for (index, pad) in input.pads.iter().enumerate() {
@@ -99,11 +103,14 @@ impl PadBanks {
                         index,
                         lo2: center[j] - half[j],
                         hi2: center[j] + half[j],
+                        elongated: half[j] > half[axis],
                     },
                 ));
             }
         }
-        for (rows, entries) in result.rows.iter_mut().zip(&mut entries) {
+        for (axis, entries) in entries.iter_mut().enumerate() {
+            let rows = &mut result.rows[axis];
+            let intervals = &mut result.intervals[axis];
             entries.sort_unstable_by_key(|(key, p)| (*key, p.lo2, p.index));
             for group in entries.chunk_by(|a, b| a.0 == b.0) {
                 let mut hi = group[0].1.hi2;
@@ -112,11 +119,13 @@ impl PadBanks {
                     overlap |= p.lo2 < hi + 2 * max_margin2;
                     hi = hi.max(p.hi2);
                 }
-                if overlap {
+                if overlap || group.iter().any(|(_, p)| p.elongated) {
+                    let start = intervals.len();
+                    intervals.extend(group.iter().map(|(_, p)| *p));
                     rows.insert(
                         group[0].0,
                         PadRow {
-                            pads: group.iter().map(|(_, p)| *p).collect(),
+                            pads: start..intervals.len(),
                             lo2: group[0].1.lo2 - max_margin2,
                             hi2: hi + max_margin2,
                         },
@@ -164,7 +173,7 @@ impl PadBanks {
                 {
                     continue;
                 }
-                let pads = &row.pads;
+                let pads = &self.intervals[axis][row.pads.clone()];
                 let name = engine.layer_name(layer);
                 engine
                     .work
@@ -194,7 +203,7 @@ impl PadBanks {
                         pad.local_clearance_nm,
                     );
                     let margin = width + 2 * clr;
-                    ranges.push((p.lo2 - margin, p.hi2 + margin));
+                    ranges.push((p.lo2 - margin, p.hi2 + margin, p.elongated));
                 }
                 // The actual width and pair clearance may change the lower-edge order.
                 engine.work.charge(
@@ -203,13 +212,12 @@ impl PadBanks {
                 ranges.sort_unstable();
                 engine.work.charge(ranges.len() as u64)?;
                 let mut entries = ranges.into_iter().peekable();
-                while let Some((lo, mut hi)) = entries.next() {
-                    let mut bank = false;
-                    while let Some((_, end)) = entries.next_if(|&(start, _)| start < hi) {
+                while let Some((lo, mut hi, mut obstructs)) = entries.next() {
+                    while let Some((_, end, _)) = entries.next_if(|&(start, _, _)| start < hi) {
                         hi = hi.max(end);
-                        bank = true;
+                        obstructs = true;
                     }
-                    if !bank {
+                    if !obstructs {
                         continue;
                     }
                     // Round inward only after merging the strict open half-nm
