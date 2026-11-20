@@ -107,3 +107,36 @@ def test_saved_octilinear_escape(tmp_path, guarded_cli, offset, shift, layer, ac
             assert (got, stopped["status"]) == (code, status)
             assert stopped["routing"][counter] == limit and not none.exists()
             assert stopped["routing"]["added_track_count"] == 0
+
+
+@pytest.mark.parametrize("signal_layer", [pcbnew.F_Cu, pcbnew.B_Cu])
+def test_multilayer_board_uses_legal_diagonal_into_surface_pad(tmp_path, guarded_cli, signal_layer):
+    board = BoardBuilder(copper_layers=4, seed=303)
+    board.set_rect_outline(0, 0, 40_000_000, 32_000_000)
+
+    def surface_pair(net, points, layer, shape):
+        for i, xy in enumerate(points):
+            fp = board.add_footprint(net + str(i), xy, side="F" if layer == pcbnew.F_Cu else "B")
+            fp.Reference().SetVisible(False)
+            fp.Value().SetVisible(False)
+            board.add_pad(fp, "1", net, xy, size_nm=(900_000, 950_000), shape=shape, layers=[layer])
+
+    surface_pair("SENSE", [(3_000_000, 4_000_000), (13_000_000, 10_000_000)],
+                 signal_layer, pcbnew.PAD_SHAPE_RECT)
+    surface_pair("DRIVE", [(5_000_000, 20_000_000), (17_400_000, 28_200_000)],
+                 pcbnew.F_Cu, pcbnew.PAD_SHAPE_ROUNDRECT)
+    source = board.save(tmp_path / "input").pcb_path
+    output = tmp_path / "routed.kicad_pcb"
+    op = tmp_path / "routed.json"
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    run([str(engine), "route-native", str(source), str(output), "--operation-result", str(op)])
+    assert json.loads(op.read_bytes())["status"] == "complete"
+    drc = bridge.native_violations(output, tmp_path / "drc.json")
+    assert not drc["unconnected_items"] and not drc["violations"]
+    saved = pcbnew.LoadBoard(str(output))
+    tracks = [t for t in saved.GetTracks() if t.GetNetname() == "SENSE"]
+    assert len(tracks) == 2 and all(not isinstance(t, pcbnew.PCB_VIA) for t in tracks)
+    assert all(t.GetLayer() == signal_layer and t.GetWidth() == 200_000 for t in tracks)
+    deltas = [(abs(t.GetStartX() - t.GetEndX()), abs(t.GetStartY() - t.GetEndY())) for t in tracks]
+    assert any(dx == dy and dx > 0 for dx, dy in deltas)

@@ -5339,3 +5339,91 @@ fn straight_certificate_uses_the_first_contact_cell_and_checks_the_entire_track(
     let (blocked, _) = join(input, true, 8);
     assert_eq!(blocked.unwrap_err().status, Status::BudgetExhausted);
 }
+
+#[test]
+fn octilinear_launch_matches_the_minimum_planar_cost_and_respects_blocked_elbows() {
+    let layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"];
+    let mut input: Input = serde_json::from_value(serde_json::json!({
+        "version":1, "source_id":"a".repeat(64), "layer":"F.Cu", "layers":layers,
+        "bounds":{"min":[0,0],"max":[18_000_000,15_000_000]},
+        "rules":{"width_nm":200_000,"grid_nm":200_000,"clearance_nm":200_000,"edge_clearance_nm":500_000},
+        "nets":[{"id":1,"name":"sense"},{"id":2,"name":"other"}],"tracks":[],"pads":[],"max_expansions":100_000
+    })).unwrap();
+    input.board_design_settings = Some(crate::rules::BoardDesignSettings {
+        min_track_width_nm: 200_000,
+        default_track_width_nm: 200_000,
+        min_edge_clearance_nm: 500_000,
+        default_clearance_nm: 200_000,
+        min_via_diameter_nm: 500_000,
+        default_via_diameter_nm: 600_000,
+        min_via_annular_width_nm: 100_000,
+        min_through_hole_diameter_nm: 300_000,
+        default_via_drill_nm: 300_000,
+        ..Default::default()
+    });
+    let a = [3_000_000, 4_000_000];
+    let b = [13_000_000, 10_000_000];
+    for (i, p) in [a, b].into_iter().enumerate() {
+        let mut land = pad(
+            i as u64 + 1,
+            1,
+            p,
+            Shape::Rect {
+                half_size_nm: [450_000, 475_000],
+            },
+        );
+        land.layers = vec!["B.Cu".into()];
+        input.pads.push(land);
+    }
+    let join = |board: Input, fast, bound| {
+        let engine = Engine::new(board).unwrap();
+        let groups = engine.components(1).unwrap();
+        let mut expansions = 0;
+        let route = join_components_inner(
+            &engine,
+            1,
+            &groups[0],
+            &groups[1..],
+            &mut crate::negotiate::TrialBudget::fixed(bound),
+            &mut expansions,
+            None,
+            None,
+            fast,
+        );
+        (route, expansions)
+    };
+    let (normal, _) = join(input.clone(), false, 100_000);
+    let (certified, expanded) = join(input.clone(), true, 1);
+    let route = certified.unwrap();
+    // Nearest Manhattan contact takes ceil(9.45/.2)+ceil(5.425/.2)
+    // = 48+28 steps. A diagonal still consumes one step per axis.
+    assert_eq!((normal.unwrap().steps, route.steps, expanded), (76, 76, 1));
+    assert_eq!(route.edges.len(), 2);
+    assert!(route
+        .edges
+        .iter()
+        .all(|e| matches!(e, PathEdge::Track { layer: 3, .. })));
+    assert!(route.edges.iter().any(|e| match e {
+        PathEdge::Track { start, end, .. } =>
+            start[0].abs_diff(end[0]) > 0 && start[0].abs_diff(end[0]) == start[1].abs_diff(end[1]),
+        _ => false,
+    }));
+    assert!(geometry::point_in_pad(
+        *route.points.last().unwrap(),
+        &input.pads[1]
+    ));
+    // Both final cells and pads stay clear, while this fixed trace cuts
+    // both complete same-layer elbow proposals.
+    let mut wall = track(
+        19,
+        2,
+        [8_000_000, 1_000_000],
+        [8_000_000, 14_000_000],
+        300_000,
+    );
+    wall.layer = "B.Cu".into();
+    input.tracks.push(wall);
+    let (blocked, expanded) = join(input, true, 1);
+    assert_eq!(blocked.unwrap_err().status, Status::BudgetExhausted);
+    assert_eq!(expanded, 1);
+}

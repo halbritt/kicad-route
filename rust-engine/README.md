@@ -203,7 +203,12 @@ the shorter route. A shortened final edge costs one grid step. During the initia
 multilayer forward search, a settled state can finish a straight connection when
 the remaining grid-step cost exactly equals its A* lower bound. The engine uses
 the ordinary terminal landing in the final grid cell and checks the full
-conductor for clearance. Other goal edges are settled within the expansion budget. The original single-layer search used unit step costs, a fixed net-ID order
+conductor for clearance. In a board-wide search without congestion or bus
+penalties, the router can also finish on a surface pad using a 45-degree
+segment and an optional axial leg. Each diagonal step costs one step per axis.
+At a launch, bend or layer change the router checks whether the entire legal
+path to a pad-interior landing meets the minimum forward priority. Its last
+cell may end between grid points. The original single-layer search used unit step costs, a fixed net-ID order
 and no rip-up. Current multilayer negotiation can change the routing order
 and rip up generated copper. When several single-ended nets still require
 routing, a surface pad with only one or two clear axial departures and no
