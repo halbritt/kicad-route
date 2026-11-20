@@ -1910,6 +1910,36 @@ fn constrained_surface_terminal_gets_its_exit_before_a_flexible_crossing() {
             .sum();
         assert_eq!(planar, 19_500_000);
 
+        // Existing same-net conductors already give the router more starts
+        // than these pad exits. In that case the two equal spans keep their order.
+        let mut with_track = board.clone();
+        with_track.tracks.push(Track {
+            id: id(20),
+            net: constrained,
+            start: xy(2100, 4000),
+            end: xy(3300, 4000),
+            width_nm: 100_000,
+            layer: "F.Cu".into(),
+            locked: true,
+        });
+        let mut with_via = board.clone();
+        with_via.vias.push(Via {
+            id: id(21),
+            net: constrained,
+            at: xy(5900, 4000),
+            diameter_nm: 600_000,
+            drill_nm: 300_000,
+            start_layer: "F.Cu".into(),
+            end_layer: "B.Cu".into(),
+            kind: ViaKind::Through,
+            locked: true,
+        });
+        for (existing, expected) in [(with_track, 1), (with_via, constrained)] {
+            let engine = Engine::new(existing).unwrap();
+            let ordered = negotiate::SingleEndedAdapter::all().units(&engine).unwrap();
+            assert_eq!(ordered[0].id, RouteUnitId::SingleNet(expected));
+        }
+
         let mut open = board.clone();
         open.rule_areas.clear();
         let e = Engine::new(open).unwrap();

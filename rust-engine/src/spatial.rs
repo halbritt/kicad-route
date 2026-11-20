@@ -76,7 +76,6 @@ impl SweptAabb {
         })
     }
 
-    #[cfg(test)]
     pub fn from_copper(copper: CopperAabb) -> Self {
         Self {
             min: copper.min.map(i128::from),

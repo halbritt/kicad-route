@@ -617,6 +617,71 @@ impl SingleEndedAdapter {
     }
 }
 
+/// An existing trace that leaves this pad, or a via connected to it, already
+/// offers a start outside its planar pad-center exits. Copper elsewhere on
+/// the same net cannot provide that escape.
+fn existing_pad_escape(engine: &Engine, pad: &crate::model::Pad) -> Result<bool, Failure> {
+    let store = engine.copper();
+    if store.input().is_empty() && store.input_vias().is_empty() {
+        return Ok(false);
+    }
+    let layer_name = pad.layers.first().unwrap_or(&engine.input().layer);
+    let Some(layer) = engine.layer_index(layer_name) else {
+        return Ok(false);
+    };
+    let shapes = pad.shape.parts();
+    engine.work.charge(shapes.len() as u64)?;
+    let geometry_work = shapes
+        .iter()
+        .map(|s| match s {
+            crate::model::Shape::ConvexPolygon { vertices, .. } => 1 + vertices.len() as u64,
+            _ => 1,
+        })
+        .sum::<u64>();
+    engine.work.charge(geometry_work)?;
+    let area = SweptAabb::from_copper(CopperAabb::from_bounds(pad.copper_bounds()));
+    let track = store.visit_layer_candidates_with_net_filtered(
+        layer,
+        area,
+        None,
+        &engine.work,
+        |net, t| {
+            if net == pad.net {
+                engine.work.charge(3 * geometry_work)?;
+                let probe = crate::model::Track {
+                    id: String::new(),
+                    net,
+                    start: t.start,
+                    end: t.end,
+                    width_nm: t.width_nm,
+                    layer: layer_name.clone(),
+                    locked: false,
+                };
+                if geometry::track_connects_pad(&probe, pad)
+                    && (!geometry::point_in_pad(t.start, pad)
+                        || !geometry::point_in_pad(t.end, pad))
+                {
+                    return Ok(ControlFlow::Break(()));
+                }
+            }
+            Ok(ControlFlow::Continue(()))
+        },
+    )?;
+    if track.is_break() {
+        return Ok(true);
+    }
+    let via = store.visit_via_candidates_filtered(area, None, &engine.work, |v, mask| {
+        if v.net == pad.net && mask & (1_u32 << layer) != 0 {
+            engine.work.charge(geometry_work)?;
+            if geometry::via_connects_pad(v, pad) {
+                return Ok(ControlFlow::Break(()));
+            }
+        }
+        Ok(ControlFlow::Continue(()))
+    })?;
+    Ok(via.is_break())
+}
+
 /// A new surface net with very few usable pad exits can lose those exits
 /// when a more flexible net routes first. Existing net order breaks ties.
 pub(crate) fn prioritize_pad_escapes(engine: &Engine, nets: &mut [u32]) -> Result<(), Failure> {
@@ -630,16 +695,14 @@ pub(crate) fn prioritize_pad_escapes(engine: &Engine, nets: &mut [u32]) -> Resul
     for net in nets.iter().copied() {
         eligible.insert(net, (0, 3));
     }
-    // Existing same-net conductors can already provide a way out of a pad.
-    engine.work.charge(
-        (input.tracks.len() + input.vias.len() + input.zones.len() + input.graphics.len()) as u64,
-    )?;
+    // A pour or copper artwork can supply a separate escape from the land.
+    engine
+        .work
+        .charge((input.zones.len() + input.graphics.len()) as u64)?;
     for net in input
-        .tracks
+        .zones
         .iter()
-        .map(|t| t.net)
-        .chain(input.vias.iter().map(|v| v.net))
-        .chain(input.zones.iter().map(|z| z.net))
+        .map(|z| z.net)
         .chain(input.graphics.iter().map(|g| g.net))
     {
         eligible.remove(&net);
@@ -658,7 +721,10 @@ pub(crate) fn prioritize_pad_escapes(engine: &Engine, nets: &mut [u32]) -> Resul
     for p in &input.pads {
         if let Some((_, rank)) = eligible.get_mut(&p.net) {
             if *rank > 1 {
-                *rank = (*rank).min(crate::search::pad_escape_rank(engine, p)?);
+                let pad_rank = crate::search::pad_escape_rank(engine, p)?;
+                if pad_rank < *rank && !existing_pad_escape(engine, p)? {
+                    *rank = pad_rank;
+                }
             }
         }
     }
