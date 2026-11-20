@@ -6,6 +6,7 @@ mod octilinear_exit;
 mod octilinear_terminal;
 mod pad_field;
 mod reverse_sources;
+mod routing_mesh;
 use reverse_sources::ReverseSources;
 
 use crate::barrier_bound::BarrierBound;
@@ -4231,7 +4232,7 @@ fn walk_multilayer_bidirectional(
                     && try_terminal_segments
                     && engine.surface_search_share.is_some()
                 {
-                    if let Some(path) = budgeted_terminal::from_launch(
+                    let proposal = budgeted_terminal::from_launch(
                         engine,
                         net,
                         starts,
@@ -4243,7 +4244,24 @@ fn walk_multilayer_bidirectional(
                         budget,
                         expanded,
                         frontier.as_deref(),
-                    )? {
+                    )?;
+                    let proposal = match proposal {
+                        Some(path) => Some(path),
+                        None => routing_mesh::connect(
+                            engine,
+                            net,
+                            starts,
+                            targets,
+                            &track_ok_on_layer,
+                            q_fwd.len() + best_fwd.len() + parent_fwd.len(),
+                            via_cost,
+                            history,
+                            budget,
+                            expanded,
+                            frontier.as_deref(),
+                        )?,
+                    };
+                    if let Some(path) = proposal {
                         if best_mu.as_ref().is_none_or(|(cost, _)| *cost > path.steps) {
                             best_mu = Some((path.steps, MeetRecord::Surface(path)));
                         }

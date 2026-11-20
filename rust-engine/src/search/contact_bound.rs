@@ -119,6 +119,32 @@ impl<'a> TargetBounds<'a> {
             slanted,
         })
     }
+    /// Native center contact used by both fanout and coarse routing candidates.
+    pub(super) fn surface_contact(
+        &self,
+        allowed: &[bool],
+        work: &WorkBudget,
+    ) -> Result<Option<(Point, usize)>, Failure> {
+        let Copper::Pad(pad) = self.copper else {
+            return Ok(None);
+        };
+        if pad.drill.is_some() || self.mask.count_ones() != 1 {
+            return Ok(None);
+        }
+        let layer = self.mask.trailing_zeros() as usize;
+        if !allowed[layer] {
+            return Ok(None);
+        }
+        work.charge(pad.shape.parts().len() as u64)?;
+        for part in pad.shape.parts() {
+            if let crate::model::Shape::ConvexPolygon { vertices, .. } = part {
+                work.charge(2 * vertices.len() as u64)?;
+            }
+        }
+        let center = pad.copper_center();
+        Ok(geometry::point_in_pad(center, pad).then_some((center, layer)))
+    }
+
     /// Lower bound to a superset of all endpoint-cap contacts with this target.
     /// Each orthogonal edge moves at most `grid` in one axis, including a shortened
     /// final edge. The sum of ceil(axis gap / grid) therefore cannot exceed the
