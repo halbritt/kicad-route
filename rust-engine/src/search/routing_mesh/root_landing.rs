@@ -106,8 +106,11 @@ pub(in crate::search) fn connect(
         };
     let mut tips = BTreeMap::new();
     let mut blocked = Vec::new();
+    // A final surface land may have an axial hole facing a dead end, while a
+    // closer bent escape can see a different barrel of the same routed tree.
+    let distributed = goals.len() == 1 && plated.len() > 1;
     for &(p, face) in &goals {
-        if !super::super::layer_crossing::has_axial_drill(engine, net, face, p)? {
+        if distributed || !super::super::layer_crossing::has_axial_drill(engine, net, face, p)? {
             mesh.storage(blocked.len() + 1)?;
             blocked.push((p, face));
         }
