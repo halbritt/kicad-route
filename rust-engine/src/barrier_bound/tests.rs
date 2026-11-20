@@ -916,3 +916,136 @@ fn doubled_centerline_sections_match_swept_native_shape_predicates() {
     };
     assert!(super::pad_banks::axial_extents(&pad).is_none());
 }
+
+#[test]
+fn ordered_layer_crossings_match_independent_grid_costs_and_consistency() {
+    let mut input = article();
+    input.bounds.min = [0, 0];
+    input.bounds.max = [14, 14];
+    let layers: Vec<String> = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+        .map(String::from)
+        .into();
+    let w = budget();
+    for rotate in [false, true] {
+        let position = |p: Point| if rotate { [p[1], p[0]] } else { p };
+        input.rule_areas.clear();
+        let mut solids = Vec::new();
+        for (cut, allowed) in [(3, 1u32), (7, 2), (11, 8)] {
+            for (layer, name) in layers.iter().enumerate() {
+                if allowed & (1 << layer) != 0 {
+                    continue;
+                }
+                let mut area = rectangle(name);
+                area.outer = [[cut - 1, 0], [cut + 1, 0], [cut + 1, 14], [cut - 1, 14]]
+                    .map(position)
+                    .to_vec();
+                input.rule_areas.push(area);
+                solids.push(Solid {
+                    layer,
+                    lo: position([cut - 1, 0]),
+                    hi: position([cut + 1, 14]),
+                });
+            }
+        }
+        let a = position([1, 7]);
+        let b = position([13, 7]);
+        for (terminal, changes) in [(0, 3), (1, 3), (3, 2)] {
+            for reach in [0, 1] {
+                let h = BarrierBound::for_join(
+                    &input,
+                    1,
+                    &input.tracks,
+                    &layers,
+                    (a, a),
+                    (b, b),
+                    reach,
+                    2,
+                    3,
+                    5,
+                    &w,
+                )
+                .unwrap()
+                .with_terminal_layers(1, 1 << terminal);
+                assert_eq!(h.estimate(a, 0, &w).unwrap(), 18 + changes * 5);
+                compare_oracle(&h, 4, &solids, &[(terminal, b)], reach, 2, 3, 5, false);
+                compare_oracle(&h, 4, &solids, &[(0, a)], 0, 2, 3, 5, true);
+            }
+        }
+        // Every face is eligible for a direct finishing via in this control.
+        let h = BarrierBound::for_join(
+            &input,
+            1,
+            &input.tracks,
+            &layers,
+            (a, a),
+            (b, b),
+            0,
+            2,
+            3,
+            5,
+            &w,
+        )
+        .unwrap();
+        assert_eq!(h.estimate(a, 0, &w).unwrap(), 28);
+        // A real opening at either board edge keeps the planar detour.
+        for area in &mut input.rule_areas {
+            for p in &mut area.outer {
+                let i = usize::from(!rotate);
+                if p[i] == 0 {
+                    p[i] = 1;
+                }
+            }
+        }
+        let h = BarrierBound::for_join(
+            &input,
+            1,
+            &input.tracks,
+            &layers,
+            (a, a),
+            (b, b),
+            0,
+            2,
+            3,
+            5,
+            &w,
+        )
+        .unwrap()
+        .with_terminal_layers(1, 1);
+        assert!(h.crossing_layers.iter().all(BTreeMap::is_empty));
+    }
+}
+
+#[test]
+fn one_layer_change_can_serve_crossings_on_both_axes() {
+    let mut input = article();
+    input.bounds.min = [0, 0];
+    input.bounds.max = [14, 14];
+    let layers: Vec<String> = ["F.Cu", "B.Cu"].map(String::from).into();
+    let mut solids = Vec::new();
+    for (lo, hi) in [([4, 0], [6, 14]), ([0, 8], [14, 10])] {
+        let mut area = rectangle(&layers[0]);
+        area.outer = vec![lo, [hi[0], lo[1]], hi, [lo[0], hi[1]]];
+        input.rule_areas.push(area);
+        solids.push(Solid { layer: 0, lo, hi });
+    }
+    let a = [1, 1];
+    let b = [13, 13];
+    let w = budget();
+    let h = BarrierBound::for_join(
+        &input,
+        1,
+        &input.tracks,
+        &layers,
+        (a, a),
+        (b, b),
+        0,
+        2,
+        3,
+        5,
+        &w,
+    )
+    .unwrap()
+    .with_terminal_layers(1, 1);
+    assert_eq!(h.estimate(a, 0, &w).unwrap(), 46);
+    compare_oracle(&h, 2, &solids, &[(0, b)], 0, 2, 3, 5, false);
+}

@@ -12,6 +12,8 @@ import uuid
 import pcbnew
 import pytest
 
+from tests.e2e_rust_router.kicad_verify import run_native_drc
+
 from test_rust_engine_native import (
     ROOT,
     RULES,
@@ -134,7 +136,7 @@ def test_native_rounded_signals_and_foreign_obstacles_route_preserve_and_validat
     saved.BuildConnectivity()
     assert saved.GetConnectivity().GetUnconnectedCount(False) == 0
     before = bridge.native_violations(native_board, tmp_path / "before.json")
-    after = bridge.native_violations(output, tmp_path / "after.json")
+    after = run_native_drc(output, sidecar_source=native_board).raw
 
     def key(violation):
         return json.dumps(violation, sort_keys=True)
@@ -668,7 +670,7 @@ def test_native_round_pad_tangency_is_repaired_and_one_nm_overlap_reuses_incumbe
     saved = pcbnew.LoadBoard(str(output))
     saved.BuildConnectivity()
     assert saved.GetConnectivity().GetUnconnectedCount(False) == 0
-    after = bridge.native_violations(output, tmp_path / "overlap-after.json")
+    after = run_native_drc(output, sidecar_source=native_board).raw
     assert after["unconnected_items"] == []
     key = lambda violation: json.dumps(violation, sort_keys=True)
     assert not (
@@ -892,7 +894,7 @@ def _route_and_verify_drc(board_path, tmp_path, *, rules=RULES, expected_opens_b
     saved.BuildConnectivity()
     assert saved.GetConnectivity().GetUnconnectedCount(False) == 0
     before = bridge.native_violations(board_path, tmp_path / "before-drc.json")
-    after = bridge.native_violations(output, tmp_path / "after-drc.json")
+    after = run_native_drc(output, sidecar_source=board_path).raw
     assert len(before["unconnected_items"]) == expected_opens_before
     assert after["unconnected_items"] == []
     key = lambda violation: json.dumps(violation, sort_keys=True)
@@ -1352,7 +1354,7 @@ def test_native_saved_reloaded_holed_gr_poly_and_overlapping_unotch_merge(
     assert plan["added_tracks"] == []
     output = tmp_path / "holed-merge.kicad_pcb"
     bridge.apply_plan(native_board, plan, output, expected_request=request.read_bytes())
-    after = bridge.native_violations(output, tmp_path / "holed-merge-drc.json")
+    after = run_native_drc(output, sidecar_source=native_board).raw
     assert after["unconnected_items"] == []
     assert after["violations"] == []
 
@@ -1421,7 +1423,7 @@ def test_native_saved_reloaded_holed_fp_poly_and_multi_outline_route_and_drc(
     assert sorted(len(g["shape"].get("holes", [])) for g in data["graphics"]) == [0, 0, 1]
     assert len(data["mask_apertures"]) == 1
     assert len(data["mask_apertures"][0]["shape"]["holes"]) == 1
-    after = bridge.native_violations(output, tmp_path / "fp-poly-drc.json")
+    after = run_native_drc(output, sidecar_source=native_board).raw
     assert after["unconnected_items"] == []
     assert after["violations"] == []
 
@@ -1446,7 +1448,7 @@ def test_native_unfilled_poly_positive_control_routes_and_drc(native_board, tmp_
     assert data["graphics"][0]["shape"]["filled"] is False
     assert "holes" not in data["graphics"][0]["shape"]
     assert len(data["graphics"][0]["shape"]["outer"]) == 4
-    pos_drc = bridge.native_violations(output, tmp_path / "pos-drc.json")
+    pos_drc = run_native_drc(output, sidecar_source=native_board).raw
     assert pos_drc["unconnected_items"] == []
     assert pos_drc["violations"] == []
 
@@ -1524,7 +1526,7 @@ def test_native_rotated_holed_fp_poly_35deg_and_angles_route_and_drc(
     assert len(data["graphics"]) == 1
     assert data["graphics"][0]["shape"]["filled"] is True
     assert len(data["graphics"][0]["shape"]["holes"]) == 1
-    after = bridge.native_violations(output, tmp_path / "rot35-drc.json")
+    after = run_native_drc(output, sidecar_source=native_board).raw
     assert after["unconnected_items"] == []
     assert after["violations"] == []
 

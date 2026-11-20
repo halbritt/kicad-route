@@ -52,7 +52,7 @@ pub fn point_near_segment(p: Point, a: Point, b: Point, gap2: i128, inclusive: b
         inclusive,
     )
 }
-fn orientation(a: Point, b: Point, c: Point) -> i128 {
+pub(crate) fn orientation(a: Point, b: Point, c: Point) -> i128 {
     cross(sub(b, a), sub(c, a))
 }
 fn on(a: Point, b: Point, p: Point) -> bool {

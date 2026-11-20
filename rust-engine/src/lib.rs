@@ -3171,6 +3171,35 @@ impl Engine {
         }
         Ok(())
     }
+    /// Endpoints on a straight line are ordered lexicographically, including
+    /// vertical lines. Clipping at existing endpoints preserves exact integer
+    /// coordinates without projecting or rounding an angled centreline.
+    fn covered_centerline_intervals(
+        &self,
+        seg: &Track,
+        accepted: &[Track],
+    ) -> Result<Vec<(Point, Point)>, Failure> {
+        let mut intervals = Vec::new();
+        for existing in self.copper.tracks().chain(accepted) {
+            self.work.charge(1)?;
+            if existing.net != seg.net
+                || existing.layer != seg.layer
+                || existing.width_nm < seg.width_nm
+            {
+                continue;
+            }
+            let lo = seg.start.min(seg.end).max(existing.start.min(existing.end));
+            let hi = seg.start.max(seg.end).min(existing.start.max(existing.end));
+            if lo < hi
+                && geometry::orientation(seg.start, seg.end, existing.start) == 0
+                && geometry::orientation(seg.start, seg.end, existing.end) == 0
+            {
+                intervals.push((lo, hi));
+            }
+        }
+        Ok(intervals)
+    }
+
     fn subtract_collinear_overlaps_legal(
         &self,
         net: u32,
@@ -3202,30 +3231,11 @@ impl Engine {
         if all_legal {
             return Ok(pieces);
         }
-        let axis = usize::from(seg.start[0] == seg.end[0]);
-        let ortho = seg.start[1 - axis];
-        let s_lo = seg.start[axis].min(seg.end[axis]);
-        let s_hi = seg.start[axis].max(seg.end[axis]);
-        let mut overlaps: Vec<(i64, i64)> = Vec::new();
-        for existing in self.copper.tracks().chain(accepted.iter()) {
-            self.work.charge(1)?;
-            if existing.net == seg.net
-                && existing.layer == seg.layer
-                && existing.width_nm >= seg.width_nm
-                && existing.start[1 - axis] == ortho
-                && existing.end[1 - axis] == ortho
-            {
-                let e_lo = existing.start[axis].min(existing.end[axis]);
-                let e_hi = existing.start[axis].max(existing.end[axis]);
-                let c_lo = e_lo.max(s_lo);
-                let c_hi = e_hi.min(s_hi);
-                if c_lo < c_hi {
-                    overlaps.push((c_lo, c_hi));
-                }
-            }
-        }
+        let s_lo = seg.start.min(seg.end);
+        let s_hi = seg.start.max(seg.end);
+        let mut overlaps = self.covered_centerline_intervals(seg, accepted)?;
         overlaps.sort_unstable();
-        let mut merged: Vec<(i64, i64)> = Vec::new();
+        let mut merged: Vec<(Point, Point)> = Vec::new();
         for (c_lo, c_hi) in overlaps {
             self.work.charge(1)?;
             if let Some(last) = merged.last_mut() {
@@ -3236,14 +3246,8 @@ impl Engine {
             }
             merged.push((c_lo, c_hi));
         }
-        let point = |coord: i64| {
-            let mut p = [0, 0];
-            p[axis] = coord;
-            p[1 - axis] = ortho;
-            p
-        };
         let mut keep = vec![true; merged.len()];
-        let mut spans: Vec<(i64, i64)>;
+        let mut spans: Vec<(Point, Point)>;
         loop {
             let mut cursor = s_lo;
             spans = Vec::new();
@@ -3264,14 +3268,8 @@ impl Engine {
             let mut dropped = false;
             for &(a, b) in &spans {
                 self.work.charge(1)?;
-                if !self.legal_edge_on(net, layer_idx, point(a), point(b))?
-                    || !self.edge_clears_same_net_vias(
-                        net,
-                        layer_idx,
-                        point(a),
-                        point(b),
-                        prior_vias,
-                    )?
+                if !self.legal_edge_on(net, layer_idx, a, b)?
+                    || !self.edge_clears_same_net_vias(net, layer_idx, a, b, prior_vias)?
                 {
                     if a > s_lo {
                         if let Some(idx) = merged
@@ -3302,7 +3300,7 @@ impl Engine {
                 break;
             }
         }
-        if seg.end[axis] < seg.start[axis] {
+        if seg.end < seg.start {
             self.work.charge(spans.len() as u64)?;
             spans.reverse();
             for span in &mut spans {
@@ -3315,8 +3313,8 @@ impl Engine {
             .map(|(a, b)| Track {
                 id: String::new(),
                 net: seg.net,
-                start: point(a),
-                end: point(b),
+                start: a,
+                end: b,
                 width_nm: seg.width_nm,
                 locked: false,
                 layer: seg.layer.clone(),
@@ -3328,41 +3326,16 @@ impl Engine {
         seg: &Track,
         accepted: &[Track],
     ) -> Result<Vec<Track>, Failure> {
-        let axis = if seg.start[1] == seg.end[1] {
-            0
-        } else if seg.start[0] == seg.end[0] {
-            1
-        } else {
-            return Ok(vec![seg.clone()]);
-        };
-        let ortho = seg.start[1 - axis];
-        let s_lo = seg.start[axis].min(seg.end[axis]);
-        let s_hi = seg.start[axis].max(seg.end[axis]);
-        let mut overlaps: Vec<(i64, i64)> = Vec::new();
-        for existing in self.copper.tracks().chain(accepted.iter()) {
-            self.work.charge(1)?;
-            if existing.net == seg.net
-                && existing.layer == seg.layer
-                && existing.width_nm >= seg.width_nm
-                && existing.start[1 - axis] == ortho
-                && existing.end[1 - axis] == ortho
-            {
-                let e_lo = existing.start[axis].min(existing.end[axis]);
-                let e_hi = existing.start[axis].max(existing.end[axis]);
-                let c_lo = e_lo.max(s_lo);
-                let c_hi = e_hi.min(s_hi);
-                if c_lo < c_hi {
-                    overlaps.push((c_lo, c_hi));
-                }
-            }
-        }
+        let s_lo = seg.start.min(seg.end);
+        let s_hi = seg.start.max(seg.end);
+        let mut overlaps = self.covered_centerline_intervals(seg, accepted)?;
         if overlaps.is_empty() {
             return Ok(vec![seg.clone()]);
         }
         self.work.charge(overlaps.len() as u64)?;
         overlaps.sort_unstable();
         let mut cursor = s_lo;
-        let mut spans: Vec<(i64, i64)> = Vec::new();
+        let mut spans: Vec<(Point, Point)> = Vec::new();
         for (c_lo, c_hi) in overlaps {
             self.work.charge(1)?;
             if cursor < c_lo {
@@ -3375,27 +3348,21 @@ impl Engine {
         if cursor < s_hi {
             spans.push((cursor, s_hi));
         }
-        if seg.end[axis] < seg.start[axis] {
+        if seg.end < seg.start {
             self.work.charge(spans.len() as u64)?;
             spans.reverse();
             for span in &mut spans {
                 *span = (span.1, span.0);
             }
         }
-        let point = |coord: i64| {
-            let mut p = [0, 0];
-            p[axis] = coord;
-            p[1 - axis] = ortho;
-            p
-        };
         self.work.charge(spans.len() as u64)?;
         Ok(spans
             .into_iter()
             .map(|(a, b)| Track {
                 id: String::new(),
                 net: seg.net,
-                start: point(a),
-                end: point(b),
+                start: a,
+                end: b,
                 width_nm: seg.width_nm,
                 locked: false,
                 layer: seg.layer.clone(),

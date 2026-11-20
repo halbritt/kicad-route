@@ -1,3 +1,4 @@
+mod contact_bound;
 mod monotone_trunk;
 mod octilinear_exit;
 mod octilinear_terminal;
@@ -10,6 +11,9 @@ use crate::geometry;
 use crate::model::{Failure, OutlinePolygon, Point, Status, Track, Via, ViaKind};
 use crate::rules::EffectiveRules;
 use crate::Engine;
+#[cfg(test)]
+use contact_bound::contact_steps;
+use contact_bound::TargetBounds;
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap};
 
@@ -2687,124 +2691,6 @@ fn component_estimate_multilayer(
     })
 }
 
-fn isqrt_u128(n: u128) -> u128 {
-    if n < 2 {
-        return n;
-    }
-    let mut x = 1u128 << ((128 - n.leading_zeros()).div_ceil(2));
-    loop {
-        let next = (x + n / x) >> 1;
-        if next >= x {
-            return x;
-        }
-        x = next;
-    }
-}
-
-/// Copper envelopes are invariant throughout a component join. Computing a
-/// filled ring's bounds during every queue expansion would rescan its vertices.
-struct TargetBounds<'a> {
-    copper: Copper<'a>,
-    lo: Point,
-    hi: Point,
-    mask: u32,
-}
-
-impl<'a> TargetBounds<'a> {
-    fn new(copper: Copper<'a>, stackup: &[String], work: &WorkBudget) -> Result<Self, Failure> {
-        use crate::model::{GraphicShape, Shape};
-        match copper {
-            Copper::ZoneFill { poly, .. } => work.charge(poly.outer.len() as u64)?,
-            Copper::Graphic(g) => match &g.shape {
-                GraphicShape::Polygon { outer, holes, .. } => {
-                    work.charge(outer.len() as u64)?;
-                    for ring in holes {
-                        work.charge(ring.len() as u64)?;
-                    }
-                }
-                _ => (),
-            },
-            Copper::Pad(pad) => {
-                let parts = pad.shape.parts();
-                if parts.len() > 1 {
-                    work.charge(parts.len() as u64)?;
-                }
-                for part in parts {
-                    if let Shape::ConvexPolygon { vertices, .. } = part {
-                        work.charge(vertices.len() as u64)?;
-                    }
-                }
-            }
-            _ => (),
-        }
-        let (lo, hi) = copper.copper_bounds();
-        Ok(Self {
-            copper,
-            lo,
-            hi,
-            mask: copper.layer_mask(stackup),
-        })
-    }
-    /// Lower bound to a superset of all endpoint-cap contacts with this target.
-    /// Each orthogonal edge moves at most `grid` in one axis, including a shortened
-    /// final edge. The sum of ceil(axis gap / grid) therefore cannot exceed the
-    /// remaining step cost. Pad, track, and via contacts floor the route half-width
-    /// and require one nm of overlap. Use their reachable endpoint bounds, so
-    /// an edge that can only reach a tangent still needs one more step. For circular pads
-    /// and vias, Cauchy-Schwarz also bounds `|dx| + |dy| <= isqrt(2 * R_sum^2)`.
-    /// Ignoring obstacles and rounding outward can only decrease this bound. Each
-    /// bound changes by at most one across an edge; the minimum over all targets is
-    /// also consistent and is zero at every accepted contact endpoint.
-    fn contact_steps(&self, p: Point, width: i64, grid: i64) -> u64 {
-        let route_radius = match self.copper {
-            Copper::Pad(_) | Copper::Track(_) | Copper::Via(_) => {
-                (width / 2 - geometry::CONTACT_OVERLAP_NM).max(0)
-            }
-            Copper::Graphic(_) | Copper::ZoneFill { .. } => (width + 1) / 2,
-        };
-        let circle = match self.copper {
-            Copper::Pad(pad) => match pad.shape {
-                crate::model::Shape::Circle { radius_nm } => Some((pad.at, radius_nm)),
-                _ => None,
-            },
-            Copper::Via(via) => Some((via.at, (via.diameter_nm + 1) / 2)),
-            _ => None,
-        };
-        let lo: Point = std::array::from_fn(|k| self.lo[k] - route_radius);
-        let hi: Point = std::array::from_fn(|k| self.hi[k] + route_radius);
-        let aabb_steps: u64 = (0..2)
-            .map(|k| {
-                let gap = (lo[k] - p[k]).max(p[k] - hi[k]).max(0);
-                ((gap + grid - 1) / grid) as u64
-            })
-            .sum();
-        if let Some((center, rad)) = circle {
-            let r_sum = u128::try_from(rad.max(0) + route_radius.max(0)).unwrap_or(0);
-            let l1_limit = isqrt_u128(2 * r_sum * r_sum);
-            let l1_dist = (p[0] - center[0]).abs() as u128 + (p[1] - center[1]).abs() as u128;
-            if l1_dist > l1_limit {
-                let gap = l1_dist - l1_limit;
-                let g = grid as u128;
-                let diag_steps = ((gap + g - 1) / g) as u64;
-                return aabb_steps.max(diag_steps);
-            }
-        }
-        aabb_steps
-    }
-}
-
-#[cfg(test)]
-fn contact_steps(p: Point, target: Copper<'_>, width: i64, grid: i64) -> u64 {
-    let (lo, hi) = target.copper_bounds();
-    TargetBounds {
-        copper: target,
-        lo,
-        hi,
-        mask: 0,
-    }
-    .contact_steps(p, width, grid)
-}
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct TieG {
     g: u64,
@@ -4086,6 +3972,39 @@ fn cannot_improve_incumbent(
     Ok(cost.saturating_add(remaining) >= incumbent)
 }
 
+pub(crate) fn unpenalized_terminal(
+    engine: &Engine,
+    history: Option<&crate::negotiate::CongestionHistory>,
+    edges: &[PathEdge],
+) -> Result<bool, Failure> {
+    let Some(history) = history.filter(|h| !h.is_empty()) else {
+        return Ok(true);
+    };
+    for edge in edges {
+        match *edge {
+            PathEdge::Track { start, end, layer } => {
+                if !history.unpenalized_track(engine, layer, start, end)? {
+                    return Ok(false);
+                }
+            }
+            PathEdge::Via(via) => {
+                engine.charge_work(u64::from(via.end_layer - via.start_layer) + 1)?;
+                if history.via_penalty(
+                    via.at,
+                    via.start_layer,
+                    via.end_layer,
+                    engine.input.bounds.min,
+                    engine.input.rules.grid_nm,
+                ) != 0
+                {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn walk_multilayer_bidirectional(
     engine: &Engine,
@@ -4199,7 +4118,6 @@ fn walk_multilayer_bidirectional(
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     let mut local_exp = 0u64;
     let try_terminal_segments = batch_search
-        && history.is_none_or(|h| h.is_empty())
         && engine
             .input
             .routing_options
@@ -4396,17 +4314,19 @@ fn walk_multilayer_bidirectional(
                             (previous.is_none() && only_through_vias).then_some(via_cost),
                             &finished,
                         )? {
-                            let mut path = reconstruct_bi_path(
-                                &parent_fwd,
-                                &parent_bwd,
-                                &engine.work,
-                                &MeetRecord::DirectFwd(state),
-                                priority,
-                            )?;
-                            engine.work.charge(tail.edges.len() as u64)?;
-                            path.points.extend(tail.points.into_iter().skip(1));
-                            path.edges.extend(tail.edges);
-                            return Ok(path);
+                            if unpenalized_terminal(engine, history, &tail.edges)? {
+                                let mut path = reconstruct_bi_path(
+                                    &parent_fwd,
+                                    &parent_bwd,
+                                    &engine.work,
+                                    &MeetRecord::DirectFwd(state),
+                                    priority,
+                                )?;
+                                engine.work.charge(tail.edges.len() as u64)?;
+                                path.points.extend(tail.points.into_iter().skip(1));
+                                path.edges.extend(tail.edges);
+                                return Ok(path);
+                            }
                         }
                     }
                     if let Some(bounds) = layer_target_bounds[l_idx] {
@@ -4423,21 +4343,24 @@ fn walk_multilayer_bidirectional(
                             previous.map(|(_, e)| *e),
                             attachment,
                         )? {
-                            let mut path = reconstruct_bi_path(
-                                &parent_fwd,
-                                &parent_bwd,
-                                &engine.work,
-                                &MeetRecord::DirectFwd(state),
-                                priority,
-                            )?;
-                            engine.work.charge(2)?;
-                            path.points.push(end);
-                            path.edges.push(PathEdge::Track {
+                            let edge = PathEdge::Track {
                                 start: state.at,
                                 end,
                                 layer: state.layer,
-                            });
-                            return Ok(path);
+                            };
+                            if unpenalized_terminal(engine, history, &[edge])? {
+                                let mut path = reconstruct_bi_path(
+                                    &parent_fwd,
+                                    &parent_bwd,
+                                    &engine.work,
+                                    &MeetRecord::DirectFwd(state),
+                                    priority,
+                                )?;
+                                engine.work.charge(2)?;
+                                path.points.push(end);
+                                path.edges.push(edge);
+                                return Ok(path);
+                            }
                         }
                     }
                 }

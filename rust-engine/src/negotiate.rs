@@ -263,6 +263,34 @@ impl CongestionHistory {
         self.cells.get(&(layer, cx, cy)).copied().unwrap_or(0)
     }
 
+    /// Every charged cell of a monotone track lies in its closed cell
+    /// rectangle, including a final clipped contact on a different phase.
+    /// A hit can conservatively decline the shortcut; the ordinary search
+    /// still prices each destination cell exactly.
+    pub(crate) fn unpenalized_track(
+        &self,
+        engine: &Engine,
+        layer: u8,
+        a: Point,
+        b: Point,
+    ) -> Result<bool, Failure> {
+        let cell = |p| cell_coord(p, engine.input.bounds.min, engine.input.rules.grid_nm);
+        let (ax, ay) = cell(a);
+        let (bx, by) = cell(b);
+        let ys = ay.min(by)..=ay.max(by);
+        engine.charge_work(1)?;
+        for (&(_, _, y), &weight) in self
+            .cells
+            .range((layer, ax.min(bx), *ys.start())..=(layer, ax.max(bx), *ys.end()))
+        {
+            engine.charge_work(1)?;
+            if weight > 0 && ys.contains(&y) {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+
     pub fn via_penalty(
         &self,
         at: Point,
@@ -2584,6 +2612,78 @@ mod tests {
     }
 
     #[test]
+    fn path_publication_removes_only_covered_collinear_copper() {
+        // A route doubles back over a protected track, then leaves it. The
+        // visible ends survive in traversal order at every track inclination.
+        for step in [[1, 0], [0, 1], [1, 1], [2, 1], [1, -1], [-2, 1]] {
+            let point = |i: i64| [50 + i * step[0], 50 + i * step[1]];
+            let mut input = test_input();
+            let existing = Track {
+                id: "20000000-0000-4000-8000-000000000001".into(),
+                net: 1,
+                layer: "F.Cu".into(),
+                width_nm: 2,
+                locked: true,
+                start: point(4),
+                end: point(-4),
+            };
+            input.tracks.push(existing.clone());
+            let mut engine = Engine::new(input).unwrap();
+            let (start, end) = (point(12), point(-12));
+            // A parallel segment, a thinner segment and copper on another
+            // layer do not cover the proposed track, even at the same bounds.
+            let proposal = Track {
+                start,
+                end,
+                ..existing.clone()
+            };
+            let narrower = Track {
+                width_nm: 1,
+                ..proposal.clone()
+            };
+            let backside = Track {
+                layer: "B.Cu".into(),
+                ..proposal.clone()
+            };
+            let shift = |p: Point| [p[0] - step[1], p[1] + step[0]];
+            let parallel = Track {
+                start: shift(start),
+                end: shift(end),
+                ..proposal.clone()
+            };
+            assert_eq!(
+                engine
+                    .covered_centerline_intervals(&proposal, &[narrower, backside, parallel])
+                    .unwrap(),
+                vec![(
+                    existing.start.min(existing.end),
+                    existing.start.max(existing.end)
+                )]
+            );
+            let path = crate::search::Path {
+                points: vec![start, end],
+                edges: vec![crate::search::PathEdge::Track {
+                    start,
+                    end,
+                    layer: 0,
+                }],
+                steps: 1,
+            };
+            engine.insert_path(1, path).unwrap();
+            let mut segments: Vec<_> = engine
+                .copper
+                .generated()
+                .map(|t| (t.start, t.end))
+                .collect();
+            segments.sort_unstable();
+            let mut expected = [(start, point(4)), (point(-4), end)];
+            expected.sort_unstable();
+            assert_eq!(segments, expected, "step {step:?}");
+            assert!(engine.copper.tracks().any(|t| t == &existing));
+        }
+    }
+
+    #[test]
     fn c_m3_03_collinear_uturn_does_not_coalesce_to_zero_length() {
         let mut engine = Engine::new(test_input()).unwrap();
         let uturn = crate::search::Path {
@@ -2875,6 +2975,80 @@ mod tests {
         f.push_via_site_classified(0, 1, [50, 100], true);
         assert_eq!(f.probes().len(), 13);
         assert_eq!(f.total_seen(), 5013);
+    }
+
+    #[test]
+    fn a_remote_congestion_cell_preserves_a_direct_multilayer_join() {
+        let mut input = test_input();
+        let grid = 250_000;
+        input.bounds.max = [24_000_000, 17_000_000];
+        input.rules.grid_nm = grid;
+        input.rules.width_nm = 250_000;
+        input.rules.clearance_nm = 200_000;
+        input.layers = vec!["F.Cu".into(), "B.Cu".into()];
+        for (pad, x) in input.pads.iter_mut().zip([4_000_000, 20_000_000]) {
+            pad.at = [x, 8_000_000];
+            pad.shape = Shape::Rect {
+                half_size_nm: [400_000, 400_000],
+            };
+            pad.layers = vec!["F.Cu".into()];
+        }
+        input.rules.same_net_hole_clearance_nm = 0;
+        let mut engine = Engine::new(input).unwrap();
+        engine.set_prefer_higher_g(true);
+        let join = |engine: &Engine, hist: &CongestionHistory| {
+            let groups = engine.components(1).unwrap();
+            let mut expanded = 0;
+            let path = crate::search::join_components_negotiated(
+                engine,
+                1,
+                &groups[0],
+                &groups[1..],
+                10_000,
+                &mut expanded,
+                hist,
+                &mut BlockedFrontier::new(),
+            )
+            .unwrap();
+            (path.steps, expanded, path.points)
+        };
+        let mut history = CongestionHistory::new();
+        let baseline = join(&engine, &history);
+        history.add_weight((0, 48, 52), 20, &engine).unwrap();
+        assert!(baseline.1 <= 4, "{baseline:?}");
+        assert_eq!(join(&engine, &history), baseline);
+        history.add_weight((0, 48, 32), 20, &engine).unwrap();
+        let (cost, _, path) = join(&engine, &history);
+        engine.set_prefer_higher_g(false);
+        let (unit_edge_cost, _, _) = join(&engine, &history);
+        assert_eq!(cost, unit_edge_cost);
+        assert!(path.iter().any(|p| p[1] != 8_000_000));
+    }
+
+    #[test]
+    fn congestion_cells_inside_a_terminal_via_span_prevent_its_shortcut() {
+        let engine = Engine::new(test_input()).unwrap();
+        let mut history = CongestionHistory::new();
+        history.add_weight((1, 4, 4), 3, &engine).unwrap();
+        let via = crate::search::PlacedViaKey {
+            at: [44, 47],
+            start_layer: 0,
+            end_layer: 3,
+            kind: 0,
+        };
+        assert!(!crate::search::unpenalized_terminal(
+            &engine,
+            Some(&history),
+            &[crate::search::PathEdge::Via(via)]
+        )
+        .unwrap());
+        // The same place on a surface track still has no congestion charge.
+        assert!(history
+            .unpenalized_track(&engine, 0, [49, 49], [41, 42])
+            .unwrap());
+        assert!(!history
+            .unpenalized_track(&engine, 1, [57, 53], [39, 39])
+            .unwrap());
     }
 
     #[test]

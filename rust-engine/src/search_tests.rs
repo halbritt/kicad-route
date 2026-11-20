@@ -392,6 +392,18 @@ fn contact_bound_contains_caps_and_is_consistent_on_shortened_edges() {
             radius_nm: 3,
         },
     );
+    let angled_oval = pad(
+        7,
+        1,
+        [2, 3],
+        Shape::Capsule {
+            start_nm: [-10, -7],
+            end_nm: [14, 13],
+            width_nm: 5,
+        },
+    );
+    let slope = track(11, 1, [0, 0], [30, 30], 2);
+    assert_eq!(contact_steps([0, 30], Copper::Track(&slope), 2, 5), 6);
     let vertical = track(3, 1, [13, 6], [13, 16], 3);
     let horizontal = track(4, 1, [6, 13], [16, 13], 5);
     let diagonals = [
@@ -409,6 +421,7 @@ fn contact_bound_contains_caps_and_is_consistent_on_shortened_edges() {
         Copper::Pad(&rect),
         Copper::Pad(&rounded),
         Copper::Pad(&capsule),
+        Copper::Pad(&angled_oval),
         Copper::Track(&vertical),
         Copper::Track(&horizontal),
     ];

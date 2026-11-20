@@ -54,9 +54,11 @@ obstacle. A layer-specific obstruction can be crossed by changing layers.
 A route that must finish on the face where it started needs a second via
 to return if it takes this detour. A via may itself finish a connection
 when the target copper and board rules permit it.
-A keepout spanning every layer still requires a planar detour. Tracks added
-while routing are checked for clearance at each step and remain available
-for negotiation.
+When a rectangular keepout spans the board from edge to edge on selected
+layers, the search counts the layer changes needed to cross successive
+keepouts and reach the terminal. A route can pass an all-layer keepout only
+around an open end. Tracks added while routing are checked for clearance at
+each step and remain available for negotiation.
 
 For an uncapped surface pad in a rectangular pin field, an exhausted search
 can also try an offset grid that passes through a legal via site between
@@ -187,6 +189,9 @@ in grid steps to a bounding box containing the endpoints that can make contact.
 For pads, tracks and vias the expansion uses the route's floored half-width
 less the required 1 nm of copper overlap, clamped at zero. Graphics and zone
 fills use the outward-rounded route radius.
+For a slanted track or oval, the engine also bounds the distance to the strip
+containing its swept copper. The strip uses the trace's actual orientation.
+This excludes the empty corners of its bounding box from the distance estimate.
 These outward-rounded boxes contain every endpoint-cap contact; each cardinal
 edge, including a shortened final edge, moves at most one grid step in one axis.
 The estimate therefore underestimates remaining unit-step cost, is consistent

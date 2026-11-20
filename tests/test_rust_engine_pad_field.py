@@ -4,7 +4,7 @@ import json
 import pcbnew
 import pytest
 
-from tests.e2e_rust_router.kicad_verify import BoardBuilder
+from tests.e2e_rust_router.kicad_verify import BoardBuilder, run_native_drc
 from test_rust_engine_native import bridge, guarded_cli as guarded_cli, _built_rust_engine
 
 
@@ -80,7 +80,7 @@ def test_surface_pad_field_escape(tmp_path, guarded_cli, family, sealed):
         assert not output.exists() and op["routing"]["added_track_count"] == 0
         return
     assert (done.returncode, op["status"]) == (0, "complete"), op.get("reason")
-    drc = bridge.native_violations(output, tmp_path / "after.json")
+    drc = run_native_drc(output, sidecar_source=source).raw
     assert not drc["unconnected_items"] and not drc["violations"]
     saved = pcbnew.LoadBoard(str(output))
     pads = list(saved.GetPads())
