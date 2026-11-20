@@ -254,13 +254,18 @@ and the two ends of the overlap. Legal 45-degree cuts shorten the corners
 while preserving the weighted distance. An aligned connection can also leave
 its original layer on a through-via, cross an obstacle on another layer of
 equal track cost, and return on a second through-via. The search checks both
-drills, all three tracks and the clipped landing. For uncapped surface pads
+drills, each track and the clipped landing. For offset terminals, the middle
+layer can use a 45-degree elbow between the two axial escapes. For uncapped surface pads
 that require track contact, the obstacle-distance bound uses the track cap's
 reach around the destination. When all launch sites and landings lie on one
 face, the router queries the current copper index for an earlier net’s track
 that makes a same-face detour more expensive than two through-vias. It uses
 this bound at a launch site only when it finds a legal path of that cost.
 Each component join sees the copper left by the most recent negotiation.
+For an oblique imported track separating the terminals, the planar bound
+uses the shorter detour past either end. When the existing same-net tree
+surrounds the target, reverse search can bound the distance to each section
+of its launch sites separately on the same grid phase and layer.
 
 The original single-layer search used unit step costs, a fixed net-ID order
 and no rip-up. Current multilayer negotiation can change the routing order
