@@ -333,6 +333,12 @@ without a shared routing layer. A new branch can meet the
 interior of a trace already in its tree. The router checks each segment
 against the board, keeps plated connections at their barrel centers, and
 recomputes the actual copper components before routing the remaining gaps.
+When several separately wired groups already have plated contacts, the router
+can connect their existing barrels on a shared layer. It gives isolated
+surface pads the first opportunity to escape. It then checks direct and bent
+routes between the nearest barrels of each pair of groups. Each trial uses the
+remaining board search allowance and native clearance checks. These branches
+add tracks without drilling new holes.
 
 When an ordinary board-wide search starts probing from both ends of a join,
 it can retain a checked surface route as its best known path. It samples

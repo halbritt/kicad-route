@@ -1,6 +1,8 @@
 //! Attach separated surface lands to a partially stitched multilayer net.
 //! Try short same-layer branches first. The remaining surface components
 //! can drill to a plated contact or tap a buried branch just constructed.
+mod plated;
+
 use super::{allowed_track_layers, Copper, Engine, Failure, PathEdge, Point, TargetBounds};
 use crate::diff_pair::octilinear_elbow_paths;
 use crate::negotiate::{BlockedFrontier, TrialBudget};
@@ -116,7 +118,7 @@ pub(super) fn between(
     let Some(share) = engine.surface_search_share else {
         return Ok(None);
     };
-    if groups.len() < 4
+    if groups.len() < 3
         || engine.layer_count() < 3
         || share.min(budget.current_limit.saturating_sub(*expanded)) < 2
     {
@@ -124,6 +126,9 @@ pub(super) fn between(
     }
     let work = &engine.work;
     work.charge(groups.len() as u64)?;
+    if groups.len() < 4 && groups.iter().filter(|group| group.len() > 1).count() < 2 {
+        return Ok(None);
+    }
     if !groups.iter().any(|g| g.len() > 1) {
         return Ok(None);
     }
@@ -137,8 +142,12 @@ pub(super) fn between(
     let mut stitched = false;
     let mut drilled_groups = 0;
     let mut has_track = false;
+    let mut root_is_wired_and_plated = false;
+    let mut wired_plated_groups = 0;
+    let mut isolated_surface_pad = false;
     for (group, members) in groups.iter().enumerate() {
         let mut first_barrel = None;
+        let mut wired = false;
         for &item in members {
             work.charge(1)?;
             let entry = match item {
@@ -154,6 +163,7 @@ pub(super) fn between(
                 }
                 Copper::Track(_) => {
                     has_track = true;
+                    wired = true;
                     continue;
                 }
                 _ => return Ok(None),
@@ -184,14 +194,40 @@ pub(super) fn between(
                 }
             }
         }
+        if wired && first_barrel.is_some() {
+            wired_plated_groups += 1;
+            root_is_wired_and_plated |= group == 0;
+        }
+        isolated_surface_pad |=
+            first_barrel.is_none() && matches!(members.as_slice(), [Copper::Pad(_)]);
     }
     // A stitched component supplies distinct places to enter buried copper.
     // An unjoined barrel and several surface components can then share its
     // branches. Smaller single-join problems keep their ordinary search.
-    if !has_track || !stitched || drilled_groups < 2 || groups.len() - drilled_groups < 2 {
+    if !has_track || !stitched || drilled_groups < 2 {
         return Ok(None);
     }
     let deadline = expanded.saturating_add(share).min(budget.current_limit);
+    // With two independently wired plated branches, the common layers let us
+    // join their local copper before searching from every track on the root.
+    if root_is_wired_and_plated && wired_plated_groups >= 2 && !isolated_surface_pad {
+        if let Some(edges) = plated::between(
+            engine,
+            net,
+            &terminals,
+            groups.len(),
+            drilled_groups,
+            budget,
+            expanded,
+            deadline,
+            frontier,
+        )? {
+            return Ok(Some(edges));
+        }
+    }
+    if groups.len() < 4 || groups.len() - drilled_groups < 2 {
+        return Ok(None);
+    }
     if !constrained_pad_access(
         engine, net, &terminals, groups, budget, expanded, deadline, frontier,
     )? {
@@ -630,6 +666,106 @@ mod tests {
                 }))
                 .unwrap(),
             );
+        }
+    }
+
+    #[test]
+    fn wired_branches_share_existing_holes_across_separate_layer_keepouts() {
+        for inner_closed in [false, true] {
+            let mut input = stitched_layout();
+            enable_through_vias(&mut input);
+            let mut extra = input.pads[2].clone();
+            extra.id = "148a082a-af02-404d-92ef-9a328a4d6417".into();
+            extra.at = [19_000_000, 8_000_000];
+            input.pads.push(extra);
+            let mut side = input.pads[3].clone();
+            side.at = [14_000_000, 5_000_000];
+            side.id = "11ab32a1-c9d2-45ef-aad7-8b813b068c55".into();
+            let mut trace = input.tracks[0].clone();
+            trace.id = "954d85a2-71b0-4661-b922-8af8f97968ac".into();
+            trace.start = side.at;
+            trace.end = input.pads[2].at;
+            input.tracks.push(trace);
+            input.pads.push(side);
+            let mut surface_trace = input.tracks[0].clone();
+            surface_trace.id = "f9d6f345-2bc7-4b8a-bec4-48eb496638bf".into();
+            surface_trace.start = input.pads[3].at;
+            surface_trace.end = input.pads[4].at;
+            input.tracks.push(surface_trace);
+            // Split the two existing connector traces into the short
+            // straight segments produced by a prior routing pass.
+            for track in input.tracks.drain(..2).collect::<Vec<_>>() {
+                let count = 48i64;
+                let at = |i: i64| {
+                    [0, 1].map(|axis| {
+                        track.start[axis] + i * (track.end[axis] - track.start[axis]) / count
+                    })
+                };
+                for i in 0..count {
+                    let mut part = track.clone();
+                    part.id = format!("a76863c3-85b0-47a4-a1ae-{:012}", input.tracks.len());
+                    part.start = at(i);
+                    part.end = at(i + 1);
+                    input.tracks.push(part);
+                }
+            }
+            for (index, (layers, low_x, high_x, low_y, high_y)) in [
+                (vec!["F.Cu", "In1.Cu", "B.Cu"], 10, 11, -1, 22),
+                (vec!["F.Cu", "In1.Cu", "B.Cu"], 16, 17, -1, 22),
+                (
+                    vec!["In2.Cu"],
+                    16,
+                    17,
+                    if inner_closed { -1 } else { 6 },
+                    if inner_closed { 22 } else { 10 },
+                ),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let (x, r, y, t) = (
+                    low_x * 1_000_000,
+                    high_x * 1_000_000,
+                    low_y * 1_000_000,
+                    high_y * 1_000_000,
+                );
+                input.rule_areas.push(
+                    serde_json::from_value(serde_json::json!({
+                        "id":format!("5f530e96-bda9-4f89-a482-{index:012}"),
+                        "layers":layers,"outer":[[x,y],[r,y],[r,t],[x,t]],
+                        "no_tracks":true,"no_vias":false
+                    }))
+                    .unwrap(),
+                );
+            }
+            let mut engine = Engine::new(input).unwrap();
+            engine.surface_search_share = Some(300);
+            let groups = engine.components(1).unwrap();
+            assert_eq!(groups.len(), 4);
+            let mut expanded = 0;
+            let edges = between(
+                &engine,
+                1,
+                &groups,
+                &mut TrialBudget::fixed(300),
+                &mut expanded,
+                None,
+            )
+            .unwrap();
+            assert!(expanded > 0 && expanded <= 300);
+            if inner_closed {
+                assert!(edges.is_none());
+            } else {
+                let edges = edges.unwrap();
+                assert!(edges
+                    .iter()
+                    .all(|e| matches!(e, PathEdge::Track { layer: 2, .. })));
+                assert!(edges
+                    .iter()
+                    .any(|e| matches!(e,PathEdge::Track{start,end,..} if start[1] != end[1])));
+                engine.insert_edges(1, edges).unwrap();
+                assert_eq!(engine.components(1).unwrap().len(), 2);
+            }
         }
     }
 
