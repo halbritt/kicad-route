@@ -4377,6 +4377,7 @@ fn walk_multilayer_bidirectional(
                             state,
                             priority - cost,
                             targets,
+                            (previous.is_none() && only_through_vias).then_some(via_cost),
                             &finished,
                         )? {
                             let mut path = reconstruct_bi_path(

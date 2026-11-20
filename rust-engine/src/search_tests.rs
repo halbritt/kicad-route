@@ -5553,6 +5553,26 @@ fn octilinear_launch_matches_the_minimum_planar_cost_and_respects_blocked_elbows
         *route.points.last().unwrap(),
         &input.pads[1]
     ));
+    // Moving the same land to the opposite face requires exactly one through-via
+    // in addition to the two planar displacements. The full-grid reference uses
+    // the same cost even though it visits each intermediate point.
+    let mut across = input.clone();
+    across.pads[1].layers = vec!["F.Cu".into()];
+    let reference = join(across.clone(), false, 100_000).0.unwrap();
+    let via_cost = Engine::new(across.clone())
+        .unwrap()
+        .effective_rules
+        .via_cost;
+    let (option, expanded) = join(across, true, 1);
+    let route = option.unwrap();
+    assert_eq!(
+        (route.steps, reference.steps, expanded),
+        (76 + via_cost, 76 + via_cost, 1)
+    );
+    assert!(matches!(route.edges.as_slice(),
+        [PathEdge::Track { layer: 3, end, .. }, PathEdge::Via(via),
+         PathEdge::Track { layer: 0, start, .. }] if end == start && *end == via.at
+         && via.start_layer == 0 && via.end_layer == 3 && via.kind == 0));
     // Both final cells and pads stay clear, while this fixed trace cuts
     // both complete same-layer elbow proposals.
     let mut wall = track(
