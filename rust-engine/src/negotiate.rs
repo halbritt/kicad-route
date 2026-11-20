@@ -1907,9 +1907,12 @@ pub fn solve_with_adapter(
             &tx.engine.work,
         )?;
     }
-    // Among equal lower bounds, expand the state closer to a goal even
-    // when a single routing unit owns the entire search budget.
-    let prev_prefer_higher_g = tx.engine.set_prefer_higher_g(true);
+    // Prefer progress on a single net as well, unless its own drilled holes
+    // constrain future copper. In that case explore equal-distance approaches
+    // together before committing to a detour.
+    let prefer_higher_g =
+        units.len() > 1 || tx.engine.input().rules.same_net_hole_clearance_nm == 0;
+    let prev_prefer_higher_g = tx.engine.set_prefer_higher_g(prefer_higher_g);
     let res = solve_with_adapter_units(tx, adapter, expanded, batch_limit, units);
     tx.engine.set_prefer_higher_g(prev_prefer_higher_g);
     tx.engine.bus_plan.finish();
