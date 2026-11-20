@@ -225,6 +225,10 @@ For a join between two isolated pads, their anchor coordinates may generate
 different grid phases. If the first search exhausts its frontier and the other
 pad offers another phase, the router searches from that pad with the remaining
 work and expansion budgets.
+An elongated rectangular or rounded surface pad can launch from its medial
+axis on the pad-center grid. The router chooses the site closest to the
+remaining same-layer copper. If the ordinary starts are blocked, it still
+checks the full pad interior.
 Attachment targets the entire copper geometry, including arbitrary-angle
 interiors, not only target endpoints. The final edge stops at the first integer endpoint in the target contact
 interval. Exact swept-prefix contact is monotone for these convex targets;

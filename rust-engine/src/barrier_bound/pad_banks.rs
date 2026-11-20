@@ -3,7 +3,7 @@
 //! a planar barrier. A single elongated land can also force a detour past
 //! either end. The ends stay passable in the relaxed geometry.
 use super::{Barrier, BarrierBound};
-use crate::model::{Failure, Input, Pad, Shape, Status};
+use crate::model::{Failure, Input, Status};
 use crate::rules::{DruItemKind, EffectiveRules};
 use crate::Engine;
 use std::collections::BTreeMap;
@@ -29,32 +29,6 @@ pub(crate) struct PadBanks {
     rows: [BTreeMap<(i64, usize), PadRow>; 2],
     // A row with one elongated flank does not need a separate allocation.
     intervals: [Vec<PadInterval>; 2],
-}
-
-/// For these shapes both center cuts span the full copper width or height.
-/// Rotated capsules, unions and arbitrary polygon vertices can have a
-/// smaller axial section than their bounding boxes and are excluded.
-pub(super) fn axial_extents(pad: &Pad) -> Option<([i64; 2], [i64; 2])> {
-    match &pad.shape {
-        Shape::Circle { radius_nm } => Some((pad.at.map(|x| 2 * x), [2 * radius_nm; 2])),
-        Shape::Rect { half_size_nm } | Shape::RoundRect { half_size_nm, .. } => {
-            Some((pad.at.map(|x| 2 * x), half_size_nm.map(|x| 2 * x)))
-        }
-        Shape::BoxExact {
-            center_2x,
-            half_size_2x,
-            ..
-        } => Some((*center_2x, *half_size_2x)),
-        Shape::Capsule {
-            start_nm: a,
-            end_nm: b,
-            width_nm,
-        } if a[0] == b[0] || a[1] == b[1] => Some((
-            std::array::from_fn(|k| a[k] + b[k]),
-            std::array::from_fn(|k| (a[k] - b[k]).abs() + width_nm),
-        )),
-        _ => None,
-    }
 }
 
 impl PadBanks {
@@ -88,7 +62,7 @@ impl PadBanks {
             if k != 0 && k + 1 != layers.len() {
                 continue;
             }
-            let Some((center, half)) = axial_extents(pad) else {
+            let Some((center, half)) = pad.axial_extents_2x() else {
                 continue;
             };
             for (axis, row) in entries.iter_mut().enumerate() {

@@ -819,7 +819,7 @@ fn component_starts(
                     Err(e) if e.status == Status::Unroutable => None,
                     Err(e) => return Err(e),
                 };
-                let mut try_seed = |p: Point| -> Result<(), Failure> {
+                let mut try_seed = |p: Point| -> Result<bool, Failure> {
                     engine.work.charge(1)?;
                     let key = (p, l_idx as u8);
                     let mut track_ok = false;
@@ -922,15 +922,26 @@ fn component_starts(
                             }
                         }
                     }
-                    Ok(())
+                    Ok(usable)
                 };
                 if interior_only {
                     if let Copper::Pad(pad) = c {
-                        visit_pad_interior(pad, engine, try_seed)?;
+                        visit_pad_interior(pad, engine, |p| try_seed(p).map(|_| ()))?;
                     }
                 } else {
+                    let mut ordinary_start = false;
                     for &p in &anchors {
-                        try_seed(p)?;
+                        ordinary_start |= try_seed(p)?;
+                    }
+                    // When every original seed was blocked, preserve the full
+                    // pad-interior search, including departures off the medial axis.
+                    if ordinary_start {
+                        if let Copper::Pad(pad) = c {
+                            if let Some(p) = pad_field::toward_target(engine, pad, c_mask, targets)?
+                            {
+                                try_seed(p)?;
+                            }
+                        }
                     }
                 }
             }

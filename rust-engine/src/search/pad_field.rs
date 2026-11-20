@@ -304,3 +304,50 @@ pub(super) fn starts(
     }
     Ok(starts.into_iter().collect())
 }
+
+// A long rectangular or rounded land is already connected along its medial
+// axis. Start a track on that axis at the nearest grid pitch to the remaining
+// copper, using the same lattice as the pad center. The caller checks native
+// contact, track width, clearance and any keepout at the proposed point.
+pub(super) fn toward_target(
+    engine: &Engine,
+    pad: &crate::model::Pad,
+    mask: u32,
+    targets: &[Vec<Copper<'_>>],
+) -> Result<Option<Point>, Failure> {
+    if pad.drill.is_some() {
+        return Ok(None);
+    }
+    let Some((_, size)) = pad.axial_extents_2x() else {
+        return Ok(None);
+    };
+    let axis = usize::from(size[1] > size[0]);
+    let grid = engine.input.rules.grid_nm;
+    let span = (size[axis] - size[1 - axis]) / (2 * grid);
+    if span == 0 {
+        return Ok(None);
+    }
+    let center = pad.copper_center();
+    let mut nearest = None;
+    for &goal in targets.iter().flatten() {
+        engine.work.charge(1)?;
+        if goal.layer_mask(engine.all_layers_slice()) & mask == 0 {
+            continue;
+        }
+        let goal = super::TargetBounds::new(goal, engine.all_layers_slice(), &engine.work)?;
+        let (lo, hi) = (goal.lo, goal.hi);
+        let offset = center[axis].clamp(lo[axis], hi[axis]) - center[axis];
+        let lower = offset.div_euclid(grid);
+        for k in [lower, lower + 1] {
+            let mut p = center;
+            p[axis] += k.clamp(-span, span) * grid;
+            let gap = |i: usize| p[i].abs_diff(p[i].clamp(lo[i], hi[i]));
+            let key = (gap(0) + gap(1), p[axis].abs_diff(center[axis]), p);
+            if nearest.is_none_or(|old| key < old) {
+                nearest = Some(key);
+            }
+        }
+    }
+    Ok(nearest
+        .and_then(|(_, _, p)| (p != center && crate::geometry::point_in_pad(p, pad)).then_some(p)))
+}
