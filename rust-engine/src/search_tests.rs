@@ -4736,13 +4736,12 @@ fn pad_interior_track_attachment_enters_offgrid_smd_pad_when_legal() {
     );
 }
 
-#[test]
-fn bidirectional_search_finds_exact_optimal_cost_with_smd_via_in_pad_disallowed() {
+fn surface_pad_wall(left: i64, right: i64) -> Input {
     let mut pads = vec![
         pad(
             1,
             1,
-            [2_000_000, 10_000_000],
+            [left, 10_000_000],
             Shape::Rect {
                 half_size_nm: [350_000, 350_000],
             },
@@ -4750,7 +4749,7 @@ fn bidirectional_search_finds_exact_optimal_cost_with_smd_via_in_pad_disallowed(
         pad(
             2,
             1,
-            [42_000_000, 10_000_000],
+            [right, 10_000_000],
             Shape::Rect {
                 half_size_nm: [350_000, 350_000],
             },
@@ -4764,21 +4763,21 @@ fn bidirectional_search_finds_exact_optimal_cost_with_smd_via_in_pad_disallowed(
         let mut obs = pad(
             next_id,
             0,
-            [22_000_000, y],
+            [left.midpoint(right), y],
             Shape::Circle { radius_nm: 300_000 },
         );
         obs.layers = vec!["F.Cu".into()];
         pads.push(obs);
         next_id += 1;
     }
-    let inp = Input {
+    Input {
         version: INPUT_VERSION,
         source_id: "b".repeat(64),
         layer: "F.Cu".into(),
         layers: vec!["F.Cu".into(), "B.Cu".into()],
         bounds: Bounds {
-            min: [0, 0],
-            max: [44_000_000, 20_000_000],
+            min: [left - 2_000_000, 0],
+            max: [right + 2_000_000, 20_000_000],
         },
         rules: Rules {
             width_nm: 200_000,
@@ -4835,24 +4834,93 @@ fn bidirectional_search_finds_exact_optimal_cost_with_smd_via_in_pad_disallowed(
         components: Vec::new(),
         stackup: Vec::new(),
         routing_options: None,
-    };
-    let out = crate::run(inp.clone());
-    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
-    assert!(
-        out.expanded_states > 256,
-        "expected bidirectional phase > 256 exp, got {}",
-        out.expanded_states
-    );
-    assert_eq!(out.added_vias.len(), 2, "expected 2 vias around F.Cu wall");
-    for v in &out.added_vias {
-        assert!((v.at[0] - 2_000_000).abs() > 400_000 || (v.at[1] - 10_000_000).abs() > 400_000);
-        assert!((v.at[0] - 42_000_000).abs() > 400_000 || (v.at[1] - 10_000_000).abs() > 400_000);
     }
-    let out2 = crate::run(inp);
-    assert_eq!(out.added_tracks, out2.added_tracks);
-    assert_eq!(out.added_vias, out2.added_vias);
-    assert_eq!(out.work_used, out2.work_used);
-    assert_eq!(out.expanded_states, out2.expanded_states);
+}
+
+#[test]
+fn bidirectional_search_finds_exact_optimal_cost_with_smd_via_in_pad_disallowed() {
+    for (left, right, requires_reverse) in [
+        (2_000_000, 42_000_000, false),
+        (-60_000_000, 60_000_000, true),
+    ] {
+        let inp = surface_pad_wall(left, right);
+        let out = crate::run(inp.clone());
+        assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+
+        let engine = Engine::new(inp.clone()).unwrap();
+        let groups = engine.components(1).unwrap();
+        let mut expanded = 0;
+        let path = join_components(
+            &engine,
+            1,
+            &groups[0],
+            &groups[1..],
+            inp.max_expansions,
+            &mut expanded,
+        )
+        .unwrap();
+        // The only source seed is the pad center. Its track cap can first
+        // touch the opposite land within 0.35 + 0.10 mm of the target
+        // center. The row closes F.Cu edge-to-edge, so a through-via to
+        // B.Cu and a second one back to F.Cu are unavoidable.
+        let separation = right.abs_diff(left);
+        let planar = (separation - 450_000).div_ceil(inp.rules.grid_nm as u64);
+        assert_eq!(path.steps, planar + 2 * engine.effective_rules.via_cost);
+
+        if requires_reverse {
+            // Moving past the wall from either pad takes at least 300 grid
+            // moves. The ordinary bidirectional search seeds its reverse
+            // frontier at 256, before a same-face landing is possible.
+            let wall_x = inp.pads[2].at[0];
+            assert!(
+                left.abs_diff(wall_x).min(right.abs_diff(wall_x)) >= 300 * inp.rules.grid_nm as u64
+            );
+            assert!(
+                out.expanded_states > 256,
+                "reverse search was never reached"
+            );
+        }
+        assert_eq!(out.added_vias.len(), 2);
+        let obstacles: Vec<_> = inp.pads[2..].iter().map(Body::pad).collect();
+        for via in &out.added_vias {
+            assert_eq!(
+                (via.kind, via.start_layer.as_str(), via.end_layer.as_str()),
+                (ViaKind::Through, "F.Cu", "B.Cu")
+            );
+            assert_eq!((via.diameter_nm, via.drill_nm), (500_000, 300_000));
+            let disk = Body::segment(via.at, via.at, via.diameter_nm);
+            assert!(inp.pads[..2].iter().all(|p| !disk.contacts(Body::pad(p))));
+            assert!(obstacles
+                .iter()
+                .all(|p| !disk.violates(*p, inp.rules.clearance_nm)));
+            for layer in ["F.Cu", "B.Cu"] {
+                assert!(out
+                    .added_tracks
+                    .iter()
+                    .any(|t| t.layer == layer && Body::track(t).contacts(disk)));
+            }
+        }
+        // Publication extends the last grid contact into the target. The
+        // finished pad-center to pad-center conductor is straight on both faces.
+        let mut length = 0;
+        for track in &out.added_tracks {
+            assert_eq!((track.start[1], track.end[1]), (10_000_000, 10_000_000));
+            assert_eq!(track.width_nm, inp.rules.width_nm);
+            if track.layer == "F.Cu" {
+                let copper = Body::track(track);
+                assert!(obstacles
+                    .iter()
+                    .all(|p| !copper.violates(*p, inp.rules.clearance_nm)));
+            }
+            length += track.start[0].abs_diff(track.end[0]);
+        }
+        assert_eq!(length, separation);
+        let out2 = crate::run(inp);
+        assert_eq!(out.added_tracks, out2.added_tracks);
+        assert_eq!(out.added_vias, out2.added_vias);
+        assert_eq!(out.work_used, out2.work_used);
+        assert_eq!(out.expanded_states, out2.expanded_states);
+    }
 }
 
 #[test]
