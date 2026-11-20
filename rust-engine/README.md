@@ -187,6 +187,9 @@ in grid steps to a bounding box containing the endpoints that can make contact.
 For pads, tracks and vias the expansion uses the route's floored half-width
 less the required 1 nm of copper overlap, clamped at zero. Graphics and zone
 fills use the outward-rounded route radius.
+For a slanted track or oval, the engine also bounds the distance to the strip
+containing its swept copper. The strip uses the trace's actual orientation.
+This excludes the empty corners of its bounding box from the distance estimate.
 These outward-rounded boxes contain every endpoint-cap contact; each cardinal
 edge, including a shortened final edge, moves at most one grid step in one axis.
 The estimate therefore underestimates remaining unit-step cost, is consistent
