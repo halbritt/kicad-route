@@ -450,6 +450,39 @@ fn contact_bound_contains_caps_and_is_consistent_on_shortened_edges() {
 }
 
 #[test]
+fn polygon_goal_bounds_charge_outer_and_inner_vertices_before_search() {
+    let graphic = CopperGraphic {
+        id: id(100),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Polygon {
+            outer: vec![[10, 10], [40, 10], [40, 40], [10, 40]],
+            holes: vec![vec![[15, 15], [15, 25], [25, 25], [25, 15]]],
+            width_nm: 0,
+            filled: true,
+        },
+    };
+    let layers = vec!["F.Cu".into()];
+    let copper = Copper::Graphic(&graphic);
+    let work = WorkBudget::new(Limits {
+        max_work: 7,
+        ..Limits::default()
+    });
+    assert!(
+        matches!(TargetBounds::new(copper, &layers, &work), Err(e) if e.status == Status::WorkExhausted)
+    );
+    assert_eq!(work.used(), 4);
+    let work = WorkBudget::new(Limits {
+        max_work: 8,
+        ..Limits::default()
+    });
+    let bounds = TargetBounds::new(copper, &layers, &work).unwrap();
+    assert_eq!((bounds.lo, bounds.hi, bounds.mask), ([10, 10], [40, 40], 1));
+    assert_eq!(bounds.contact_steps([60, 10], 2, 10), 2);
+    assert_eq!(work.used(), 8);
+}
+
+#[test]
 fn component_estimate_charges_every_target_in_the_outer_work_scope() {
     let rules = Rules {
         width_nm: 3,
