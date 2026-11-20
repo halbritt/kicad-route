@@ -1188,7 +1188,9 @@ fn search_component_path(
         && !has_zone_target
         && goal_bounds.len() <= 8;
     let barriers = if reversible
-        && (!engine.copper.input().is_empty() || !engine.input.rule_areas.is_empty())
+        && (!engine.copper.input().is_empty()
+            || !engine.input.rule_areas.is_empty()
+            || !engine.pad_banks.is_empty())
     {
         engine
             .work
@@ -1209,7 +1211,7 @@ fn search_component_path(
             .map(|b| (b.lo, b.hi))
             .reduce(union)
             .expect("nonempty join targets");
-        let candidate = BarrierBound::for_join(
+        let mut candidate = BarrierBound::for_join(
             &engine.input,
             net,
             engine.copper.input(),
@@ -1222,6 +1224,7 @@ fn search_component_path(
             engine.layer_policy.scale(via_cost),
             &engine.work,
         )?;
+        engine.pad_banks.include(engine, net, &mut candidate)?;
         if candidate.is_active() {
             engine
                 .work

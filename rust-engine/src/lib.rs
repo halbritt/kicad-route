@@ -38,6 +38,7 @@ pub struct Engine {
     layer_policy: layer_policy::ResolvedLayerPolicy,
     effective_rules: EffectiveRules,
     max_pad_local_clearance_nm: i64,
+    pad_banks: barrier_bound::PadBanks,
     max_zone_local_clearance_nm: i64,
     copper: CopperStore,
     pad_spatial: Vec<StaticSpatialIndex<PadCore>>,
@@ -434,6 +435,12 @@ impl Engine {
             .filter_map(|p| p.local_clearance_nm)
             .max()
             .unwrap_or(0);
+        let pad_banks = barrier_bound::PadBanks::new(
+            &input,
+            &layer_names,
+            &effective_rules,
+            max_pad_local_clearance_nm,
+        );
         let max_zone_local_clearance_nm = input
             .zones
             .iter()
@@ -935,6 +942,7 @@ impl Engine {
             layer_policy,
             effective_rules,
             max_pad_local_clearance_nm,
+            pad_banks,
             max_zone_local_clearance_nm,
             copper,
             pad_spatial,
