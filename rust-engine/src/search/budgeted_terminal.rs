@@ -4,6 +4,9 @@ use super::{
     layer_crossing, unpenalized_terminal, Engine, Failure, Path, PathEdge, PlacedViaKey, Point,
     TargetBounds, ViaKind,
 };
+mod layer_corridor;
+pub(super) use layer_corridor::through_launch_corridors;
+
 use crate::diff_pair::octilinear_elbow_paths;
 use crate::negotiate::{BlockedFrontier, CongestionHistory, TrialBudget};
 

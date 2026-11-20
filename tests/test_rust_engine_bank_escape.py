@@ -623,3 +623,54 @@ def test_distributed_surface_supply_joins_the_header_and_all_local_loads(tmp_pat
                for p in reopened.GetPads() if p.GetNetname() == "BIAS" for q in ends)
     after = run_native_drc(saved, sidecar_source=source).raw
     assert not after["unconnected_items"] and not after["violations"]
+
+
+def test_alternating_inner_guards_connect_through_reserved_drill_slots(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=4612)
+    layers = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+
+    def point(x, y):
+        return pcbnew.FromMM(x), pcbnew.FromMM(y)
+
+    def strip(selected, left, right, *, tracks, vias):
+        polygon = [point(left, -1), point(right, -1), point(right, 39), point(left, 39)]
+        board.add_keepout(selected, polygon, no_tracks=tracks, no_vias=vias)
+
+    board.set_rect_outline(0, 0, *point(76, 38))
+    for ref, net, x, y, face in [
+        ("U1", "DATA", 5.35, 11.25, pcbnew.F_Cu), ("J1", "DATA", 69.45, 22.65, pcbnew.F_Cu),
+        ("R1", "REF", 3, 4, pcbnew.B_Cu), ("R2", "REF", 7, 4, pcbnew.B_Cu),
+    ]:
+        at = point(x, y)
+        fp = board.add_footprint(ref, at, side="F" if face == pcbnew.F_Cu else "B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", net, at, size_nm=point(.72, .6),
+                      shape=pcbnew.PAD_SHAPE_RECT, layers=[face])
+    strip([pcbnew.F_Cu, pcbnew.B_Cu], 10, 65, tracks=True, vias=False)
+    for x, layer in [(16, 1), (27, 2), (38, 1), (49, 2), (60, 1)]:
+        strip([layers[layer]], x, x + .9, tracks=True, vias=False)
+
+    # A drill may move from one inner layer to the other only inside a slot.
+    slots = [(22.46, 23.42), (33.55, 34.59), (44.46, 45.40), (55.59, 56.59)]
+    start = 9
+    for left, right in slots:
+        strip(layers, start, left, tracks=False, vias=True)
+        start = right
+    strip(layers, start, 64, tracks=False, vias=True)
+    board.set_project_rules()
+    source = board.save(tmp_path / "input").pcb_path
+    original = run_native_drc(source).raw
+    assert len(original["unconnected_items"]) == 2 and not original["violations"]
+
+    run, _ = guarded_cli
+    saved = tmp_path / "output.kicad_pcb"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved)])
+    result = run_native_drc(saved, sidecar_source=source).raw
+    assert not result["unconnected_items"] and not result["violations"]
+    reopened = pcbnew.LoadBoard(str(saved))
+    pieces = list(reopened.GetTracks())
+    drills = [t for t in pieces if isinstance(t, pcbnew.PCB_VIA) and t.GetNetname() == "DATA"]
+    for left, right in slots:
+        assert any(pcbnew.FromMM(left) < via.GetPosition().x < pcbnew.FromMM(right) for via in drills)
+    assert all(via.GetViaType() == pcbnew.VIATYPE_THROUGH for via in drills)

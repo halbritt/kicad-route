@@ -313,7 +313,7 @@ impl CongestionHistory {
     }
 
     #[cfg(test)]
-    fn add_weight(
+    pub(crate) fn add_weight(
         &mut self,
         key: (u8, i64, i64),
         delta: u64,

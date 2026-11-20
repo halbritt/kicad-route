@@ -4503,7 +4503,22 @@ fn walk_multilayer_bidirectional(
                             planar = None;
                         }
                     }
-                    let proposal = planar.or(proposal);
+                    let proposal = match planar.or(proposal) {
+                        Some(path) => Some(path),
+                        None => budgeted_terminal::through_launch_corridors(
+                            engine,
+                            net,
+                            starts,
+                            targets,
+                            &track_ok_on_layer,
+                            q_fwd.len() + best_fwd.len() + parent_fwd.len(),
+                            via_cost,
+                            history,
+                            budget,
+                            expanded,
+                            frontier.as_deref(),
+                        )?,
+                    };
                     if let Some(path) = proposal {
                         if best_mu.as_ref().is_none_or(|(cost, _)| *cost > path.steps) {
                             best_mu = Some((path.steps, MeetRecord::Surface(path)));
