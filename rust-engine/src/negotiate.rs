@@ -263,10 +263,9 @@ impl CongestionHistory {
         self.cells.get(&(layer, cx, cy)).copied().unwrap_or(0)
     }
 
-    /// Every charged cell of a monotone track lies in its closed cell
-    /// rectangle, including a final clipped contact on a different phase.
-    /// A hit can conservatively decline the shortcut; the ordinary search
-    /// still prices each destination cell exactly.
+    /// An axial or 45-degree track can only charge cells containing an
+    /// integer point on its centerline. Keep the conservative bounding
+    /// rectangle for other inclinations and clipped terminal approaches.
     pub(crate) fn unpenalized_track(
         &self,
         engine: &Engine,
@@ -274,19 +273,38 @@ impl CongestionHistory {
         a: Point,
         b: Point,
     ) -> Result<bool, Failure> {
-        let cell = |p| cell_coord(p, engine.input.bounds.min, engine.input.rules.grid_nm);
-        let (ax, ay) = cell(a);
-        let (bx, by) = cell(b);
+        let origin = engine.input.bounds.min;
+        let grid = engine.input.rules.grid_nm;
+        let (ax, ay) = cell_coord(a, origin, grid);
+        let (bx, by) = cell_coord(b, origin, grid);
         let ys = ay.min(by)..=ay.max(by);
+        let diagonal = a != b && a[0].abs_diff(b[0]) == a[1].abs_diff(b[1]);
         engine.charge_work(1)?;
-        for (&(_, _, y), &weight) in self
+        for (&(_, x, y), &weight) in self
             .cells
             .range((layer, ax.min(bx), *ys.start())..=(layer, ax.max(bx), *ys.end()))
         {
             engine.charge_work(1)?;
-            if weight > 0 && ys.contains(&y) {
-                return Ok(false);
+            if weight == 0 || !ys.contains(&y) {
+                continue;
             }
+            if diagonal {
+                // In board coordinates the line has constant x-y or x+y.
+                // Its value over this cell ranges from one integer corner
+                // to the opposite corner. The high grid boundary belongs
+                // to the following cell, including at a diagonal corner.
+                let lo = [origin[0] + x * grid, origin[1] + y * grid];
+                let hi = lo.map(|v| v + grid - 1);
+                let (min, line, max) = if (b[0] > a[0]) == (b[1] > a[1]) {
+                    (lo[0] - hi[1], a[0] - a[1], hi[0] - lo[1])
+                } else {
+                    (lo[0] + lo[1], a[0] + a[1], hi[0] + hi[1])
+                };
+                if line < min || line > max {
+                    continue;
+                }
+            }
+            return Ok(false);
         }
         Ok(true)
     }
@@ -3124,6 +3142,47 @@ mod tests {
         let (unit_edge_cost, _, _) = join(&engine, &history);
         assert_eq!(cost, unit_edge_cost);
         assert!(path.iter().any(|p| p[1] != 8_000_000));
+    }
+
+    #[test]
+    fn diagonal_history_only_blocks_cells_the_centerline_can_enter() {
+        let engine = Engine::new(test_input()).unwrap();
+        let origin = engine.input.bounds.min;
+        let pitch = engine.input.rules.grid_nm;
+        for (a, b) in [
+            ([8, 13], [43, 48]),
+            ([8, 47], [43, 12]),
+            ([10, 10], [40, 40]),
+            ([10, 40], [40, 10]),
+            ([8, 30], [43, 30]),
+            ([30, 8], [30, 43]),
+            ([20, 20], [20, 20]),
+        ] {
+            for (start, end) in [(a, b), (b, a)] {
+                let dx: i64 = end[0] - start[0];
+                let dy: i64 = end[1] - start[1];
+                let visited: BTreeSet<_> = (0..=dx.abs().max(dy.abs()))
+                    .map(|i| {
+                        cell_coord(
+                            [start[0] + i * dx.signum(), start[1] + i * dy.signum()],
+                            origin,
+                            pitch,
+                        )
+                    })
+                    .collect();
+                for x in 0..=5 {
+                    for y in 0..=5 {
+                        let mut history = CongestionHistory::new();
+                        history.add_weight((0, x, y), 3, &engine).unwrap();
+                        assert_eq!(
+                            history.unpenalized_track(&engine, 0, start, end).unwrap(),
+                            !visited.contains(&(x, y)),
+                            "{start:?} to {end:?} in {x},{y}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
