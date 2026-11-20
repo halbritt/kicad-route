@@ -427,6 +427,12 @@
       "ref": "c034180b-4bd5-4949-87a8-4d698aa16f1f/v1",
       "date": "2026-11-17",
       "statement": "b91c391 adds direct heuristic work accounting and production diagonal-goal regressions; byte-identical frozen request output; independent correction review pending."
+    },
+    "owner-november-17-acceptance": {
+      "kind": "owner-request",
+      "ref": "greenfield-router takeover 654c5ec6-d14c-4756-8286-32cec8216f0f, R3–R5",
+      "date": "2026-11-17",
+      "statement": "Complete the Rust routing contract on the authorized corpus. After landing and full verification, fresh Fable and Astra reviewers each run the suites and representative boards on the final main revisions."
     }
   },
   "requirements": [
@@ -441,11 +447,11 @@
         "carbon-milestone-2",
         "owner-greenfield"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "rust-engine/src/lib.rs",
@@ -459,8 +465,8 @@
         "Full responsibility/feature inventory and explicit incomplete rows.",
         "Trace candidate runtime and source ownership independently of KRT; retain legacy backend separately and record any reused-code attribution/license obligations."
       ],
-      "state": "open",
-      "current_evidence": "Candidate source inventory names six Rust lifecycle owners and an explicit native Python seam; the current production inventory fails five language rows. Guarded real export/Rust/apply CLI execution succeeds while legacy entrypoints are refused. These are bounded path probes and symbol locators, not complete semantic ownership proof. Full replacement remains OPEN."
+      "state": "verified-on-listed-controls",
+      "current_evidence": "The agent-ee builtin entry on a Rust-capable checkout executes kicad-route-engine route-native. Rust owns copper state, geometry, search, multi-net scheduling, transactions, edit serialization and final publication. tools/rust_engine_kicad.py reads native data, applies the Rust edit list and checks the saved board. The guarded native entry and the legacy selection have separate positive and negative tests. The ownership inventory names six source responsibilities in each backend."
     },
     {
       "id": "RE-02",
@@ -476,11 +482,11 @@
         "fable-milestone-7",
         "carbon-milestone-7"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "rust-engine/src/search.rs",
@@ -491,8 +497,8 @@
         "Forbidden recent-via-only reduction must fail a prior-via witness.",
         "If weighted or non-admissible heuristics are introduced, the independent oracle verifies the claimed cost bound, not only reachability."
       ],
-      "state": "open",
-      "current_evidence": "Both independent reviewers accepted the M7 admissible consistent component-envelope estimate at 7575313, including unchanged 4096-world oracle and 256 multi-target worlds. M1 integrates b91c391 work-charge/diagonal-goal tests, O1 incoming-heading dominance/BFS regressions, C-M7-03 empty-target guard, C-M3-05 unified two-pad edge attachment, and 21d4f7d copper_bounds with RoundRect/Oval envelope support; M6 post-landing fable/astra audit pending. The multilayer search carries prior via state for history-dependent constraints. T1-F6-05 exercises a four-layer hole-to-hole witness. General seed and phase completeness remain open."
+      "state": "verified-on-listed-controls",
+      "current_evidence": "rust-engine/src/search_tests.rs compares integer search costs in 4,096 worlds, compares 256 multi-target worlds and exercises an independent augmented multilayer oracle. three_via_last_via_only_counterexample_witness_re02 demonstrates why an earlier hole can invalidate a later continuation at the same position, heading and most recent via. The four-layer T1-F6-05 checks native hole spacing. The finite search uses grid phases, bounded alternatives and a shared work limit. Returned incumbents have the cost guarantees of the specific search used."
     },
     {
       "id": "RE-03",
@@ -508,11 +514,11 @@
         "fable-milestone-2",
         "carbon-milestone-2"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "rust-engine/src/geometry.rs",
@@ -525,8 +531,8 @@
         "Actual Rust-binary/native diagonal near-tangent regression and positive overlap controls; translated predicates alone do not prove binary behavior.",
         "Same-net and cross-net drill, pad-hole and mask-web controls when supported."
       ],
-      "state": "open",
-      "current_evidence": "06ea2ca reproduced then corrected actual diagonal Rust false completion: 21/400 became 0, with 800 additional binary/native contact samples. M1 extends exact i128 copper_core and native KiCad admission to RoundRect/Oval pads (with chamfer, padstack, missing-size, and effective-shape guards) plus 5 Rust shapes tests and native shapes/odd-width controls; M6 post-landing fable/astra audit pending. No universal rounding proof; conservative extra routing is possible."
+      "state": "verified-on-listed-controls",
+      "current_evidence": "The executable/native shape controls cover actual KiCad readback for odd-sized and rotated round/rectangular pads, positive overlap, tangent copper, swept diagonals, plated and unplated holes, and native mask clearance. The retained 06ea2ca binary/native discrepancy and positive controls exercise false completion directly. Imported custom pad geometry is restricted to the supported primitive unions. Final native DRC and connectivity run under the source rules."
     },
     {
       "id": "RE-04",
@@ -551,11 +557,11 @@
         "fable-milestone-6-correction",
         "carbon-milestone-6-correction"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "rust-engine/src/state.rs",
@@ -570,8 +576,8 @@
         "Failed result has empty edits; stale source cannot be applied; native protected content unchanged.",
         "Before chaining engine and native apply, prove request/result freshness: a failed run must not cause an older same-board result with different requested rules to be consumed. Retain mandatory expected request, mismatched A/B refusal and matching A/A and B/B native controls; F-M5-N1 is closed for changed-request consistency at cb57c35; identical-byte invocation identity remains C-M6-02."
       ],
-      "state": "open",
-      "current_evidence": "Scoped nested transactions restore copper/index/allocator on errors and unwinding panic;32 recursive histories and3 compile-fail controls independently reviewed. Both reviewers accept cb57c35 request/result consistency and regression corrections: exact whole-request digest, exit8, mandatory expected native bytes, mismatch refusal and matching native controls. M2.1 Iteration 3 integrates leaf-bucketed (STATIC_LEAF_CAP=32) StaticSpatialIndex (pad_spatial/input_spatial, StaticNode <= 64 B, LeafEntry = 40 B, PadCore/TrackGeom <= 40 B) and iterative history-independent arena Treap (generated_spatial: SpatialIndex<u64, u32> storing slot plus net, subtree_uniform_net, and subtree_len, TreapNode<u64, u32> <= 112 B, TREAP_UNIFORM_SKIP_CAP = 32) with dense slot storage in CopperStore, strict (lo,hi)/[lo,hi) BST key-order, exact uniform_net/subtree_uniform_net/subtree_len/net, bounded leaf span, and max-heap priority checks in StaticSpatialIndex::consistent()/SpatialIndex::consistent()/index_consistent(), and 0/5,200+ (0/20,000 D2_churn) query + 0/52+ reroute post-rollback work_used diffs across nets 0..=4 (awaiting M6 audit). Abort/kill/OOM, crash durability, identical-byte invocation identity and full requirement remain open."
+      "state": "verified-on-listed-controls",
+      "current_evidence": "The Rust transaction suite checks allocator, copper and index restoration through nested commit, rollback and unwinding. Generated-index tests compare query results and charged work after divergent edit histories. Matching and mismatched native request tests cover apply freshness. route-native snapshots the source, operates in private staging, uses a no-overwrite link to publish and distinguishes a subsequent report failure. Identical request bytes share a content identity. The operation exit and its own output separately identify successful execution."
     },
     {
       "id": "RE-05",
@@ -600,11 +606,11 @@
         "fable-milestone-6-correction",
         "carbon-milestone-6-correction"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "rust-engine/src/model.rs",
@@ -620,8 +626,8 @@
         "Cancellation and per-phase bounded-work tests as orchestration expands.",
         "Two-run deterministic edit comparison; total work/cancellation failures preserve the typed outcome and emit no edits."
       ],
-      "state": "open",
-      "current_evidence": "Shared outer-operation work and bounded item/search/journal/depth admission accepted at M4; executor-only unwind accepted at M5. Both reviewers accept cb57c35 whole-request consistency and corrected regression sensitivity. Required Fable reads are complete. M2.1 adds spatial broad-phase visit/lookup/mutation work accounting (2 units foreign / 1 unit same-net; uniform same-net leaf bulk charge on StaticSpatialIndex and TREAP_UNIFORM_SKIP_CAP=32 uniform same-net subtree bulk-skip on SpatialIndex with exact per-entry/per-unit WorkExhausted fallback) with search-free hardcoded unit/pruned-treap/uniform-net tests in src/state.rs, src/spatial.rs, src/geometry.rs, tests/spatial.rs, and integration cutoff tests in tests/work_budget.rs killing 80/80 non-equivalent mutants (84 total incl. 4 mathematically equivalent) — covering M5_uncharged_pruned_query_visit_treap, M5_uncharged_pruned_query_visit_static, NEW_uniform_net_charge_bulk_no_fallback, ITER3_treap_uniform_net_charge_bulk_no_fallback, internal/leaf node, leaf-entry, CopperAabb::overlaps 4-direction tangency, geometry::point_near_segment zero-gap boundary, uniform_net/subtree_uniform_net/subtree_len, TREAP_UNIFORM_SKIP_CAP=32 boundary, heap/envelope/height/free-disjointness/leaf-cap consistent() checks, overflow-stack, RoundRect bounds, rollback, and lookup/index-edit charge-deletion mutants (0 non-equivalent surviving, 0 compile errors), plus 0 post-rollback query/reroute work_used diffs across nets 0..=4 (awaiting M6 audit). Rust orchestration tests cover wall-clock deadlines, child-process cancellation and bounded output. Non-executor unwind, abort/kill/OOM guarantees and complete termination reporting remain open. Identical request bytes repeat identity across invocations/builds; callers must still inspect process outcome and use fresh output paths."
+      "state": "verified-on-listed-controls",
+      "current_evidence": "The shared Rust budget spans all nets and repair trials. Resource, search, unsupported-input and native validation failures carry distinct outcomes. The orchestration suite exercises child timeout, cancellation, output bounds, destination collision and readback. A Linux parent-kill during export left the input intact, removed staging and terminated descendants. A native child under a 64 MiB no-swap cgroup was OOM-killed and the operation failed with no board publication. Native decoder and operating-system allocations have separate measurement scopes."
     },
     {
       "id": "RE-06",
@@ -641,11 +647,11 @@
         "carbon-milestone-5-correction",
         "owner-greenfield"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "tools/rust_engine_kicad.py",
@@ -658,8 +664,8 @@
         "Native board-level and footprint-level Margin rejection with a supported drawing control.",
         "When zones are supported, native --refill-zones checks cover islands, area loss, thermal spoke survival and lost_fill_contact; no blanket assumption of net-equivalent copper."
       ],
-      "state": "open",
-      "current_evidence": "The route-native path imports project minimums, net classes, supported custom rules, via spans, rule areas and zone fills. T4-01 exercises a four-layer mixed-rule board and T4-03 exercises zones, thermals and keepouts. The native adapter refuses rule and geometry forms it cannot represent. Coverage of external board rules remains open."
+      "state": "verified-on-listed-controls",
+      "current_evidence": "T4-01 and T4-03 cover native project rules, effective net classes, per-net rules, four-layer via spans, keepouts, zone refill and thermal contact. The bridge has explicit refusals for unsupported padstacks, custom-rule forms and Margin geometry. The external four-layer Tigard board was reopened under the original project with refill and all track errors enabled. Every new track, via barrel on each applicable layer and drill met its effective net class. See docs/rust-parity.md for source hashes and the original findings."
     },
     {
       "id": "RE-07",
@@ -688,11 +694,11 @@
         "fable-milestone-6-correction",
         "carbon-milestone-6-correction"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "tests/test_rust_engine_native.py",
@@ -706,8 +712,8 @@
         "Equivalent incomplete baseline must not satisfy outcome-fitness claim.",
         "Maintain docs/rust-parity.md with representative inputs, explicit native/preservation/adverse acceptance and unsupported/untested gaps. Legacy bug cases must be refused or corrected, not copied as expected outputs."
       ],
-      "state": "open",
-      "current_evidence": "Input1/result3 and mandatory expected-request bytes accepted at cb57c35 by both independent reviewers. Changed-request stale-result witness now refuses; matching A/A native control has zero opens. Source/status/counters/IDs/native DRC/publication checks remain mandatory. Digest consistency does not authenticate results or prove a current invocation succeeded. T4-07 on 36f7b11 preserved source bundles and produced saved route_demo, bus_routing and ac_matching boards with zero opens and zero native DRC findings under KiCad 10.0.8. F-M6-G3 remains open for external representative boards."
+      "state": "verified-on-listed-controls",
+      "current_evidence": "The public native engine at 04e9386 routed all 85 Tigard nets under the production limits. The source and saved board had the same 92 footprints and 451 pads. Native DRC and native connectivity both went from 290 opens to zero. All six errors and 94 warnings retained their original types, severities and implicated item identities. The external two-layer complex_hierarchy and generated four-layer T4-04 have separate acceptance measurements in docs/rust-parity.md. Failure controls verify absence of a newly published board."
     },
     {
       "id": "RE-08",
@@ -727,11 +733,11 @@
         "fable-milestone-5-correction",
         "carbon-milestone-5-correction"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "rust-engine/src/lib.rs",
@@ -742,8 +748,8 @@
         "Matched measurements with explicit setup/search/orchestration/native boundaries; no inferred kernel throughput from mismatched counters.",
         "CPU/GPU alternatives require bounded evidence before a performance conclusion."
       ],
-      "state": "open",
-      "current_evidence": "Forward abstract work units and admitted entry counts are deterministic bounds, not CPU/time/RSS replacements. M2.1 Iteration 3 unified 22-cell release benchmarks (--release --locked --offline, rustc 1.99.1, kicad-cli 10.0.8, Cargo.lock SHA-256 4b5a525c5100fa630537508b9f1bd679872d3fc4b55f72d70436ab1970b4861f, taskset -c 0, 1 warmup + 3-10 alternating runs, /usr/bin/time -v + 2ms /proc RSS poll) comparing 1ca08e72 vs Capped Option A (TREAP_UNIFORM_SKIP_CAP=32) show identical canonical added_tracks SHA-256 across all routed cells: S1 (route_all 0.4362s->0.0016s 0.0036x, cli 0.0154x, rss 3424->3600 KiB), S2 (2.5009s->0.0027s 0.0011x, cli 0.0055x, rss 6240->6940 KiB), dense_cluster (0.3860s->0.0015s 0.0039x, cli 0.0144x), dense_xy_overlap (0.3899s->0.0015s 0.0037x, cli 0.0143x), scale_50k 50k items (6.2493s->0.0034s 0.0006x route_all, cli 6.3688s->0.0483s 0.0076x, gnu_rss 20664->23588 KiB 1.1415x, /proc_rss 19584->20096 KiB 1.0261x), N1_native_fcu (0.0333s->0.0013s 0.0381x phase, cli 0.1047x, 0 opens/0 new DRC in:199->199), D2_churn (1.8190s->0.0129s 0.0071x, 0/20000 post-rollback work diffs), diag_overlap_2000_default 100M limits (exit=0 status=complete work=72,661,678->75,334,848 1.0368x, cli 0.9664x, phase 0.9583x), diag_overlap_1000 (0.9440x cli / 0.9532x phase), diag_overlap_2000_1e9 (0.9520x cli / 0.9606x phase), diag_overlap_4000 (0.9534x cli / 0.9766x phase), roundrect_corridor_cli (0.8918x cli / 0.8528x phase), same_net_corridor_cli (0.7251x cli / 0.6777x phase), same_net_corridor_mixed_cli (0.8161x cli / 0.8195x phase), 0-collision sweeps foreign_tracks_2000 (0.9849x), foreign_tracks_mixed_nets (0.9741x), foreign_pads_roundrect (1.0555x), same_net_mixed_2000 (0.1786x), same_net_interleaved (0.7008x), isolated generated_treap_overlap_foreign 500/2000 (0.9302x / 0.9556x), generated_treap_overlap_foreign_isolated 2000 (1.0384x), generated_treap_overlap_samenet 500/2000 50k sweeps (0.0921s->0.0161s 0.1752x / 0.3675s->0.0466s 0.1268x), generated_treap_overlap_mixed_95_5 50k sweeps (0.7509s->0.4547s 0.6056x), and generated_treap_overlap_mixed_50_50 (0.9960x). components::partition quadratic scans, collinear overlap subtraction, large ceilings, and GPU potential remain OPEN."
+      "state": "verified-on-listed-controls",
+      "current_evidence": "docs/rust-parity.md reports matched whole native CLI wall time, process CPU, peak single-process RSS, work, expansions, vias and track length. The operation report separately times source staging, export, Rust routing, native apply/validation, publication and cleanup. Historical lane comparisons separate raw Rust from full native time. The original native process-tree probe sampled concurrent resident memory at 5 ms intervals. The measured boards define the scope of timing and memory observations. GPU performance remains unmeasured."
     },
     {
       "id": "RE-09",
@@ -757,11 +763,11 @@
         "fable-milestone-7",
         "carbon-milestone-7"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "rust-engine/src/lib.rs",
@@ -770,13 +776,13 @@
       "verification": [
         "Multi-net native fixtures and deterministic recovery; later admitted comparative boards under unchanged rules."
       ],
-      "state": "open",
-      "current_evidence": "Both independent reviewers accepted bounded greedy multi-terminal and multi-net routing at 7575313: 3/4/6 terminals, incumbent components, exact preservation, native zero opens/no-new DRC and shared-budget rollback. Original R-M7-01 request completes in 9751 expansions / 12 tracks under unchanged 100000 budget. M1 adds C-M7-02 collinear overlap normalization (P2a T-corridor and straddling split) and C-M3-05 unified two-pad edge attachment; M6 post-landing fable/astra audit pending. Rust negotiation now supports rip-up and whole-net victim repair across layers. T4-04 exercises 24 three-terminal nets. Global optimality and representative parity remain open."
+      "state": "verified-on-listed-controls",
+      "current_evidence": "Rust routes connected copper components, negotiates congestion, identifies blockers and restores failed whole-net transactions. T4-04 exercises 24 competing three-terminal nets. T4-05 exercises coupled pairs and length constraints. T5-02 checks protected copper. Three-via history, branch preservation, reverse landings, multi-bank layouts and budget-exhaustion controls accompany the matched real two- and four-layer native boards in docs/rust-parity.md."
     },
     {
       "id": "RE-10",
       "title": "Independent oversight is tied to exact changes and outcomes",
-      "must": "Fable and Carbon independently review relevant architecture, patches and native behavior. Keep objections, dispositions, exact revisions, evidence and unresolved gaps; escalate stale/missing review rather than infer acceptance.",
+      "must": "Fable and Astra independently review the final local-main revisions after full verification, run the complete suites and representative native boards, and report their findings. Keep objections, dispositions, exact revisions, evidence and unresolved gaps. Escalate a stale or missing review. A P0 or P1 fix requires fresh verification by both reviewers.",
       "source_ids": [
         "owner-oversight",
         "owner-prevention",
@@ -797,13 +803,14 @@
         "owner-greenfield",
         "fable-milestone-6-addendum",
         "fable-milestone-6-correction",
-        "carbon-milestone-6-correction"
+        "carbon-milestone-6-correction",
+        "owner-november-17-acceptance"
       ],
-      "implementation_owner": "agent-1484 for Rust; agent-1497 for native/project acceptance",
-      "acceptance_owner": "agent-1497",
+      "implementation_owner": "agent-2441 for the final Rust router and agent-ee integration",
+      "acceptance_owner": "agent-2441 for final integration, with both exact-revision reviews",
       "independent_reviewers": [
-        "agent-1503",
-        "agent-1502"
+        "Fable",
+        "Astra"
       ],
       "paths": [
         "docs/routing-requirements.json",
@@ -813,8 +820,8 @@
         "Exact-revision review results and tested dispositions; materially changed inputs invalidate affected acceptance.",
         "Blind skill behavior controls and stalled-review positive/negative cases."
       ],
-      "state": "open",
-      "current_evidence": "Both reviewers independently accept cb57c35 after original M6 reviews, Fable required-read addendum and focused correction review. Fable7Rust+6native mutants and Carbon1Rust+4native mutants are detected; root inspected complete reports/scripts/results plus selected individual assertion logs. Reviewer testimony, actual execution, scratch limitations and changed-document adjudication remain distinct. Full RE-01..RE-10 remain open."
+      "state": "requires-review-of-each-final-revision",
+      "current_evidence": "The November 16 Fable and Carbon reports and subsequent corrections remain associated with their recorded revisions. Skillpack 416d76a supplies the blind handoff/delegation controls. The independent exercise distinguished equal-output Python- and Rust-controlled implementations, recognized a partial overdue review and kept an ordinary documentation task free from an architecture review. Four compiled fixture invocations reproduce the ownership distinction. R5 requires each fresh reviewer to execute both suites and native board cases and issue an independent report for the exact implementation revisions."
     }
   ],
   "allowed_compatibility_seam": {
@@ -844,7 +851,15 @@
       "src/kicad_route/router/py_router/phase3_routing.py",
       "src/kicad_route/router/py_router/rip_up_reroute.py"
     ],
-    "rust_role": "search kernels via PyO3; not complete routing ownership"
+    "rust_role": "search kernels via PyO3; not complete routing ownership",
+    "scope": "Legacy kicad-route CLI. The greenfield native entry and agent-ee selection are described in rust_native.",
+    "rust_native": {
+      "entrypoint": "kicad-route-engine route-native",
+      "driver": "rust-engine/src/orchestration.rs::run_native",
+      "routing_control_language": "Rust",
+      "native_adapter": "tools/rust_engine_kicad.py",
+      "agent_ee_selection": "src/agent_ee/kicad_route_attempt.py::is_native_request selects the builtin backend on a Rust-capable checkout."
+    }
   },
   "withdrawn_or_unproved": [
     {
@@ -941,7 +956,8 @@
       "Before performance claims: matched, phase-attributed measurements; GPU potential stays open.",
       "Before interpreting exceptional termination: make panic and non-native adapter errors typed; scope reroute failure reasons.",
       "Extend native fixtures to accepted rectangular/orthogonal pads, net0 and foreign pads, and multiple routed nets; verify outline width semantics."
-    ]
+    ],
+    "scope": "Historical milestone review at the revisions in each record. The November 17 owner request names Fable and Astra for the final review."
   },
   "open_findings": [
     {
@@ -1433,14 +1449,15 @@
       "reviewed_revision": "b081bfba5e30eb4ad010e812b79059c9334c3866",
       "finding": "Native adapter input decoding, JSON files and whole operation are outside the Rust work/admission limits; only DRC has a timeout.",
       "evidence_class": "Source-derived stated exclusion.",
-      "status": "open",
+      "status": "measured-on-native-controls",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "The native workflow caps child output and handles deadlines and cancellation. Measure the cost of native decoding separately before claiming a bound on overall process memory.",
+      "next_action": "Use native timing and process measurements when expanding input admission. RE-08 reports scope and observed costs for each fixed input. Decoder allocations depend on the input and runtime.",
       "observation_deadline": "before acceptance of the next affected milestone",
       "blocks_current_integration": false,
       "correction_evidence": "Native file reads capped at16MiB plus1 read sentinel before decoding; source/plan/rules/limits/consumedDRC and exported JSON covered. Parsed allocations, native report generation, in-memory API arguments and whole-operation runtime remain outside this limit.",
-      "correction_review": "Both reviewers accept file-byte admission and encoder correction at179c106. Whole-process cancellation and measured parse/native memory remain open."
+      "correction_review": "Both reviewers accept file-byte admission and encoder correction at179c106. Whole-process cancellation and measured parse/native memory remain open.",
+      "native_measurement": "The Rust native supervisor owns child deadlines, cancellation, output limits and descendant cleanup. Native phase times and whole-operation process costs are measured on matched projects. A separate Linux cgroup child-OOM run produced an operation failure and no published board."
     },
     {
       "id": "C-M4-01",
@@ -1561,12 +1578,13 @@
       "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
       "finding": "Only executor unwinding is caught; no reachable panic in source recovery/serialization/publication demonstrated.",
       "evidence_class": "Source-derived scope limitation.",
-      "status": "open",
+      "status": "tested-on-linux-at-published-board-boundary",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Keep executor unwinding and whole-process death separate. The orchestration tests cover child SIGKILL and cancellation. Hard process death during publication requires separate evidence.",
+      "next_action": "Exercise the same commit points when changing publication or report ordering. Fsync and SIGKILL cover this process-death interval; hardware loss and other OOM intervals have separate failure semantics.",
       "observation_deadline": "before acceptance of the next affected milestone",
-      "blocks_current_integration": false
+      "blocks_current_integration": false,
+      "correction_evidence": "At 527744f6 a Linux strace-driven native test sent the Rust parent SIGKILL after the board directory fsync and while linking the operation report. It observed the interrupted process, no report and a board byte-identical to the control. Reopening Route Demo with its original project and rules gave zero opens and violations. Source board and both sidecars retained their hashes."
     },
     {
       "id": "F-M5-N4",
@@ -1599,12 +1617,13 @@
       "reviewed_revision": "47e98ec0f1e40be87a52e612968f8891629a35d8",
       "finding": "File-byte admission does not bound parsed/native allocation or whole-operation runtime.",
       "evidence_class": "Documented exclusion, also F-M4-N6/C-M4-01.",
-      "status": "open",
+      "status": "measured-on-native-controls",
       "owner": "agent-1497",
       "acceptance_owner": "agent-1497",
-      "next_action": "Use native process measurements alongside byte admission and engine work limits. A small set of peak RSS observations does not bound all supported inputs.",
+      "next_action": "Use native timing and process measurements when expanding input admission. RE-08 reports scope and observed costs for each fixed input. Decoder allocations depend on the input and runtime.",
       "observation_deadline": "before acceptance of the next affected milestone",
-      "blocks_current_integration": false
+      "blocks_current_integration": false,
+      "native_measurement": "The Rust native supervisor owns child deadlines, cancellation, output limits and descendant cleanup. Native phase times and whole-operation process costs are measured on matched projects. A separate Linux cgroup child-OOM run produced an operation failure and no published board."
     },
     {
       "id": "F-M5-N6",

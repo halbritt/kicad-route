@@ -6,7 +6,7 @@
   "limitations": "Paths and symbols are reviewable ownership declarations, not inferred semantic proof. Runtime boundary checks and exact-revision independent review are required separately.",
   "implementations": {
     "current-production": {
-      "role": "current default",
+      "role": "legacy kicad-route CLI and reference backend",
       "responsibilities": {
         "state": {
           "path": "src/kicad_route/router/py_router/route.py",
@@ -36,7 +36,7 @@
       "note": "Geometry/legality spans Python and Rust; this row names the Python commit decision, not every geometric kernel. Rust search kernels do not establish lifecycle ownership."
     },
     "rust-candidate": {
-      "role": "standalone incomplete replacement; not default",
+      "role": "greenfield kicad-route-engine route-native and agent-ee builtin on a Rust-capable checkout",
       "responsibilities": {
         "state": {
           "path": "rust-engine/src/state.rs",

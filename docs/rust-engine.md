@@ -6,8 +6,9 @@ continuously synchronize. Upstream sync convenience does not constrain the new
 design. Rust owns copper state, geometry and legality, search, net
 ordering, speculative edits and restore, and the exact output edit list. Existing
 `src/kicad_route/router` code stays intact as a reference and current backend.
-The new engine does not become the default or update the installed runtime as a
-side effect of building or testing it.
+The standalone Rust command is `kicad-route-engine route-native`. In agent-ee,
+the builtin backend selects this command when the checkout supports it. The
+separate legacy kicad-route CLI retains its existing backend selection.
 
 Heath's explicit direction is `owner-greenfield` in the requirements catalog
 (Cairn `d159855b-5bc5-4632-b43d-5ab2d70ea942/v1`). Replicate useful KRT capabilities
@@ -44,8 +45,12 @@ previous copper and congestion costs if either net cannot reconnect.
 During local repair, a multi-pad net can keep branches it has already connected.
 If the repair displaces another multi-pad net, the controller can reuse a whole
 branch that still joins two pads and passes clearance checks against the changed
-copper. The controller stages the resulting edits and publishes the board after
-native checks.
+copper. When a short branch ends on the centerline of a generated track and
+its far end also overlaps that track, the router splits the track at the
+junction. Both pieces keep the trunk's width and straight-line geometry.
+The router handles either insertion order and restores the original trunk
+and its identity if the transaction rolls back. The controller stages the
+resulting edits and publishes the board after native checks.
 
 ## Native compatibility interface
 
@@ -71,9 +76,9 @@ Export and application each read the standalone source once into a private
 snapshot. Its bytes determine the source hash, parsed geometry and DRC baseline;
 later edits to the original are preserved and cannot change that operation's
 baseline. Native DRC runs only on private copies and includes `--all-track-errors`,
-so its preferences files do not appear beside the source. Process termination can
-leave private temporary files; publication is atomic in visibility, not fsynced
-for crash durability.
+so KiCad creates its preferences files beside those copies. The direct Python
+adapter uses an atomic link for visibility and can leave private temporary
+files after abrupt process death.
 
 The standalone Linux `route-native` command also supervises the native child
 process group and its private staging directory. A killed native child causes
@@ -83,6 +88,19 @@ its staging files and preserved the original board. The destination remained
 absent. If the router itself dies during a native phase, a surviving
 helper terminates its descendants and removes the staging directory. If the host kills both the router and every helper, the caller or its
 temporary filesystem owns any remaining staging files.
+
+The Rust CLI links the completed board before it writes the optional operation
+report. A Linux regression interrupts the parent after the board directory has
+been synchronized and at the operation-report link. KiCad reopens the same board
+bytes as the uninterrupted run, and the source and rule files remain intact.
+A caller that finds a board after an interrupted operation can regrade it using
+the original project. If directory synchronization fails after a board link,
+the CLI returns exit 8 and reports the visible board's digest. The same exit
+applies if the saved request or operation report was linked but its directory
+could not be synchronized. In the latter case the report can still describe
+success. The caller must check the process exit and its final diagnostic.
+The regression requires Linux `strace` with syscall fault
+injection and permission to trace its own child process.
 
 The native adapter accepts boards with two to 32 copper layers and reads the
 project and custom-rule files beside the source board. An empty project or one
@@ -188,9 +206,11 @@ JSON exceeding the Rust input limit. Oversized inputs are `invalid`; oversized
 DRC reports are `native_validation_failed`. JSON decoder and export encoder
 recursion errors are typed; supported depths depend on the host implementation.
 Export uses compact JSON to avoid quadratic indentation growth with nesting.
-These byte limits do not measure or bound parsed/native allocations, report
-generation, in-memory API arguments, CPU or whole-operation wall time. DRC keeps
-its existing timeout; full-process cancellation and memory accounting remain open.
+The byte limits apply to serialized files. The Rust supervisor separately
+enforces its operation deadline, terminates native child processes and records
+phase times. The matched runs in [the parity matrix](rust-parity.md) report
+measured process RSS. Native KiCad and JSON allocation sizes depend on the
+input and the host runtime.
 
 ## Implementation sequence and acceptance
 
