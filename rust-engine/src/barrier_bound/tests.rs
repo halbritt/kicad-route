@@ -385,3 +385,179 @@ fn same_solid_on_every_physical_layer_survives_even_free_layer_changes() {
         false,
     );
 }
+
+// Independent dynamic program on every integer crossing height, without the
+// production endpoint recurrence. Integer gate ends admit an integer optimum.
+fn crossing_variation(y: i64, terminal: (i64, i64), gates: &[(i64, i64, i64)]) -> u64 {
+    let mut values: [u64; 15] = std::array::from_fn(|i| y.abs_diff(i as i64));
+    for &(_, low, high) in gates {
+        let previous = values;
+        for (i, v) in values.iter_mut().enumerate() {
+            let open = (low > 0 && i as i64 <= low) || (high < 14 && i as i64 >= high);
+            *v = if open {
+                previous
+                    .iter()
+                    .enumerate()
+                    .map(|(j, &dist)| dist.saturating_add(i.abs_diff(j) as u64))
+                    .min()
+                    .unwrap()
+            } else {
+                u64::MAX
+            };
+        }
+    }
+    values
+        .into_iter()
+        .enumerate()
+        .map(|(i, d)| {
+            let h = i as i64;
+            d.saturating_add(h.abs_diff(h.clamp(terminal.0, terminal.1)))
+        })
+        .min()
+        .unwrap()
+}
+
+#[test]
+fn ordered_passages_use_total_transverse_travel_and_survive_free_vias() {
+    let mut input = article();
+    input.bounds.min = [0, 0];
+    input.bounds.max = [14, 14];
+    let layers = vec!["F.Cu".into(), "B.Cu".into()];
+    let mut checks = 0;
+    for transpose in [false, true] {
+        let rotate = |[x, y]: Point| if transpose { [y, x] } else { [x, y] };
+        for intervals in [
+            [(3, 0, 9), (7, 4, 14), (11, 0, 8)], // alternating board-edge apertures
+            [(3, 2, 10), (7, 4, 12), (11, 2, 10)], // both sides available
+            [(3, 0, 9), (3, 6, 12), (11, 4, 14)], // two cuts at the same coordinate
+        ] {
+            input.rule_areas.clear();
+            let mut solids = Vec::new();
+            for (cut, low, high) in intervals {
+                let mut area = rectangle("F.Cu");
+                area.layers = layers.clone();
+                area.outer = [
+                    [cut - 1, low],
+                    [cut + 1, low],
+                    [cut + 1, high],
+                    [cut - 1, high],
+                ]
+                .map(rotate)
+                .to_vec();
+                input.rule_areas.push(area);
+                for layer in 0..layers.len() {
+                    solids.push(Solid {
+                        layer,
+                        lo: rotate([cut - 1, low]),
+                        hi: rotate([cut + 1, high]),
+                    });
+                }
+            }
+            for grid in [2, 3] {
+                for reach in [0, 1, 2] {
+                    let a = rotate([0, 5]);
+                    let b = rotate([14, 6]);
+                    let c = rotate([14, 7]);
+                    let h = BarrierBound::for_join(
+                        &input,
+                        1,
+                        &input.tracks,
+                        &layers,
+                        (a, a),
+                        (b, c),
+                        reach,
+                        grid,
+                        1,
+                        0,
+                        &budget(),
+                    )
+                    .unwrap();
+                    if intervals[0] == (3, 0, 9) && intervals[1].0 == 7 && grid == 2 && reach == 0 {
+                        // 14 nm longitudinal. 5->9->4->8->7 needs 14 nm transverse.
+                        assert_eq!(h.estimate(a, 0, &budget()).unwrap(), 14);
+                        // From the opposite end at y=6 the transverse travel is 15 nm.
+                        assert_eq!(h.estimate_reverse(b, 1, &budget()).unwrap(), 15);
+                    }
+                    checks +=
+                        compare_oracle(&h, 2, &solids, &[(0, b), (1, c)], reach, grid, 1, 0, false);
+                    if grid == 2 && reach == 0 {
+                        for x in 0..=14 {
+                            let ahead: Vec<_> =
+                                intervals.iter().copied().filter(|w| x < w.0).collect();
+                            let behind: Vec<_> = intervals
+                                .iter()
+                                .rev()
+                                .copied()
+                                .filter(|w| w.0 < x)
+                                .collect();
+                            for y in 0..=14 {
+                                let p = rotate([x, y]);
+                                let f = (14_u64 - x as u64).div_ceil(2)
+                                    + crossing_variation(y, (6, 7), &ahead).div_ceil(2);
+                                let r = (x as u64).div_ceil(2)
+                                    + crossing_variation(y, (5, 5), &behind).div_ceil(2);
+                                assert_eq!(h.estimate(p, 0, &budget()).unwrap(), f);
+                                assert_eq!(h.estimate_reverse(p, 1, &budget()).unwrap(), r);
+                            }
+                        }
+                    }
+                    checks += compare_oracle(&h, 2, &solids, &[(0, a)], 0, grid, 1, 0, true);
+                }
+            }
+        }
+    }
+    assert!(checks > 80_000);
+}
+
+#[test]
+fn ordered_preparation_and_queries_stop_at_their_shared_limits() {
+    let layers = vec!["F.Cu".into(), "B.Cu".into()];
+    let build = |count: usize, work: &WorkBudget| {
+        let mut input = article();
+        for i in 0..count {
+            let mut wall = rectangle("F.Cu");
+            wall.layers = layers.clone();
+            for p in &mut wall.outer {
+                p[0] += 3 * i as i64;
+            }
+            input.rule_areas.push(wall);
+        }
+        BarrierBound::for_join(
+            &input,
+            1,
+            &input.tracks,
+            &layers,
+            ([0, 5], [0, 5]),
+            ([100, 5], [100, 5]),
+            0,
+            2,
+            1,
+            0,
+            work,
+        )
+    };
+    let limited = |max_work| {
+        WorkBudget::new(Limits {
+            max_work,
+            ..Default::default()
+        })
+    };
+    let setup = budget();
+    let h = build(3, &setup).unwrap();
+    assert!(h.ordered[0].is_some());
+    assert!(
+        matches!(build(3,&limited(setup.used()-1)), Err(e) if e.status == crate::model::Status::WorkExhausted)
+    );
+    let query = budget();
+    h.estimate([3, 0], 0, &query).unwrap();
+    assert!(
+        matches!(h.estimate([3,0],0,&limited(query.used()-1)), Err(e) if e.status == crate::model::Status::WorkExhausted)
+    );
+
+    // Exceeding the small family bound leaves the existing one-wall estimate
+    // available. The router can still use the ordinary work and search limits.
+    let many = build(MAX_ORDERED_CUTS + 1, &budget()).unwrap();
+    assert!(many.is_active());
+    assert!(many.ordered[0].is_none());
+    assert!(many.estimate([0, 5], 0, &budget()).unwrap() > 50);
+}
