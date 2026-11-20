@@ -200,11 +200,22 @@ fn from_contacts(
         .work
         .charge(choices.len() as u64 * choices.len().max(1).next_power_of_two().ilog2() as u64)?;
     choices.sort_unstable();
+    // All supplemental via probes for these contact pairs share one allowance.
+    // Sparse probes and the ordinary search remain available when it is spent.
+    let remaining = budget.current_limit.saturating_sub(*expanded);
+    let mut extra_sites = engine
+        .surface_search_share
+        .unwrap_or(remaining / engine.input.nets.len().max(1) as u64)
+        .min(remaining);
     let mut expand = || {
         budget.check_before_expand(engine, *expanded, frontier)?;
         *expanded += 1;
         Ok(())
     };
+    let active_choices = frontier_entries + choices.len();
+    let mut sites_by_contact =
+        std::collections::BTreeMap::<(Point, usize), Vec<PlacedViaKey>>::new();
+    let mut cached_entries = 0usize;
     let mut best: Option<Path> = None;
     for (lower, at, face, end, dest) in choices {
         if best.as_ref().is_some_and(|p| p.steps <= lower) {
@@ -233,8 +244,36 @@ fn from_contacts(
         if best.as_ref().is_some_and(|p| p.steps <= lower) {
             continue;
         }
-        let left = layer_crossing::drill_sites(engine, net, source.at, source.layer)?;
-        let right = layer_crossing::drill_sites(engine, net, target.at, target.layer)?;
+        let mut sample = || {
+            if extra_sites == 0 || best.is_some() {
+                return Ok(false);
+            }
+            expand()?;
+            extra_sites -= 1;
+            Ok(true)
+        };
+        let mut sites = |t: Terminal| -> Result<Vec<PlacedViaKey>, Failure> {
+            let key = (t.at, t.layer);
+            engine
+                .work
+                .charge(1 + sites_by_contact.len().max(1).ilog2() as u64)?;
+            if let Some(old) = sites_by_contact.get(&key) {
+                engine.work.charge(old.len() as u64)?;
+                return Ok(old.clone());
+            }
+            let found = layer_crossing::drill_sites(engine, net, t.at, t.layer, Some(&mut sample))?;
+            let needed = 1 + found.len();
+            // Caching a contact is optional when the ordinary frontier owns
+            // the remaining search storage.
+            if active_choices + cached_entries + needed <= engine.input.limits.max_search_entries {
+                engine.work.charge(needed as u64)?;
+                cached_entries += needed;
+                sites_by_contact.insert(key, found.clone());
+            }
+            Ok(found)
+        };
+        let left = sites(source)?;
+        let right = sites(target)?;
         if source.layer != dest {
             for &v in &left {
                 join.connect(dest, Some(v), None, &mut best, &mut expand)?;

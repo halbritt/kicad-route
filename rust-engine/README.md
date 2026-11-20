@@ -291,7 +291,12 @@ can be used once the join has consumed its share of the board budget.
 
 When an ordinary board-wide search starts probing from both ends of a join,
 it can retain a checked surface route as its best known path. It samples
-short pad departures in each axial direction. A pair of contacts on
+short pad departures in each axial direction. If the spaced samples all miss
+and the join still needs a route, it checks intervening grid points in order
+of distance. Each extra probe spends an expansion from a shared allowance.
+A solid no-via rectangle can exclude a run of drill centers at once.
+Every resulting via and the entire surface track to it must be legal.
+A pair of contacts on
 different faces can share one through-via. A blocked face can use a pair
 of legal through-vias and an intermediate layer. The ordinary frontier can
 improve on that path. The initial expansion budget divided among the

@@ -236,3 +236,53 @@ def test_inner_land_grid_pads_escape_to_drills_outside_the_package(tmp_path, gua
                    and t.GetStartY() != t.GetEndY() for t in tracks)
     native = run_native_drc(saved, sidecar_source=source).raw
     assert not native["unconnected_items"] and not native["violations"]
+
+
+def test_shielded_contacts_reach_drill_windows_between_geometric_samples(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=10382)
+    board.set_rect_outline(0, 0, 40_000_000, 24_000_000)
+    front, back = pcbnew.F_Cu, pcbnew.B_Cu
+    stack = [front, pcbnew.In1_Cu, pcbnew.In2_Cu, back]
+
+    def point(x, y):
+        return pcbnew.FromMM(x), pcbnew.FromMM(y)
+
+    def block(layers, x, y, u, v, *, tracks=False, vias=False):
+        ring = [point(x, y), point(u, y), point(u, v), point(x, v)]
+        board.add_keepout(layers, ring, no_tracks=tracks, no_vias=vias)
+
+    for ref, net, x, y, layer in [("J1", "SIG", 3.1, 8, front), ("J2", "SIG", 36.9, 13, front),
+                                  ("R1", "REF", 3, 2, back), ("R2", "REF", 8, 2, back)]:
+        pos = point(x, y)
+        part = board.add_footprint(ref, pos, side="F" if layer == front else "B")
+        part.Reference().SetVisible(False)
+        part.Value().SetVisible(False)
+        board.add_pad(part, "1", net, pos, size_nm=point(.7, .6),
+                      shape=pcbnew.PAD_SHAPE_RECT, layers=[layer])
+
+    windows = [(5.6, 8), (33.09, 13)]
+    for (x, y), (lo, hi) in zip(windows, [(-1, 20), (20, 41)]):
+        block(stack, lo, -1, x - .55, 25, vias=True)
+        block(stack, x + .55, -1, hi, 25, vias=True)
+        block(stack, x - .55, -1, x + .55, y - .65, vias=True)
+        block(stack, x - .55, y + .65, x + .55, 25, vias=True)
+    block([front, back], 14, -1, 26, 25, tracks=True)
+    board.set_project_rules()
+    source = board.save(tmp_path / "input").pcb_path
+    initial = run_native_drc(source).raw
+    assert len(initial["unconnected_items"]) == 2 and not initial["violations"]
+
+    run, _ = guarded_cli
+    saved, operation = tmp_path / "routed.kicad_pcb", tmp_path / "operation.json"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved),
+         "--operation-result", str(operation)])
+    assert json.loads(operation.read_bytes())["routing"]["status"] == "complete"
+    reopened = pcbnew.LoadBoard(str(saved))
+    vias = sorted((via.GetStartX(), via.GetStartY()) for via in reopened.GetTracks()
+                  if isinstance(via, pcbnew.PCB_VIA) and via.GetNetname() == "SIG")
+    assert len(vias) == 2
+    for (vx, vy), (cx, cy) in zip(vias, windows):
+        x, y = point(cx, cy)
+        assert abs(vx - x) < pcbnew.FromMM(.55) and abs(vy - y) < pcbnew.FromMM(.65)
+    verified = run_native_drc(saved, sidecar_source=source).raw
+    assert not verified["unconnected_items"] and not verified["violations"]

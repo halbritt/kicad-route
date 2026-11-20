@@ -77,9 +77,13 @@ impl Mesh<'_> {
             }
         }
         let surface = result.len();
-        for via in
-            super::super::layer_crossing::drill_sites(self.engine, self.net, p, usize::from(layer))?
-        {
+        for via in super::super::layer_crossing::drill_sites(
+            self.engine,
+            self.net,
+            p,
+            usize::from(layer),
+            None,
+        )? {
             let stub = link(p, via.at, layer);
             if unpenalized_terminal(self.engine, self.history, &[stub])? {
                 self.via_portals(
