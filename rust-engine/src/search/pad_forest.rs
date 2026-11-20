@@ -7,27 +7,35 @@ use crate::negotiate::{BlockedFrontier, TrialBudget};
 
 // The distance to a point along an octilinear trace changes slope only on
 // its axial and diagonal projections. Emit exact integer centerline contacts.
-fn projections(a: Point, b: Point, terminal: Point) -> impl Iterator<Item = Point> {
+pub(super) fn interior_projections(
+    a: Point,
+    b: Point,
+    terminal: Point,
+) -> impl Iterator<Item = Point> {
     let direction: Point = std::array::from_fn(|k| (b[k] - a[k]).signum());
     let length = a[0].abs_diff(b[0]).max(a[1].abs_diff(b[1])) as i64;
     let dx = terminal[0] - a[0];
     let dy = terminal[1] - a[1];
     let [x, y] = direction;
     let equations = [(dx, x), (dy, y), (dx + dy, x + y), (dx - dy, x - y)];
+    equations.into_iter().filter_map(move |(n, d)| {
+        if d == 0 || n % d != 0 {
+            return None;
+        }
+        let offset = n / d;
+        (0 < offset && offset < length).then(|| [a[0] + x * offset, a[1] + y * offset])
+    })
+}
+
+fn projections(a: Point, b: Point, terminal: Point) -> impl Iterator<Item = Point> {
     [a, b]
         .into_iter()
-        .chain(equations.into_iter().filter_map(move |(n, d)| {
-            if d == 0 || n % d != 0 {
-                return None;
-            }
-            let offset = n / d;
-            (0 < offset && offset < length).then(|| [a[0] + x * offset, a[1] + y * offset])
-        }))
+        .chain(interior_projections(a, b, terminal))
 }
 
 /// Keep the endpoint inside a surface pad, one track radius back along
 /// the arm from its exit. A plated connection keeps the barrel center.
-fn pad_landing(
+pub(super) fn pad_landing(
     engine: &Engine,
     pad: &crate::model::Pad,
     point: Point,

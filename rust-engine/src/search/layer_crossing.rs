@@ -245,6 +245,59 @@ fn cross(
     Ok(None)
 }
 
+const AXIAL: [Point; 4] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+fn grid_ray_end(engine: &Engine, at: Point, direction: Point) -> u64 {
+    (0..2)
+        .filter(|&k| direction[k] != 0)
+        .map(|k| {
+            let limit = if direction[k] < 0 {
+                engine.input.bounds.min[k]
+            } else {
+                engine.input.bounds.max[k]
+            };
+            limit.abs_diff(at[k]) / engine.input.rules.grid_nm as u64 + 1
+        })
+        .min()
+        .unwrap_or(0)
+}
+
+fn axial_drill_sample(
+    engine: &Engine,
+    net: u32,
+    layer: usize,
+    at: Point,
+    direction: Point,
+) -> Result<RaySample, Failure> {
+    let grid = engine.input.rules.grid_nm;
+    sample_via(
+        engine,
+        net,
+        layer,
+        at,
+        grid_ray_end(engine, at, direction),
+        |n| std::array::from_fn(|k| at[k] + direction[k] * grid * n as i64),
+        &[],
+    )
+}
+
+pub(super) fn has_axial_drill(
+    engine: &Engine,
+    net: u32,
+    layer: usize,
+    at: Point,
+) -> Result<bool, Failure> {
+    for direction in AXIAL {
+        if axial_drill_sample(engine, net, layer, at, direction)?
+            .via
+            .is_some()
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 /// Prefer the existing axial samples. If every ray misses, a narrow drill
 /// window can still lie between them. Charge each additional grid site to
 /// the calling search and retain the nearest reachable window.
@@ -257,36 +310,13 @@ pub(super) fn drill_sites(
 ) -> Result<Vec<PlacedViaKey>, Failure> {
     let grid = engine.input.rules.grid_nm;
     let last = engine.layer_count() - 1;
-    const AXIAL: [Point; 4] = [[-1, 0], [1, 0], [0, -1], [0, 1]];
     const DIAGONAL: [Point; 4] = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
     let point =
         |direction: Point, n: u64| std::array::from_fn(|k| at[k] + direction[k] * grid * n as i64);
-    let ray_end = |direction: Point| {
-        (0..2)
-            .filter(|&k| direction[k] != 0)
-            .map(|k| {
-                let limit = if direction[k] < 0 {
-                    engine.input.bounds.min[k]
-                } else {
-                    engine.input.bounds.max[k]
-                };
-                limit.abs_diff(at[k]) / grid as u64 + 1
-            })
-            .min()
-            .unwrap_or(0)
-    };
     let mut sites = Vec::with_capacity(4);
     let mut axial_ends = [0; 4];
     for (i, direction) in AXIAL.into_iter().enumerate() {
-        let sample = sample_via(
-            engine,
-            net,
-            layer,
-            at,
-            ray_end(direction),
-            |n| point(direction, n),
-            &[],
-        )?;
+        let sample = axial_drill_sample(engine, net, layer, at, direction)?;
         if let Some(via) = sample.via {
             sites.push(via);
         }
@@ -302,7 +332,11 @@ pub(super) fn drill_sites(
     // a drill window that no horizontal or vertical line crosses.
     for (directions, mut ends, sampled) in [
         (AXIAL, axial_ends, true),
-        (DIAGONAL, DIAGONAL.map(ray_end), false),
+        (
+            DIAGONAL,
+            DIAGONAL.map(|dir| grid_ray_end(engine, at, dir)),
+            false,
+        ),
     ] {
         let mut next = [if sampled { 3 } else { 1 }; 4];
         loop {
@@ -346,6 +380,108 @@ pub(super) fn drill_sites(
             }
         }
     }
+    pad_edge_drills(engine, net, at, layer, expand)
+}
+
+pub(super) fn uncapped_drill_diameter(engine: &Engine, net: u32) -> Result<Option<i64>, Failure> {
+    if !engine
+        .input
+        .board_design_settings
+        .as_ref()
+        .is_some_and(|s| !s.cap_vias || !s.fill_vias)
+    {
+        return Ok(None);
+    }
+    match engine
+        .effective_rules
+        .via_dims_for(net, false, engine.all_layers_slice())
+    {
+        Ok((diameter, _)) => Ok(Some(diameter)),
+        Err(err) if err.status == crate::model::Status::Unroutable => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+// For a simple convex pad, its bounds give four support lines. The track
+// and the full drill stack still need the ordinary physical checks.
+pub(super) fn pad_edge_positions(
+    pad: &crate::model::Pad,
+    at: Point,
+    diameter: i64,
+) -> Option<[Point; 4]> {
+    use crate::model::Shape;
+    if pad.drill.is_some()
+        || pad.copper_center() != at
+        || !matches!(
+            &pad.shape,
+            Shape::Circle { .. }
+                | Shape::Rect { .. }
+                | Shape::RoundRect { .. }
+                | Shape::BoxExact { .. }
+        )
+    {
+        return None;
+    }
+    let (lo, hi) = pad.copper_bounds();
+    let radius = (diameter + 1) / 2;
+    Some([
+        [lo[0] - radius, at[1]],
+        [hi[0] + radius, at[1]],
+        [at[0], lo[1] - radius],
+        [at[0], hi[1] + radius],
+    ])
+}
+
+/// When an SMD land cannot take an uncapped via, the edge of the land is an
+/// independent physical landmark. An off-grid drill can fit between that
+/// boundary and an obstruction on another layer even if every pitch sample
+/// along the terminal's open ray is blocked.
+pub(super) fn pad_edge_drills(
+    engine: &Engine,
+    net: u32,
+    at: Point,
+    layer: usize,
+    expand: &mut dyn FnMut() -> Result<bool, Failure>,
+) -> Result<Vec<PlacedViaKey>, Failure> {
+    let Some(diameter) = uncapped_drill_diameter(engine, net)? else {
+        return Ok(Vec::new());
+    };
+    let layers = engine.all_layers_slice();
+    let mut sites = Vec::new();
+    let query = crate::spatial::SweptAabb::swept(at, at, 0, 0);
+    let _ = engine.pad_spatial[layer].visit_matching(query, None, &engine.work, |ordinal, _| {
+        let pad = &engine.input.pads[ordinal as usize];
+        engine.work.charge(1)?;
+        if pad.net != net {
+            return Ok(std::ops::ControlFlow::Continue(()));
+        }
+        let Some(positions) = pad_edge_positions(pad, at, diameter) else {
+            return Ok(std::ops::ControlFlow::Continue(()));
+        };
+        for drill in positions {
+            if !expand()? {
+                return Ok(std::ops::ControlFlow::Break(()));
+            }
+            if engine.legal_edge_on(net, layer, at, drill)?
+                && engine
+                    .legal_via(net, drill, 0, layers.len() - 1, ViaKind::Through, &[])?
+                    .is_some()
+            {
+                let via = PlacedViaKey {
+                    at: drill,
+                    start_layer: 0,
+                    end_layer: layers.len() as u8 - 1,
+                    kind: 0,
+                };
+                engine.work.charge(sites.len() as u64)?;
+                if !sites.contains(&via) {
+                    engine.work.search_storage(sites.len() + 1)?;
+                    sites.push(via);
+                }
+            }
+        }
+        Ok(std::ops::ControlFlow::Continue(()))
+    })?;
     Ok(sites)
 }
 
@@ -460,6 +596,108 @@ fn sample_via(
 mod tests {
     use super::*;
     use crate::model::Input;
+
+    #[test]
+    fn a_pad_boundary_drill_can_fit_between_grid_centres_and_checks_the_entire_stack() {
+        let mut input: Input = serde_json::from_value(serde_json::json!({
+            "version":1,"source_id":"c".repeat(64),"layer":"F.Cu",
+            "layers":["F.Cu","In1.Cu","In2.Cu","B.Cu"],
+            "bounds":{"min":[0,0],"max":[30_000_000,20_000_000]},
+            "rules":{"width_nm":200_000,"clearance_nm":200_000,"grid_nm":250_000,
+                     "edge_clearance_nm":500_000},"nets":[{"id":1,"name":"SIGNAL"},{"id":2,"name":"SHIELD"}],
+            "pads":[{"id":"229d2c06-bd71-40a1-a21c-ab10ba2af5e1","net":1,"at":[12_000_000,10_000_000],
+                      "layers":["B.Cu"],"shape":{"kind":"rect","half_size_nm":[380_000,220_000]}}],
+            "tracks":[{"id":"a20dbbc2-1a63-4dd1-a23d-241cb169743e","net":2,"layer":"In2.Cu",
+                       "start":[13_285_000,5_000_000],"end":[13_285_000,15_000_000],"width_nm":200_000,"locked":true}],
+            "max_expansions":100_000
+        })).unwrap();
+        input.board_design_settings = Some(crate::rules::BoardDesignSettings {
+            min_track_width_nm: 200_000,
+            default_track_width_nm: 200_000,
+            default_clearance_nm: 200_000,
+            min_via_diameter_nm: 500_000,
+            default_via_diameter_nm: 600_000,
+            min_via_annular_width_nm: 100_000,
+            min_through_hole_diameter_nm: 300_000,
+            default_via_drill_nm: 300_000,
+            ..Default::default()
+        });
+        for (i, (x, y, r, t)) in [
+            (0, 0, 12_379_999, 20_000_000),
+            (13_300_000, 0, 30_000_000, 20_000_000),
+            (12_379_999, 0, 13_300_000, 9_650_000),
+            (12_379_999, 10_350_000, 13_300_000, 20_000_000),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            input.rule_areas.push(
+                serde_json::from_value(serde_json::json!({
+                    "id":format!("2063098d-53ca-433b-9998-{i:012x}"),"layers":["In1.Cu"],
+                    "outer":[[x,y],[r,y],[r,t],[x,t]],"no_tracks":false,"no_vias":true
+                }))
+                .unwrap(),
+            );
+        }
+        let source = [12_000_000, 10_000_000];
+        for sealed in [false, true] {
+            let mut request = input.clone();
+            if sealed {
+                request.tracks[0].start[0] -= 10_000;
+                request.tracks[0].end[0] -= 10_000;
+            }
+            let engine = Engine::new(request).unwrap();
+            let back = engine.layer_count() - 1;
+            assert!(drill_sites(&engine, 1, source, back, None)
+                .unwrap()
+                .is_empty());
+            assert!(pad_edge_drills(&engine, 1, source, back, &mut || Ok(false))
+                .unwrap()
+                .is_empty());
+            let candidates = drill_sites(&engine, 1, source, back, Some(&mut || Ok(true))).unwrap();
+            if sealed {
+                assert!(candidates.is_empty());
+            } else {
+                assert_eq!(
+                    candidates.iter().map(|v| v.at).collect::<Vec<_>>(),
+                    [[12_680_000, 10_000_000]]
+                );
+            }
+        }
+        // A legal bore beyond a surface keepout is not reachable from the pad.
+        let mut severed = input.clone();
+        severed.rule_areas.push(
+            serde_json::from_value(serde_json::json!({
+                "id":"1ff7a4ee-94c8-4e53-a3d4-90d701757e84","layers":["B.Cu"],
+                "outer":[[12_455_000,9_000_000],[12_465_000,9_000_000],
+                         [12_465_000,11_000_000],[12_455_000,11_000_000]],
+                "no_tracks":true,"no_vias":false
+            }))
+            .unwrap(),
+        );
+        let engine = Engine::new(severed).unwrap();
+        let last = engine.layer_count() - 1;
+        assert!(engine
+            .legal_via(1, [12_680_000, 10_000_000], 0, last, ViaKind::Through, &[])
+            .unwrap()
+            .is_some());
+        assert!(pad_edge_drills(&engine, 1, source, last, &mut || Ok(true))
+            .unwrap()
+            .is_empty());
+
+        let settings = input.board_design_settings.as_mut().unwrap();
+        settings.fill_vias = true;
+        settings.cap_vias = true;
+        let filled = Engine::new(input).unwrap();
+        let mut calls = 0;
+        let sites = pad_edge_drills(&filled, 1, source, filled.layer_count() - 1, &mut || {
+            calls += 1;
+            Ok(true)
+        })
+        .unwrap();
+        assert!(sites.is_empty());
+        assert_eq!(calls, 0);
+    }
 
     #[test]
     fn a_solid_via_keepout_on_one_layer_skips_the_whole_ray() {

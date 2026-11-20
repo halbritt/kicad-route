@@ -8,6 +8,7 @@ mod octilinear_exit;
 mod octilinear_terminal;
 mod pad_field;
 mod pad_forest;
+mod terminal_forest;
 pub(crate) use pad_forest::route_shared_footprint_branches;
 mod reverse_sources;
 mod routing_mesh;
@@ -427,6 +428,11 @@ pub(crate) fn join_open_components(
     {
         if let Some(edges) =
             pad_forest::between(engine, net, groups, budget, expanded, frontier.as_deref())?
+        {
+            return Ok(edges);
+        }
+        if let Some(edges) =
+            terminal_forest::between(engine, net, groups, budget, expanded, frontier.as_deref())?
         {
             return Ok(edges);
         }
