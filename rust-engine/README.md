@@ -303,7 +303,10 @@ direct departures cannot reach a drill, a local search follows legal surface
 segments around obstacles up to two lattice pitches from the contact. It
 uses the nearest reachable drilling window and charges each explored point
 to the same expansion allowance as the remaining lattice search.
-The ordinary search can still use passages between lattice points.
+When a coarse frontier runs out of reachable points, the router can halve
+the number of grid steps between lattice lines, rounding up to a whole step.
+All resolutions draw from the same expansion allowance. The ordinary search
+can still use passages between lattice points.
 
 For an oblique imported track separating the terminals, the planar bound
 uses the shorter detour past either end. When the existing same-net tree
