@@ -323,6 +323,11 @@ board-wide join, it can also search the multilayer lattice described below
 from the existing copper to any reachable surface terminal. It keeps every
 disconnected target in the ordinary queue. A complete lattice connection
 can be used once the join has consumed its share of the board budget.
+When the source tree has more launch states than the mesh can visit, a
+disconnected surface pad can escape toward the tree from its own end. The
+router tries this before the mesh when another target island already contains
+a track or via. It checks the surface approach, through-via and buried track
+under the same per-join allowance.
 
 For a net with four or more disconnected pad groups, the board-wide router
 can join unobstructed neighboring pads on a common layer before starting a
