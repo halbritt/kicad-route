@@ -507,7 +507,7 @@ fn join_components_inner(
         // Preserve successful grid routes and negotiated rip-up of generated blockers.
         return result;
     }
-    match octilinear_exit::between_pads(
+    octilinear_exit::between_pads(
         engine,
         net,
         source,
@@ -516,14 +516,13 @@ fn join_components_inner(
         budget,
         expanded,
         frontier.as_deref(),
-    )? {
-        Some(path) => Ok(path),
-        None => result.map_err(|mut e| {
-            e.expanded_states = *expanded;
-            e.work_used = engine.work.used();
-            e
-        }),
-    }
+    )
+    .and_then(|candidate| candidate.map_or(result, Ok))
+    .map_err(|mut e| {
+        e.expanded_states = *expanded;
+        e.work_used = engine.work.used();
+        e
+    })
 }
 
 #[derive(Default)]
