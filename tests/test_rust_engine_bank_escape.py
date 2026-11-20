@@ -625,7 +625,8 @@ def test_distributed_surface_supply_joins_the_header_and_all_local_loads(tmp_pat
     assert not after["unconnected_items"] and not after["violations"]
 
 
-def test_alternating_inner_guards_connect_through_reserved_drill_slots(tmp_path, guarded_cli):
+@pytest.mark.parametrize("plated_end", [None, "U1", "J1"])
+def test_alternating_inner_guards_connect_through_reserved_drill_slots(tmp_path, guarded_cli, plated_end):
     board = BoardBuilder(copper_layers=4, seed=4612)
     layers = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
 
@@ -645,8 +646,12 @@ def test_alternating_inner_guards_connect_through_reserved_drill_slots(tmp_path,
         fp = board.add_footprint(ref, at, side="F" if face == pcbnew.F_Cu else "B")
         fp.Reference().SetVisible(False)
         fp.Value().SetVisible(False)
-        board.add_pad(fp, "1", net, at, size_nm=point(.72, .6),
-                      shape=pcbnew.PAD_SHAPE_RECT, layers=[face])
+        if ref == plated_end:
+            board.add_pad(fp, "1", net, at, attrib=pcbnew.PAD_ATTRIB_PTH,
+                          size_nm=point(1.5, 1.5), drill_size_nm=point(.7, .7))
+        else:
+            board.add_pad(fp, "1", net, at, size_nm=point(.72, .6),
+                          shape=pcbnew.PAD_SHAPE_RECT, layers=[face])
     strip([pcbnew.F_Cu, pcbnew.B_Cu], 10, 65, tracks=True, vias=False)
     for x, layer in [(16, 1), (27, 2), (38, 1), (49, 2), (60, 1)]:
         strip([layers[layer]], x, x + .9, tracks=True, vias=False)
@@ -674,3 +679,7 @@ def test_alternating_inner_guards_connect_through_reserved_drill_slots(tmp_path,
     for left, right in slots:
         assert any(pcbnew.FromMM(left) < via.GetPosition().x < pcbnew.FromMM(right) for via in drills)
     assert all(via.GetViaType() == pcbnew.VIATYPE_THROUGH for via in drills)
+    if plated_end:
+        # The plated terminal already reaches the buried track. The four
+        # slots and the opposite surface land each need one new drill.
+        assert len(drills) == len(slots) + 1

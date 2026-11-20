@@ -5,6 +5,37 @@ use super::{
 };
 use crate::search::monotone_trunk::clear_span;
 
+#[derive(Clone, Copy)]
+enum Access {
+    NewVia(PlacedViaKey),
+    Copper { at: Point, layers: u32 },
+}
+impl From<PlacedViaKey> for Access {
+    fn from(v: PlacedViaKey) -> Self {
+        Self::NewVia(v)
+    }
+}
+impl Access {
+    fn at(self) -> Point {
+        match self {
+            Self::NewVia(v) => v.at,
+            Self::Copper { at, .. } => at,
+        }
+    }
+    fn via(self) -> Option<PlacedViaKey> {
+        match self {
+            Self::NewVia(v) => Some(v),
+            Self::Copper { .. } => None,
+        }
+    }
+    fn reaches(self, layer: usize) -> bool {
+        match self {
+            Self::NewVia(_) => true,
+            Self::Copper { layers, .. } => layers & (1 << layer) != 0,
+        }
+    }
+}
+
 struct Corridor {
     ends: [Point; 3],
     grid: i64,
@@ -67,26 +98,31 @@ impl Join<'_> {
     fn follow_corridor(
         &self,
         c: &Corridor,
-        first: PlacedViaKey,
-        last: PlacedViaKey,
+        first: Access,
+        last: Access,
         allowed: &[bool],
         occupied: usize,
         expand: &mut impl FnMut() -> Result<bool, Failure>,
     ) -> Result<Option<Path>, Failure> {
         let engine = self.engine;
         let stack_end = engine.layer_count() - 1;
-        if engine
-            .legal_via(self.net, last.at, 0, stack_end, ViaKind::Through, &[first])?
-            .is_none()
-        {
-            return Ok(None);
-        }
         engine.work.search_storage(occupied + 4)?;
-        let mut holes = vec![first, last];
-        let mut edges = vec![
-            track(self.source.at, first.at, self.source.layer),
-            PathEdge::Via(first),
-        ];
+        let mut holes = Vec::new();
+        let mut edges = Vec::new();
+        if let Some(v) = first.via() {
+            holes.push(v);
+            edges.push(track(self.source.at, v.at, self.source.layer));
+            edges.push(PathEdge::Via(v));
+        }
+        if let Some(v) = last.via() {
+            if engine
+                .legal_via(self.net, v.at, 0, stack_end, ViaKind::Through, &holes)?
+                .is_none()
+            {
+                return Ok(None);
+            }
+            holes.push(v);
+        }
         let mut pos = 0;
         let mut last_layer = self.source.layer;
         while pos < c.end {
@@ -96,7 +132,7 @@ impl Join<'_> {
             let mut far = pos;
             let mut plane = 0;
             for (l, &ok) in allowed.iter().enumerate() {
-                if !ok {
+                if !ok || (pos == 0 && !first.reaches(l)) {
                     continue;
                 }
                 let extent =
@@ -109,7 +145,7 @@ impl Join<'_> {
             if far == pos {
                 return Ok(None);
             }
-            if pos == 0 && plane == self.source.layer {
+            if pos == 0 && plane == self.source.layer && first.via().is_some() {
                 edges.pop(); // The surface stub continues without a layer transfer.
             }
             last_layer = plane;
@@ -171,10 +207,14 @@ impl Join<'_> {
             }
             pos = next;
         }
-        if last_layer != self.target.layer {
-            edges.push(PathEdge::Via(last));
+        if let Some(v) = last.via() {
+            if last_layer != self.target.layer {
+                edges.push(PathEdge::Via(v));
+            }
+            edges.push(track(v.at, self.target.at, self.target.layer));
+        } else if !last.reaches(last_layer) {
+            return Ok(None);
         }
-        edges.push(track(last.at, self.target.at, self.target.layer));
         engine.work.charge(edges.len() as u64)?;
         engine
             .work
@@ -227,16 +267,16 @@ impl Join<'_> {
         }))
     }
 
-    pub(super) fn through_corridors(
+    fn through_corridors(
         &self,
-        a: PlacedViaKey,
-        b: PlacedViaKey,
+        a: Access,
+        b: Access,
         allowed: &[bool],
         occupied: usize,
         expand: &mut impl FnMut() -> Result<bool, Failure>,
     ) -> Result<Option<Path>, Failure> {
-        let p = a.at;
-        let q = b.at;
+        let p = a.at();
+        let q = b.at();
         if p == q {
             return Ok(None);
         }
@@ -277,10 +317,23 @@ pub(in crate::search) fn through_launch_corridors(
     let [goal] = targets else {
         return Ok(None);
     };
-    let Some((end, dest)) = goal.surface_contact(allowed, &engine.work)? else {
-        return Ok(None);
-    };
-    let right = crate::search::layer_crossing::drill_sites(engine, net, end, dest, None)?;
+    let (end, dest, right) =
+        if let Some((end, dest)) = goal.surface_contact(allowed, &engine.work)? {
+            let holes = crate::search::layer_crossing::drill_sites(engine, net, end, dest, None)?;
+            (
+                end,
+                dest,
+                holes.into_iter().map(Access::NewVia).collect::<Vec<_>>(),
+            )
+        } else if let Some((at, layers)) = goal.plated_contact(&engine.work)? {
+            (
+                at,
+                layers.trailing_zeros() as usize,
+                vec![Access::Copper { at, layers }],
+            )
+        } else {
+            return Ok(None);
+        };
     if right.is_empty() {
         return Ok(None);
     }
@@ -295,12 +348,45 @@ pub(in crate::search) fn through_launch_corridors(
         share -= 1;
         Ok(true)
     };
+    // A launch on buried copper belongs to the actual source component.
+    // Its existing electrical access is available without drilling it again.
+    let inner = |layer: u8| layer > 0 && usize::from(layer) + 1 < allowed.len();
+    // One plated contact can appear as a separate start on each buried
+    // face. Pick its longest legal departure across those actual faces
+    // before introducing a drill to transfer between them.
+    let mut faces = std::collections::BTreeMap::<Point, u32>::new();
     for &(at, face, via_only) in starts {
+        engine.work.charge(1)?;
+        if inner(face) && !via_only && allowed[usize::from(face)] {
+            if !faces.contains_key(&at) {
+                engine
+                    .work
+                    .search_storage(occupied + right.len() + faces.len() + 1)?;
+            }
+            *faces.entry(at).or_default() |= 1 << face;
+        }
+    }
+    for &(at, face, via_only) in starts
+        .iter()
+        .filter(|s| inner(s.1))
+        .chain(starts.iter().filter(|s| !inner(s.1)))
+    {
+        engine.work.charge(1)?;
         let layer = usize::from(face);
-        if via_only || !allowed[layer] || (layer != 0 && layer + 1 != engine.layer_count()) {
+        if via_only || !allowed[layer] {
             continue;
         }
-        let left = crate::search::layer_crossing::drill_sites(engine, net, at, layer, None)?;
+        let left = if inner(face) {
+            let Some(layers) = faces.remove(&at) else {
+                continue;
+            };
+            vec![Access::Copper { at, layers }]
+        } else {
+            crate::search::layer_crossing::drill_sites(engine, net, at, layer, None)?
+                .into_iter()
+                .map(Access::NewVia)
+                .collect()
+        };
         let join = Join {
             engine,
             net,
@@ -321,7 +407,7 @@ pub(in crate::search) fn through_launch_corridors(
                     a,
                     b,
                     allowed,
-                    occupied + left.len() + right.len(),
+                    occupied + faces.len() + left.len() + right.len(),
                     &mut expand,
                 )? {
                     return Ok(Some(path));

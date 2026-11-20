@@ -76,7 +76,7 @@ fn staggered_corridor_charges_drills_swept_history_and_only_permitted_layers() {
     let b = hole(32_250_000);
     let corridor = Corridor::new(a.at, a.at, b.at, GRID);
     let solve = |j: &Join, flags: [bool; 4], expand: &mut dyn FnMut() -> Result<bool, Failure>| {
-        j.follow_corridor(&corridor, a, b, &flags, 0, &mut || expand())
+        j.follow_corridor(&corridor, a.into(), b.into(), &flags, 0, &mut || expand())
     };
     let allowed = [true; 4];
     let mut available = || Ok(true);
@@ -156,8 +156,8 @@ fn staggered_corridor_charges_drills_swept_history_and_only_permitted_layers() {
     assert!(join
         .follow_corridor(
             &corridor,
-            a,
-            b,
+            a.into(),
+            b.into(),
             &allowed,
             engine.input.limits.max_search_entries,
             &mut available
@@ -197,10 +197,49 @@ fn staggered_corridor_rejects_individually_legal_coincident_drill_apertures() {
             accepted
         );
         assert_eq!(
-            join.follow_corridor(&corridor, a, b, &flags, 0, &mut || Ok(true))
+            join.follow_corridor(&corridor, a.into(), b.into(), &flags, 0, &mut || Ok(true))
                 .unwrap()
                 .is_some(),
             accepted
         );
+    }
+}
+
+#[test]
+fn existing_barrel_uses_only_layers_present_on_its_ends() {
+    let engine = board(&[
+        ("F.Cu", 5_000_000, 30_000_000),
+        ("B.Cu", 5_000_000, 30_000_000),
+    ]);
+    let j = join(&engine);
+    let a = j.source.at;
+    let b = j.target.at;
+    let c = Corridor::new(a, a, b, GRID);
+    for (start, end, connected) in [(1 << 2, 1 << 2, true), (1 << 2, 1 << 1, false)] {
+        let path = j
+            .follow_corridor(
+                &c,
+                Access::Copper {
+                    at: a,
+                    layers: start,
+                },
+                Access::Copper { at: b, layers: end },
+                &[true; 4],
+                0,
+                &mut || Ok(true),
+            )
+            .unwrap();
+        assert_eq!(path.is_some(), connected);
+        if let Some(path) = path {
+            assert_eq!(path.points, [a, b]);
+            assert!(matches!(
+                path.edges.as_slice(),
+                [PathEdge::Track { layer: 2, .. }]
+            ));
+            assert_eq!(
+                path.steps,
+                a[0].abs_diff(b[0]) / GRID as u64 * engine.layer_policy.weight(2)
+            );
+        }
     }
 }
