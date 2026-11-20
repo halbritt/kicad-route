@@ -168,8 +168,12 @@ These outward-rounded boxes contain every endpoint-cap contact; each cardinal
 edge, including a shortened final edge, moves at most one grid step in one axis.
 The estimate therefore underestimates remaining unit-step cost, is consistent
 across edges, and is zero at every accepted goal. Obstacles do not enter the
-estimate. Each target evaluation is charged to the shared work budget. Each seed
-retains its own grid phase, so off-grid incumbent endpoints are supported.
+estimate. Each join computes target bounds once. Its work budget covers ring
+and compound-pad geometry, each target evaluation and each grid point examined
+when building reverse seeds. Each seed retains its own grid phase, so off-grid
+incumbent endpoints are supported. For two isolated pads without a same-net
+hole-clearance constraint, equal estimated total costs favor the state with
+more of the route already traversed.
 In bidirectional search, the reverse frontier estimates distance to source
 anchors on its own grid phase. A full grid step preserves both coordinate
 residues, and a via preserves the position.
