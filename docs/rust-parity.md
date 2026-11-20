@@ -28,7 +28,7 @@ missing native rules are identified.
 | Differential pairs, length and delay | Authored pairs/matching groups and native timing/layer rules. Verify coupled geometry, separation, length/delay and preservation with positive and negative controls. | Coupled pairs, intra/group length/delay matching, impedance control, and `--ac-couple-chain-json` AC-coupled chain matching are implemented in `rust-engine` (`diff_pair.rs`, `orchestration.rs`). On the eight-lane `bus_routing` fixture at `e2cf9ce`, `--bus` ordered D0 through D7 by physical position and excluded AUX. The saved board closed all ten opens with 16 tracks, zero vias and zero native DRC violations. Equal-cost corridor preference used 3,148 expansions at the ordinary 100,000 limit. |
 | Rip-up, restore and generated ownership | Blocked multi-net case with protected copper. Inject failures through edits/publication; restore exact IDs/indexes/allocator/geometry and verify native outcomes. | `rust-engine/tests/negotiate.rs` exercises whole-net victim repair, protection of source copper and rollback after a failed repair. The four-layer T4-04 fixture checks the published board and deterministic copper on repeated runs. |
 | Zones, planes, thermals and keepouts | Native zones/rule areas/plane plan with refill. Preserve component partitions, pad contact, thermal spokes and pour integrity. | T4-03 exercises filled power and ground zones, thermal pads, keepouts and via spans on four layers. The native fixture `route_demo` exercises refill and measures surviving pour area, islands and spokes. On the external two-layer `complex_hierarchy` board, Rust reconnects ground islands after native refill and passes the original pour check. The bridge refuses unsupported zone geometry, including curved polygon outlines. |
-| Execution, publication and routing quality | Real process success/failure, stale results, resource limits, source mutation and destination races. Require current execution success, expected-request identity and native validation. Attribute performance on frozen representative inputs and tools. | Structured failures, request identity and native apply controls exist. M2.1 integrates leaf-bucketed (`STATIC_LEAF_CAP = 32`) `StaticSpatialIndex` (`pad_spatial`/`input_spatial`) + iterative deterministic Treap broad-phase (`generated_spatial: SpatialIndex<u64, u32>`, `TreapNode <= 112 B` with `net`/`subtree_uniform_net`/`subtree_len` and `TREAP_UNIFORM_SKIP_CAP = 32`, `tests/spatial.rs` RoundRect/oval + `0` post-rollback work diffs across nets `0..=4`, `80/80` non-equivalent mutants killed (`84` total incl. `4` mathematically equivalent) including `M5_uncharged_pruned_query_visit_treap`, `NEW_uniform_net_charge_bulk_no_fallback`, `ITER3_treap_uniform_net_charge_bulk_no_fallback`, `CopperAabb::overlaps` 4-direction tangency, `point_near_segment` zero-gap boundary, and all `consistent()` / `TREAP_UNIFORM_SKIP_CAP` boundary checks), passing the unified 22-cell `RE-08` matrix vs `1ca08e72` (`0.0006x–0.0381x` route_all speedup on S1/S2/dense_cluster/dense_xy_overlap/scale_50k/N1, `0.0071x` D2_churn, `0.1268x–1.0555x` across all dense static/treap/corridor/mixed cells including `0.1752x`/`0.1268x` isolated `generated_treap_overlap_samenet` and `0.6056x` `mixed_95_5`, `diag_overlap_2000` default `100M` completion at `75.33M`, `1.1415x` GNU / `1.0261x` `/proc` RSS on 50k items); M6 post-landing audit pending. Rust `route-native` stages the operation, validates the result and publishes the saved board. The orchestration tests exercise cancellation, timeouts and destination collisions. Full resource guarantees and representative-board performance acceptance remain open. Matching incomplete KRT output is not success. |
+| Execution, publication and routing quality | Real process success/failure, stale results, resource limits, source mutation and destination races. Require current execution success, expected-request identity and native validation. Attribute performance on frozen representative inputs and tools. | Structured failures, request identity and native apply controls exist. M2.1 integrates leaf-bucketed (`STATIC_LEAF_CAP = 32`) `StaticSpatialIndex` (`pad_spatial`/`input_spatial`) + iterative deterministic Treap broad-phase (`generated_spatial: SpatialIndex<u64, u32>`, `TreapNode <= 112 B` with `net`/`subtree_uniform_net`/`subtree_len` and `TREAP_UNIFORM_SKIP_CAP = 32`, `tests/spatial.rs` RoundRect/oval + `0` post-rollback work diffs across nets `0..=4`, `80/80` non-equivalent mutants killed (`84` total incl. `4` mathematically equivalent) including `M5_uncharged_pruned_query_visit_treap`, `NEW_uniform_net_charge_bulk_no_fallback`, `ITER3_treap_uniform_net_charge_bulk_no_fallback`, `CopperAabb::overlaps` 4-direction tangency, `point_near_segment` zero-gap boundary, and all `consistent()` / `TREAP_UNIFORM_SKIP_CAP` boundary checks), passing the unified 22-cell `RE-08` matrix vs `1ca08e72` (`0.0006x–0.0381x` candidate-to-baseline route_all time ratio on S1/S2/dense_cluster/dense_xy_overlap/scale_50k/N1, `0.0071x` D2_churn, `0.1268x–1.0555x` across all dense static/treap/corridor/mixed cells including `0.1752x`/`0.1268x` isolated `generated_treap_overlap_samenet` and `0.6056x` `mixed_95_5`, `diag_overlap_2000` default `100M` completion at `75.33M`, `1.1415x` GNU / `1.0261x` `/proc` RSS on 50k items); M6 post-landing audit pending. Rust `route-native` stages the operation, validates the result and publishes the saved board. The orchestration tests exercise cancellation, timeouts and destination collisions. Full resource guarantees and representative-board performance acceptance remain open. Matching incomplete KRT output is not success. |
 
 At `72b6c1b`, the native five-tier suite passed all 148 cases. In T4-04,
 the saved four-layer board connected all 24 three-pad nets with zero opens
@@ -76,32 +76,34 @@ the candidate. The shared-host runs used Rust 1.99.1 and KiCad 10.0.8.
 They establish a reproducible board outcome. More repetitions under
 controlled load would be needed to attribute the timing difference.
 
-### Matched native runs at `0f8c7ea`
+### Matched native runs at `33010b4`
 
 KiCad 10.0.8 regraded each saved board with its input project, custom rules
 and zone refill. Each release build (Rust 1.99.1, locked dependencies) ran
-three times on the same host, alternating the two revisions. Each revision
-produced identical output bytes across its three runs on every completed case.
-Wall time, process CPU time and GNU time's maximum process RSS are medians.
+three times per input, alternating revisions. The three published boards
+were byte-identical for every completed case at each revision. Wall time,
+process CPU time and GNU time's maximum process RSS are medians.
 
 | Input | Revision | Opens | Native errors | Vias | Track length (mm) | Expansions | Work units | Wall (s) | CPU (s) | RSS (KiB) |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| route_demo | 9ac137a | 0 | 0 | 3 | 163.553 | 3,325 | 668,516 | 1.77 | 1.22 | 280,484 |
-| route_demo | 0f8c7ea | 0 | 0 | 3 | 163.553 | 3,181 | 624,451 | 1.75 | 1.20 | 281,248 |
-| T4-04 | 9ac137a | 0 | 0 | 64 | 2,741.775 | 718,513 | 135,756,020 | 5.71 | 5.53 | 237,828 |
-| T4-04 | 0f8c7ea | 0 | 0 | 54 | 2,749.975 | 357,197 | 101,285,770 | 4.00 | 3.84 | 238,312 |
-| complex_hierarchy | 9ac137a | 0 | 0 | 3 | 1,125.903 | 78,412 | 40,830,733 | 6.14 | 5.95 | 292,940 |
-| complex_hierarchy | 0f8c7ea | 0 | 0 | 3 | 1,125.903 | 69,410 | 39,884,754 | 6.04 | 5.84 | 293,956 |
-| tigard_fab | 9ac137a | — | — | — | — | 100,000 | 44,890,302 | 1.13 | 1.12 | 169,956 |
-| tigard_fab | 0f8c7ea | — | — | — | — | 100,000 | 45,984,489 | 1.21 | 1.20 | 171,136 |
+| route_demo | 9ac137a | 0 | 0 | 3 | 163.553 | 3,325 | 668,516 | 1.77 | 1.21 | 280,228 |
+| route_demo | 33010b4 | 0 | 0 | 3 | 163.353 | 3,565 | 740,489 | 1.77 | 1.21 | 280,504 |
+| T4-04 | 9ac137a | 0 | 0 | 64 | 2,741.775 | 718,513 | 135,756,020 | 8.43 | 7.96 | 237,640 |
+| T4-04 | 33010b4 | 0 | 0 | 54 | 2,749.975 | 296,421 | 85,133,045 | 4.89 | 4.70 | 238,384 |
+| complex_hierarchy | 9ac137a | 0 | 0 | 3 | 1,125.903 | 78,412 | 40,830,733 | 8.64 | 8.37 | 292,192 |
+| complex_hierarchy | 33010b4 | 0 | 0 | 3 | 1,125.903 | 69,078 | 39,905,231 | 9.51 | 8.54 | 291,932 |
+| tigard_fab | 9ac137a | — | — | — | — | 100,000 | 44,890,302 | 2.35 | 2.28 | 169,804 |
+| tigard_fab | 33010b4 | — | — | — | — | 100,000 | 63,995,172 | 3.30 | 3.08 | 170,484 |
 
-The four-layer T4-04 fixture closed all 48 opens across 24 three-pad nets
-under its original 1,000,000-expansion and 250,000,000-work-unit limits.
-The candidate used ten fewer vias and 8.200 mm more track. KiCad found zero
-violations on both saved boards. Both revisions closed all 87 opens on the
-external two-layer project with identical track geometry, three vias and the
-same 68 library warnings. The external four-layer Tigard input reached the
-100,000-expansion limit on every run. The destination stayed absent.
+T4-04 closed all 48 opens across 24 three-pad nets under its original
+1,000,000-expansion and 250,000,000-work-unit limits. The candidate saved
+ten vias and added 8.200 mm of track. Both boards had zero DRC findings.
+The external two-layer project closed all 87 opens with identical track
+geometry, three vias and its original 68 library warnings. On the sparse
+demo, the trace was 0.200 mm shorter and work increased. On the external
+four-layer Tigard project, both revisions reached the 100,000-expansion
+limit and left the destination absent. Its source had 290 open connections,
+six native errors and 94 warnings.
 
 ### External corpus boards
 
