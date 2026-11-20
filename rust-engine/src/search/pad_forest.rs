@@ -308,52 +308,63 @@ mod tests {
             }
             let mut engine = Engine::new(input).unwrap();
             engine.surface_search_share = Some(100);
-            let components = engine.components(1).unwrap();
-            let mut expanded = 0;
-            let result = between(
-                &engine,
-                1,
-                &components,
-                &mut TrialBudget::fixed(100),
-                &mut expanded,
-                None,
-            )
-            .unwrap();
-            if dangling || opposite_face {
-                assert!(result.is_none());
-                assert_eq!(expanded, 0);
-                continue;
+            let mut components = engine.components(1).unwrap();
+            for start_x in [12, 29] {
+                let first = components
+                    .iter()
+                    .position(|group| {
+                        group.iter().any(
+                            |item| matches!(item, Copper::Pad(p) if p.at[0] == start_x * 1_000_000),
+                        )
+                    })
+                    .unwrap();
+                components.swap(0, first);
+                let mut expanded = 0;
+                let result = between(
+                    &engine,
+                    1,
+                    &components,
+                    &mut TrialBudget::fixed(100),
+                    &mut expanded,
+                    None,
+                )
+                .unwrap();
+                if dangling || opposite_face {
+                    assert!(result.is_none());
+                    assert_eq!(expanded, 0);
+                    continue;
+                }
+                let edges = result.unwrap();
+                assert_eq!(edges.len(), 3);
+                assert_eq!(expanded, 3);
+                let mut spans = Vec::new();
+                for edge in edges {
+                    let PathEdge::Track {
+                        start,
+                        end,
+                        layer: 0,
+                    } = edge
+                    else {
+                        panic!("expected front trace")
+                    };
+                    assert!(engine.legal_edge_on(1, 0, start, end).unwrap());
+                    let pad_x = |p| {
+                        engine
+                            .input
+                            .pads
+                            .iter()
+                            .find(|pad| crate::geometry::point_in_pad(p, pad))
+                            .unwrap()
+                            .at[0]
+                            / 1_000_000
+                    };
+                    let a = pad_x(start);
+                    let b = pad_x(end);
+                    spans.push((a.min(b), a.max(b)));
+                }
+                spans.sort_unstable();
+                assert_eq!(spans, [(7, 12), (24, 29), (29, 34)]);
             }
-            let edges = result.unwrap();
-            assert_eq!(edges.len(), 3);
-            assert_eq!(expanded, 3);
-            let mut spans = Vec::new();
-            for edge in edges {
-                let PathEdge::Track {
-                    start,
-                    end,
-                    layer: 0,
-                } = edge
-                else {
-                    panic!("expected front trace")
-                };
-                assert!(engine.legal_edge_on(1, 0, start, end).unwrap());
-                let pad_x = |p| {
-                    engine
-                        .input
-                        .pads
-                        .iter()
-                        .find(|pad| crate::geometry::point_in_pad(p, pad))
-                        .unwrap()
-                        .at[0]
-                        / 1_000_000
-                };
-                let a = pad_x(start);
-                let b = pad_x(end);
-                spans.push((a.min(b), a.max(b)));
-            }
-            spans.sort_unstable();
-            assert_eq!(spans, [(7, 12), (24, 29), (29, 34)]);
         }
     }
 
