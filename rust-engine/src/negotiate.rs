@@ -2492,6 +2492,7 @@ fn solve_with_adapter_units(
                 } else if proof_allowance.is_some() {
                     // The trial transaction restored both copper and prices.
                     // Resume ordinary negotiation with its original trial policy.
+                    stats.initial_failed -= 1;
                     checked_exchange = true;
                     continue;
                 } else if hit_trial_cap {
