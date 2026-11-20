@@ -3438,7 +3438,13 @@ enum MeetRecord {
 #[derive(Default)]
 struct SourcePhase {
     starts: Vec<(Point, u8)>,
-    boxes: BTreeMap<u8, (Point, Point)>,
+    boxes: BTreeMap<u8, ([i64; 4], [i64; 4])>,
+}
+
+// The routing input bounds each coordinate to 100,000,000 nm. Each cardinal
+// step changes either diagonal projection by at most one grid pitch.
+fn source_projections([x, y]: Point) -> [i64; 4] {
+    [x, y, x + y, x - y]
 }
 
 struct ReverseSources<'a> {
@@ -3462,16 +3468,17 @@ impl<'a> ReverseSources<'a> {
             phases.entry(phase).or_default().starts.push((point, layer));
         }
         for source in phases.values_mut().filter(|p| p.starts.len() > 16) {
-            work.charge(source.starts.len() as u64)?;
+            work.charge(2 * source.starts.len() as u64)?;
             for &(at, layer) in &source.starts {
                 if !source.boxes.contains_key(&layer) {
                     entries += 1;
                     work.search_storage(entries)?;
                 }
-                let (lo, hi) = source.boxes.entry(layer).or_insert((at, at));
-                for k in 0..2 {
-                    lo[k] = lo[k].min(at[k]);
-                    hi[k] = hi[k].max(at[k]);
+                let p = source_projections(at);
+                let (lo, hi) = source.boxes.entry(layer).or_insert((p, p));
+                for k in 0..4 {
+                    lo[k] = lo[k].min(p[k]);
+                    hi[k] = hi[k].max(p[k]);
                 }
             }
         }
@@ -3503,13 +3510,17 @@ impl<'a> ReverseSources<'a> {
             work.charge(source.starts.len() as u64)?;
             source.starts.iter().map(|&(p, l)| steps(p, l)).min()
         } else {
-            work.charge(source.boxes.len() as u64)?;
+            work.charge(2 * source.boxes.len() as u64)?;
+            let p = source_projections(at);
             source
                 .boxes
                 .iter()
                 .map(|(&l, &(lo, hi))| {
-                    let nearest = std::array::from_fn(|k| at[k].clamp(lo[k], hi[k]));
-                    steps(nearest, l)
+                    let gap = |k: usize| p[k].abs_diff(p[k].clamp(lo[k], hi[k]));
+                    let planar_nm = (gap(0) + gap(1)).max(gap(2)).max(gap(3));
+                    (planar_nm / self.grid as u64)
+                        .saturating_mul(min_step)
+                        .saturating_add(if layer == l { 0 } else { via_cost })
                 })
                 .min()
         };
