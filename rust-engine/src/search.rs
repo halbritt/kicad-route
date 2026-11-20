@@ -1,3 +1,4 @@
+mod budgeted_terminal;
 mod contact_bound;
 mod layer_crossing;
 mod monotone_trunk;
@@ -3357,8 +3358,9 @@ struct BwdStep {
     edge: PathEdge,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 enum MeetRecord {
+    Surface(Path),
     DirectFwd(State),
     DirectFwdVia { prev: State, pv: PlacedViaKey },
     Joined { fwd_key: BiKey, bwd_key: BiKey },
@@ -3375,6 +3377,14 @@ fn reconstruct_bi_path(
     let mut edges = Vec::new();
     let mut points = Vec::new();
     match *rec {
+        MeetRecord::Surface(ref path) => {
+            work.charge((path.edges.len() + path.points.len()) as u64)?;
+            return Ok(Path {
+                points: path.points.clone(),
+                edges: path.edges.clone(),
+                steps: path.steps,
+            });
+        }
         MeetRecord::DirectFwd(goal_state) => {
             points.push(goal_state.at);
             let mut s = goal_state;
@@ -4036,6 +4046,8 @@ fn walk_multilayer_bidirectional(
     }
 
     let mut best_mu: Option<(u64, MeetRecord)> = None;
+    let join_start = *expanded;
+    let mut surface_deadline = None;
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     let mut local_exp = 0u64;
@@ -4063,7 +4075,10 @@ fn walk_multilayer_bidirectional(
             if let Some((mu, ref rec)) = best_mu {
                 let min_f_fwd = q_fwd.peek().map_or(u64::MAX, |Reverse((f, _, _))| *f);
                 let min_f_bwd = q_bwd.peek().map_or(u64::MAX, |Reverse((f, _, _))| *f);
-                if mu <= min_f_fwd || (via_only_unpopped == 0 && mu <= min_f_bwd) {
+                if surface_deadline.is_some_and(|stop| *expanded >= stop)
+                    || mu <= min_f_fwd
+                    || (via_only_unpopped == 0 && mu <= min_f_bwd)
+                {
                     return reconstruct_bi_path(&parent_fwd, &parent_bwd, &engine.work, rec, mu);
                 }
             } else if q_fwd.is_empty()
@@ -4129,6 +4144,33 @@ fn walk_multilayer_bidirectional(
             *expanded = expanded.checked_add(1).expect("bounded expansion count");
             local_exp += 1;
             if local_exp == 256 && reverse_sources.is_none() {
+                // Before constructing a reverse frontier, try complete escapes
+                // on this join from both ends of the surface connection.
+                if only_through_vias
+                    && try_terminal_segments
+                    && engine.surface_search_share.is_some()
+                {
+                    if let Some(path) = budgeted_terminal::from_launch(
+                        engine,
+                        net,
+                        starts,
+                        targets,
+                        &track_ok_on_layer,
+                        q_fwd.len() + best_fwd.len() + parent_fwd.len(),
+                        via_cost,
+                        history,
+                        budget,
+                        expanded,
+                        frontier.as_deref(),
+                    )? {
+                        if best_mu.as_ref().is_none_or(|(cost, _)| *cost > path.steps) {
+                            best_mu = Some((path.steps, MeetRecord::Surface(path)));
+                        }
+                        surface_deadline = engine
+                            .surface_search_share
+                            .map(|share| join_start.saturating_add(share));
+                    }
+                }
                 engine.work.charge(targets.len() as u64)?;
                 engine.work.search_storage(targets.len())?;
                 let goals: Vec<Point> = targets

@@ -2056,7 +2056,9 @@ pub fn solve_with_adapter(
         )?;
     }
     let prev_prefer_higher_g = tx.engine.set_prefer_higher_g(units.len() > 1);
+    let previous_share = tx.engine.surface_search_share.take();
     let res = solve_with_adapter_units(tx, adapter, expanded, batch_limit, units);
+    tx.engine.surface_search_share = previous_share;
     tx.engine.set_prefer_higher_g(prev_prefer_higher_g);
     tx.engine.bus_plan.finish();
     res
@@ -2087,6 +2089,33 @@ fn solve_with_adapter_units(
     let mut stats = NegotiationStats::default();
     let mut routed_rippable_count = 0usize;
     let mut routed_any_count = 0usize;
+    if units.len() > 1
+        && tx.engine.layer_count() > 1
+        && tx.engine.input.rules.same_net_hole_clearance_nm == 0
+        && !tx.engine.effective_rules.allow_blind_buried_vias
+        && !tx.engine.effective_rules.allow_microvias
+        && tx
+            .engine
+            .input
+            .routing_options
+            .as_ref()
+            .is_none_or(|o| o.bus.is_none())
+    {
+        // Each additional pad of an active net can require another join.
+        // This estimate allocates search effort only. Connectivity is checked
+        // against every copper component by the regular routing transaction.
+        tx.engine.work.search_storage(net_to_unit.len())?;
+        let mut seen = BTreeSet::new();
+        let mut joins = 0;
+        tx.engine.charge_work(tx.engine.input.pads.len() as u64)?;
+        for pad in &tx.engine.input.pads {
+            if net_to_unit.contains_key(&pad.net) && !seen.insert(pad.net) {
+                joins += 1;
+            }
+        }
+        tx.engine.surface_search_share =
+            Some(batch_limit.saturating_sub(*expanded) / joins.max(units.len()) as u64);
+    }
     let mut max_ok_unit_exp: u64 = 0;
     let mut no_trial_cap: BTreeSet<RouteUnitId> = BTreeSet::new();
     let mut saw_any_blockers = false;

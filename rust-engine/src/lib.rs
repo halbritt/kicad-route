@@ -62,6 +62,7 @@ pub struct Engine {
     last_negotiation_stats: Option<negotiate::NegotiationStats>,
     last_block_generated: std::cell::Cell<bool>,
     prefer_higher_g: bool,
+    surface_search_share: Option<u64>,
     delay_profile_layers: std::collections::BTreeMap<u32, std::collections::BTreeSet<String>>,
 }
 /// Engine scope admission errors are distinct from an arbitrary caller error.
@@ -115,10 +116,12 @@ struct Scope<'a> {
     committed: bool,
     outer: bool,
     prev_prefer_higher_g: bool,
+    prev_surface_share: Option<u64>,
 }
 impl Drop for Scope<'_> {
     fn drop(&mut self) {
         self.engine.prefer_higher_g = self.prev_prefer_higher_g;
+        self.engine.surface_search_share = self.prev_surface_share;
         if !self.committed {
             self.engine.copper.rollback();
         }
@@ -966,6 +969,7 @@ impl Engine {
             bus_plan: bus::BusPlan::default(),
             last_block_generated: std::cell::Cell::new(false),
             prefer_higher_g: false,
+            surface_search_share: None,
             delay_profile_layers: std::collections::BTreeMap::new(),
         })
     }
@@ -1023,11 +1027,13 @@ impl Engine {
             return Err(TransactionError::Limit(e));
         }
         let prev_prefer_higher_g = self.prefer_higher_g;
+        let prev_surface_share = self.surface_search_share;
         let mut scope = Scope {
             engine: self,
             committed: false,
             outer,
             prev_prefer_higher_g,
+            prev_surface_share,
         };
         let result = operation(&mut Transaction {
             engine: scope.engine,
