@@ -3100,6 +3100,7 @@ fn walk_multilayer(
                     + via_cache.len()
                     + via_arena.total_len
                     + tv_arena.total_len;
+                let via_cost = engine.effective_rules.via_cost.max(1);
                 mesh_path = routing_mesh::connect(
                     engine,
                     net,
@@ -3107,12 +3108,34 @@ fn walk_multilayer(
                     targets,
                     &tracks,
                     occupied,
-                    engine.effective_rules.via_cost.max(1),
+                    via_cost,
                     history,
                     budget,
                     expanded,
                     frontier.as_deref(),
                 )?;
+                if mesh_path.is_none() {
+                    // Many copper objects can describe only two remaining
+                    // islands. Try a single straight crossing from the nearest
+                    // launch on each layer to each physical terminal.
+                    let share = budget.current_limit.saturating_sub(*expanded)
+                        / engine.input.nets.len().max(1) as u64;
+                    let stop = expanded.saturating_add(share);
+                    mesh_path = budgeted_terminal::from_launch(
+                        engine,
+                        net,
+                        starts,
+                        targets,
+                        &tracks,
+                        occupied,
+                        via_cost,
+                        history,
+                        budget,
+                        expanded,
+                        frontier.as_deref(),
+                        Some(stop),
+                    )?;
+                }
             }
         }
         if cost == 0 && !state.via_only {
@@ -4515,6 +4538,7 @@ fn walk_multilayer_bidirectional(
                         budget,
                         expanded,
                         frontier.as_deref(),
+                        None,
                     )?;
                     let proposal = match proposal {
                         Some(path) => Some(path),

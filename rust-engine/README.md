@@ -286,6 +286,13 @@ direction. The resulting route pays the actual terminal, trace and via
 costs, including congestion along its full path. The regular mesh search
 can still replace it within the same expansion budget.
 
+When several remaining islands contain many separate traces and pads, the
+forward search tries the ordinary mesh first. If that search finds no path,
+it checks a straight conductor between the nearest launch on each allowed
+layer and each remaining pad. The two ends may need one or two through-vias.
+Every attachment must meet the current clearance and congestion rules.
+The probes share a portion of the remaining trial expansions.
+
 A board-wide multilayer search can also follow a same-layer detour by
 extending horizontal and vertical lines from both contacts. It checks the
 track's full swept width up to each line end, then tries perpendicular lines

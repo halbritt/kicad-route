@@ -42,7 +42,8 @@ impl Join<'_> {
         first: Option<PlacedViaKey>,
         second: Option<PlacedViaKey>,
         best: &mut Option<Path>,
-        expand: &mut impl FnMut() -> Result<(), Failure>,
+        straight_only: bool,
+        expand: &mut impl FnMut() -> Result<bool, Failure>,
     ) -> Result<(), Failure> {
         let engine = self.engine;
         let a = first.map_or(self.source.at, |v| v.at);
@@ -84,15 +85,21 @@ impl Join<'_> {
                 return Ok(());
             }
         }
-        let mut options = octilinear_elbow_paths(a, b);
-        if a[0] != b[0] && a[1] != b[1] {
+        let mut options = if straight_only {
+            vec![vec![a, b]]
+        } else {
+            octilinear_elbow_paths(a, b)
+        };
+        if !straight_only && a[0] != b[0] && a[1] != b[1] {
             options.extend([vec![a, [a[0], b[1]], b], vec![a, [b[0], a[1]], b]]);
             if a[0].abs_diff(b[0]) != a[1].abs_diff(b[1]) {
                 options.push(vec![a, b]);
             }
         }
         'path: for bends in options {
-            expand()?;
+            if !expand()? {
+                return Ok(());
+            }
             let mut edges = Vec::with_capacity(6);
             let mut points = vec![self.source.at];
             let mut steps = stubs.saturating_add(via_cost);
@@ -144,7 +151,11 @@ pub(super) fn from_launch(
     budget: &mut TrialBudget<'_>,
     expanded: &mut u64,
     frontier: Option<&BlockedFrontier>,
+    straight_until: Option<u64>,
 ) -> Result<Option<Path>, Failure> {
+    if straight_until.is_some_and(|stop| *expanded >= stop) {
+        return Ok(None);
+    }
     let mut ends = Vec::new();
     for target in targets {
         if let Some((at, mask)) = target.plated_contact(&engine.work)? {
@@ -183,6 +194,7 @@ pub(super) fn from_launch(
         budget,
         expanded,
         frontier,
+        straight_until,
     )
 }
 
@@ -199,28 +211,60 @@ fn from_contacts(
     budget: &mut TrialBudget<'_>,
     expanded: &mut u64,
     frontier: Option<&BlockedFrontier>,
+    straight_until: Option<u64>,
 ) -> Result<Option<Path>, Failure> {
     let mut choices = Vec::new();
+    let straight_only = straight_until.is_some();
     let via_step = engine.layer_policy.scale(via_cost);
     for (end, dest, plated) in ends {
+        let mut nearest = if straight_only {
+            engine
+                .work
+                .search_storage(frontier_entries + choices.len() + track_ok.len())?;
+            vec![None; track_ok.len()]
+        } else {
+            Vec::new()
+        };
         for &(at, face, via_only) in starts {
             engine.work.charge(1)?;
             if via_only || !track_ok[face as usize] {
                 continue;
             }
+            let different_layer = usize::from(face) != dest;
+            // The limited straight-span search must leave the terminal face
+            // and re-enter it on the far side. Existing copper that already
+            // spans the selected layer needs no such detour.
+            let drills = if straight_only && !different_layer {
+                if plated {
+                    continue;
+                }
+                2
+            } else {
+                u64::from(different_layer)
+            };
             let nm = at[0].abs_diff(end[0]) + at[1].abs_diff(end[1]);
             let lower = nm
                 .div_ceil(engine.input.rules.grid_nm as u64)
                 .saturating_mul(engine.layer_policy.minimum_step(net))
-                .saturating_add(if usize::from(face) == dest {
-                    0
-                } else {
-                    via_step
-                });
+                .saturating_add(via_step.saturating_mul(drills));
+            let candidate = (lower, at, face, end, dest, plated);
+            if straight_only {
+                let slot = &mut nearest[usize::from(face)];
+                if slot.is_none_or(|prior| candidate < prior) {
+                    *slot = Some(candidate);
+                }
+            } else {
+                engine
+                    .work
+                    .search_storage(frontier_entries + choices.len() + 1)?;
+                choices.push(candidate);
+            }
+        }
+        if straight_only {
             engine
                 .work
-                .search_storage(frontier_entries + choices.len() + 1)?;
-            choices.push((lower, at, face, end, dest, plated));
+                .search_storage(frontier_entries + choices.len() + nearest.len())?;
+            choices.extend(nearest.into_iter().flatten());
         }
     }
     engine
@@ -235,9 +279,12 @@ fn from_contacts(
         .unwrap_or(remaining / engine.input.nets.len().max(1) as u64)
         .min(remaining);
     let mut expand = || {
+        if straight_until.is_some_and(|stop| *expanded >= stop) {
+            return Ok(false);
+        }
         budget.check_before_expand(engine, *expanded, frontier)?;
         *expanded += 1;
-        Ok(())
+        Ok(true)
     };
     let active_choices = frontier_entries + choices.len();
     let mut sites_by_contact =
@@ -248,7 +295,9 @@ fn from_contacts(
         if best.as_ref().is_some_and(|p| p.steps <= lower) {
             break;
         }
-        expand()?;
+        if !expand()? {
+            break;
+        }
         let source = Terminal {
             at,
             layer: face as usize,
@@ -265,8 +314,8 @@ fn from_contacts(
             via_step,
             history,
         };
-        if source.layer == dest {
-            join.connect(dest, None, None, &mut best, &mut expand)?;
+        if source.layer == dest && !straight_only {
+            join.connect(dest, None, None, &mut best, false, &mut expand)?;
         }
         if best.as_ref().is_some_and(|p| p.steps <= lower) {
             continue;
@@ -275,7 +324,9 @@ fn from_contacts(
             if extra_sites == 0 || best.is_some() {
                 return Ok(false);
             }
-            expand()?;
+            if !expand()? {
+                return Ok(false);
+            }
             extra_sites -= 1;
             Ok(true)
         };
@@ -305,10 +356,17 @@ fn from_contacts(
         let right = if plated { Vec::new() } else { sites(target)? };
         if source.layer != dest {
             for &v in &left {
-                join.connect(dest, Some(v), None, &mut best, &mut expand)?;
+                join.connect(dest, Some(v), None, &mut best, straight_only, &mut expand)?;
             }
             for &v in &right {
-                join.connect(source.layer, None, Some(v), &mut best, &mut expand)?;
+                join.connect(
+                    source.layer,
+                    None,
+                    Some(v),
+                    &mut best,
+                    straight_only,
+                    &mut expand,
+                )?;
             }
         }
         for (layer, &allowed) in track_ok.iter().enumerate() {
@@ -317,7 +375,14 @@ fn from_contacts(
             }
             for &v in &left {
                 for &w in &right {
-                    join.connect(layer, Some(v), Some(w), &mut best, &mut expand)?;
+                    join.connect(
+                        layer,
+                        Some(v),
+                        Some(w),
+                        &mut best,
+                        straight_only,
+                        &mut expand,
+                    )?;
                 }
             }
         }
@@ -421,6 +486,7 @@ pub(super) fn through_pad_channels(
                 budget,
                 expanded,
                 frontier,
+                None,
             )? {
                 path.steps = path.steps.saturating_add(stubs);
                 if best.as_ref().is_some_and(|old| old.steps <= path.steps) {
@@ -490,6 +556,7 @@ mod tests {
                 &mut TrialBudget::fixed(1_000),
                 &mut used,
                 None,
+                None,
             )
             .unwrap();
             assert_eq!(path.is_some(), expected.is_some());
@@ -525,3 +592,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod many_targets_tests;
