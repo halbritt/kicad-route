@@ -1,3 +1,4 @@
+mod axial_intervals;
 mod budgeted_terminal;
 mod confined_runs;
 mod contact_bound;
@@ -4467,6 +4468,41 @@ fn walk_multilayer_bidirectional(
                             frontier.as_deref(),
                         )?,
                     };
+                    let needs_planar = match &proposal {
+                        Some(path) => !via_minimal(path)?,
+                        None => minimum_through_vias(starts, targets, barriers, &engine.work)? == 0,
+                    };
+                    let mut planar = if needs_planar {
+                        axial_intervals::connect(
+                            engine,
+                            net,
+                            starts,
+                            targets,
+                            &track_ok_on_layer,
+                            q_fwd.len()
+                                + best_fwd.len()
+                                + parent_fwd.len()
+                                + proposal
+                                    .as_ref()
+                                    .map_or(0, |path| path.edges.len() + path.points.len()),
+                            via_cost,
+                            proposal.as_ref().map(|path| path.steps),
+                            history,
+                            budget,
+                            expanded,
+                            frontier.as_deref(),
+                        )?
+                    } else {
+                        None
+                    };
+                    if let (Some(old), Some(new)) = (&proposal, &planar) {
+                        if axial_intervals::copper_length(engine, new, true)?
+                            > axial_intervals::copper_length(engine, old, false)?
+                        {
+                            planar = None;
+                        }
+                    }
+                    let proposal = planar.or(proposal);
                     if let Some(path) = proposal {
                         if best_mu.as_ref().is_none_or(|(cost, _)| *cost > path.steps) {
                             best_mu = Some((path.steps, MeetRecord::Surface(path)));

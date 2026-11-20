@@ -278,6 +278,14 @@ obstacle corners. Those corners are candidates. The router sweeps the full
 track width and clearance along every segment and charges each expanded
 position to the existing mesh allowance.
 
+A board-wide multilayer search can also follow a same-layer detour by
+extending horizontal and vertical lines from both contacts. It checks the
+track's full swept width up to each line end, then tries perpendicular lines
+at the ends and at interior points. When the two searches meet, it slides
+backtracking segments toward the obstacles and checks 45-degree cuts across
+the bends. The final route must fit the original expansion and work budgets.
+The grid search continues when these lines do not meet.
+
 If two isolated surface pads cannot leave the ordinary grid, the router can
 use the gap between four adjacent pad centers. A diagonal departure reaches
 the gap, then a straight track follows the space between pad rows to a legal

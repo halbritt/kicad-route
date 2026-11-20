@@ -230,7 +230,7 @@ fn staircase(
 
 /// Replace an axial turn with a legal 45-degree segment. Trimming an equal
 /// integer number of steps on each leg preserves both cost and grid phase.
-fn chamfer_corner(
+pub(super) fn chamfer_corner(
     points: &mut Vec<Point>,
     bend: Point,
     next: Point,
