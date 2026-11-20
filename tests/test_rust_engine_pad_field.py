@@ -188,3 +188,38 @@ def test_second_surface_net_crosses_an_earlier_route(tmp_path, guarded_cli):
     saved = pcbnew.LoadBoard(str(output))
     vias = [t for t in saved.GetTracks() if isinstance(t, pcbnew.PCB_VIA)]
     assert [v.GetNetname() for v in vias] == ["DATA", "DATA"]
+
+
+def test_offset_surface_pads_cross_a_keepout_on_an_internal_layer(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=2438)
+    board.set_rect_outline(0, 0, 32_000_000, 32_000_000)
+    for net, face, pins in [
+        ("SENSE", pcbnew.F_Cu, [(3_000_000, 5_000_000), (26_750_000, 18_000_000)]),
+        ("AUX", pcbnew.B_Cu, [(4_000_000, 23_000_000), (22_000_000, 23_000_000)]),
+    ]:
+        for i, at in enumerate(pins):
+            fp = board.add_footprint(f"{net}{i + 1}", at, side="F" if face == pcbnew.F_Cu else "B")
+            fp.Reference().SetVisible(False)
+            fp.Value().SetVisible(False)
+            board.add_pad(fp, "1", net, at, size_nm=(900_000, 900_000),
+                          shape=pcbnew.PAD_SHAPE_RECT, layers=[face])
+    board.add_keepout([pcbnew.F_Cu], [(12_000_000, -1_000_000), (14_000_000, -1_000_000),
+                                      (14_000_000, 33_000_000), (12_000_000, 33_000_000)])
+    board.set_project_rules()
+    source = board.save(tmp_path / "input").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 2 and not before["violations"]
+    rulefile = tmp_path / "rules.json"
+    rulefile.write_text(json.dumps(RULES))
+    run, _ = guarded_cli
+    output, operation = tmp_path / "routed.kicad_pcb", tmp_path / "operation.json"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(output),
+         "--rules", str(rulefile), "--operation-result", str(operation)])
+    report = json.loads(operation.read_bytes())["routing"]
+    assert report["expanded_states"] == 2 and report["added_via_count"] == 2
+    saved = pcbnew.LoadBoard(str(output))
+    traces = [t for t in saved.GetTracks() if not isinstance(t, pcbnew.PCB_VIA)
+              and t.GetNetname() == "SENSE" and t.GetLayer() != pcbnew.F_Cu]
+    assert any(abs(t.GetEndX() - t.GetStartX()) == abs(t.GetEndY() - t.GetStartY()) > 0 for t in traces)
+    drc = run_native_drc(output, sidecar_source=source).raw
+    assert not drc["violations"] and not drc["unconnected_items"]

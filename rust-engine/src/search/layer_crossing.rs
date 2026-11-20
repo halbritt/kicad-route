@@ -1,9 +1,9 @@
-//! An axial connection can pass beneath a surface obstruction and return to its
+//! A connection can pass beneath a surface obstruction and return to its
 //! original layer. The segment lengths and both through-vias must account for
 //! the entire lower bound before this path can end the search.
 use super::{Engine, Failure, Path, PathEdge, PlacedViaKey, Point, State, TargetBounds, ViaKind};
 
-pub(super) fn axial(
+pub(super) fn between_terminals(
     engine: &Engine,
     net: u32,
     state: State,
@@ -69,38 +69,177 @@ pub(super) fn axial(
             else {
                 continue;
             };
-            for inner in 0..engine.layer_count() {
-                engine.work.charge(1)?;
-                if inner == face
-                    || engine.layer_policy.weight(inner) != rate
-                    || !engine.legal_edge_on(net, inner, first.at, second.at)?
-                {
-                    continue;
-                }
-                return Ok(Some(Path {
-                    points: vec![state.at, first.at, first.at, second.at, second.at, end],
-                    edges: vec![
-                        PathEdge::Track {
-                            start: state.at,
-                            end: first.at,
-                            layer: state.layer,
-                        },
-                        PathEdge::Via(first),
-                        PathEdge::Track {
-                            start: first.at,
-                            end: second.at,
-                            layer: inner as u8,
-                        },
-                        PathEdge::Via(second),
-                        PathEdge::Track {
-                            start: second.at,
-                            end,
-                            layer: state.layer,
-                        },
-                    ],
-                    steps: remaining,
-                }));
+            if let Some(path) = cross(engine, net, face, state.at, end, first, second, remaining)? {
+                return Ok(Some(path));
             }
+        }
+        if let Some(path) = offset(
+            engine, net, face, state.at, target, radius, steps, remaining, attachment,
+        )? {
+            return Ok(Some(path));
+        }
+    }
+    Ok(None)
+}
+
+// Split the planar cost between the two axes. All bends and both drill sites
+// stay on the source lattice. Only the last axial contact may be clipped.
+fn offset(
+    engine: &Engine,
+    net: u32,
+    face: usize,
+    source: Point,
+    target: &TargetBounds<'_>,
+    radius: i64,
+    steps: u64,
+    cost: u64,
+    attachment: &impl Fn(usize, Point, Point, &[PlacedViaKey]) -> Result<Option<Point>, Failure>,
+) -> Result<Option<Path>, Failure> {
+    let grid = engine.input.rules.grid_nm;
+    let mut signs = [0; 2];
+    let mut min = [0; 2];
+    let mut max = [0; 2];
+    for k in 0..2 {
+        let low = target.lo[k] - radius;
+        let high = target.hi[k] + radius;
+        let near = source[k].clamp(low, high);
+        signs[k] = (near - source[k]).signum();
+        if signs[k] == 0 {
+            return Ok(None);
+        }
+        let far = if signs[k] > 0 { high } else { low };
+        min[k] = source[k].abs_diff(near).div_ceil(grid as u64);
+        max[k] = source[k].abs_diff(far).div_ceil(grid as u64);
+    }
+    let lo = min[0].max(steps.saturating_sub(max[1]));
+    let hi = max[0].min(steps.saturating_sub(min[1]));
+    if hi < lo || steps < min[1] {
+        return Ok(None);
+    }
+    let splits = [lo.midpoint(hi), lo, hi];
+    for (i, &dx) in splits.iter().enumerate() {
+        if splits[..i].contains(&dx) {
+            continue;
+        }
+        let count = [dx, steps - dx];
+        let tip = std::array::from_fn(|k| source[k] + signs[k] * grid * count[k] as i64);
+        let shift = |mut p: Point, axis: usize, n: i64| {
+            p[axis] += n * grid * signs[axis];
+            p
+        };
+        for finish_axis in 0..2 {
+            engine.work.charge(1)?;
+            let Some(end) = attachment(face, shift(tip, finish_axis, -1), tip, &[])? else {
+                continue;
+            };
+            if (0..2)
+                .map(|k| source[k].abs_diff(end[k]).div_ceil(grid as u64))
+                .sum::<u64>()
+                != steps
+            {
+                continue;
+            }
+            for start_axis in [finish_axis, 1 - finish_axis] {
+                let limit = |k: usize| {
+                    if start_axis == finish_axis {
+                        count[k].div_ceil(2)
+                    } else {
+                        count[k]
+                    }
+                };
+                let Some(first) = terminal_via(
+                    engine,
+                    net,
+                    face,
+                    source,
+                    limit(start_axis),
+                    |i| shift(source, start_axis, i as i64),
+                    &[],
+                )?
+                else {
+                    continue;
+                };
+                let Some(second) = terminal_via(
+                    engine,
+                    net,
+                    face,
+                    end,
+                    limit(finish_axis),
+                    |i| shift(tip, finish_axis, -(i as i64)),
+                    &[first],
+                )?
+                else {
+                    continue;
+                };
+                if let Some(path) = cross(engine, net, face, source, end, first, second, cost)? {
+                    return Ok(Some(path));
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn cross(
+    engine: &Engine,
+    net: u32,
+    face: usize,
+    source: Point,
+    end: Point,
+    first: PlacedViaKey,
+    second: PlacedViaKey,
+    cost: u64,
+) -> Result<Option<Path>, Failure> {
+    let rate = engine.layer_policy.weight(face);
+    for inner in 0..engine.layer_count() {
+        engine.work.charge(1)?;
+        if inner == face || engine.layer_policy.weight(inner) != rate {
+            continue;
+        }
+        for bends in crate::diff_pair::octilinear_elbow_paths(first.at, second.at) {
+            if bends.len() < 2 {
+                continue;
+            }
+            let mut legal = true;
+            for t in bends.windows(2) {
+                engine.work.charge(1)?;
+                if !engine.legal_edge_on(net, inner, t[0], t[1])? {
+                    legal = false;
+                    break;
+                }
+            }
+            if !legal {
+                continue;
+            }
+            let mut points = vec![source, first.at];
+            points.extend_from_slice(&bends);
+            points.extend([second.at, end]);
+            let mut edges = vec![
+                PathEdge::Track {
+                    start: source,
+                    end: first.at,
+                    layer: face as u8,
+                },
+                PathEdge::Via(first),
+            ];
+            edges.extend(bends.windows(2).map(|t| PathEdge::Track {
+                start: t[0],
+                end: t[1],
+                layer: inner as u8,
+            }));
+            edges.extend([
+                PathEdge::Via(second),
+                PathEdge::Track {
+                    start: second.at,
+                    end,
+                    layer: face as u8,
+                },
+            ]);
+            return Ok(Some(Path {
+                points,
+                edges,
+                steps: cost,
+            }));
         }
     }
     Ok(None)
