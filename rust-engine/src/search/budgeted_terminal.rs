@@ -24,6 +24,14 @@ fn track(a: Point, b: Point, layer: usize) -> PathEdge {
     }
 }
 
+// The same pair of holes can be reached from several terminal layers.
+// Scope failures to one search on fixed copper. A different surface stub
+// or negotiation price can make a previously swept-clear trunk usable.
+struct BlockedTrunks {
+    entries: std::collections::BTreeSet<(usize, Point, Point)>,
+    capacity: usize,
+}
+
 struct Join<'a> {
     engine: &'a Engine,
     net: u32,
@@ -43,6 +51,7 @@ impl Join<'_> {
         second: Option<PlacedViaKey>,
         best: &mut Option<Path>,
         straight_only: bool,
+        rejected: &mut BlockedTrunks,
         expand: &mut impl FnMut() -> Result<bool, Failure>,
     ) -> Result<(), Failure> {
         let engine = self.engine;
@@ -85,6 +94,16 @@ impl Join<'_> {
                 return Ok(());
             }
         }
+        let key = (layer, a, b);
+        if rejected.capacity > 0 {
+            engine
+                .work
+                .charge(1 + rejected.entries.len().max(1).ilog2() as u64)?;
+            if rejected.entries.contains(&key) {
+                return Ok(());
+            }
+        }
+        let mut clear_trunk = false;
         let mut options = if straight_only {
             vec![vec![a, b]]
         } else {
@@ -119,6 +138,7 @@ impl Join<'_> {
                 edges.push(track(w[0], w[1], layer));
                 points.push(w[1]);
             }
+            clear_trunk = true;
             if let Some(v) = second {
                 edges.push(PathEdge::Via(v));
                 edges.push(track(v.at, self.target.at, self.target.layer));
@@ -133,6 +153,13 @@ impl Join<'_> {
                     steps,
                 });
             }
+        }
+        // Early exits (including a spent trial) have not checked every shape.
+        if !clear_trunk && rejected.entries.len() < rejected.capacity {
+            engine
+                .work
+                .charge(1 + rejected.entries.len().max(1).ilog2() as u64)?;
+            rejected.entries.insert(key);
         }
         Ok(())
     }
@@ -215,6 +242,7 @@ fn from_contacts(
 ) -> Result<Option<Path>, Failure> {
     let mut choices = Vec::new();
     let straight_only = straight_until.is_some();
+    let mut source_layers = 0u64;
     let via_step = engine.layer_policy.scale(via_cost);
     for (end, dest, plated) in ends {
         let mut nearest = if straight_only {
@@ -230,6 +258,7 @@ fn from_contacts(
             if via_only || !track_ok[face as usize] {
                 continue;
             }
+            source_layers |= 1 << face;
             let different_layer = usize::from(face) != dest;
             // The limited straight-span search must leave the terminal face
             // and re-enter it on the far side. Existing copper that already
@@ -290,6 +319,19 @@ fn from_contacts(
     let mut sites_by_contact =
         std::collections::BTreeMap::<(Point, usize), Vec<PlacedViaKey>>::new();
     let mut cached_entries = 0usize;
+    let available = if source_layers.count_ones() > 1 && !straight_only {
+        engine
+            .input
+            .limits
+            .max_search_entries
+            .saturating_sub(active_choices)
+    } else {
+        0
+    };
+    let mut rejected = BlockedTrunks {
+        entries: Default::default(),
+        capacity: available,
+    };
     let mut best: Option<Path> = None;
     for (lower, at, face, end, dest, plated) in choices {
         if best.as_ref().is_some_and(|p| p.steps <= lower) {
@@ -315,7 +357,15 @@ fn from_contacts(
             history,
         };
         if source.layer == dest && !straight_only {
-            join.connect(dest, None, None, &mut best, false, &mut expand)?;
+            join.connect(
+                dest,
+                None,
+                None,
+                &mut best,
+                false,
+                &mut rejected,
+                &mut expand,
+            )?;
         }
         if best.as_ref().is_some_and(|p| p.steps <= lower) {
             continue;
@@ -343,7 +393,9 @@ fn from_contacts(
             let needed = 1 + found.len();
             // Caching a contact is optional when the ordinary frontier owns
             // the remaining search storage.
-            if active_choices + cached_entries + needed <= engine.input.limits.max_search_entries {
+            if active_choices + cached_entries + needed + rejected.entries.len()
+                <= engine.input.limits.max_search_entries
+            {
                 engine.work.charge(needed as u64)?;
                 cached_entries += needed;
                 sites_by_contact.insert(key, found.clone());
@@ -354,9 +406,18 @@ fn from_contacts(
         // Each allowed plated face is already a destination. The existing
         // barrel needs neither a new drill nor a surface stub at this end.
         let right = if plated { Vec::new() } else { sites(target)? };
+        rejected.capacity = available.saturating_sub(cached_entries);
         if source.layer != dest {
             for &v in &left {
-                join.connect(dest, Some(v), None, &mut best, straight_only, &mut expand)?;
+                join.connect(
+                    dest,
+                    Some(v),
+                    None,
+                    &mut best,
+                    straight_only,
+                    &mut rejected,
+                    &mut expand,
+                )?;
             }
             for &v in &right {
                 join.connect(
@@ -365,6 +426,7 @@ fn from_contacts(
                     Some(v),
                     &mut best,
                     straight_only,
+                    &mut rejected,
                     &mut expand,
                 )?;
             }
@@ -381,6 +443,7 @@ fn from_contacts(
                         Some(w),
                         &mut best,
                         straight_only,
+                        &mut rejected,
                         &mut expand,
                     )?;
                 }
@@ -595,3 +658,6 @@ mod tests {
 
 #[cfg(test)]
 mod many_targets_tests;
+
+#[cfg(test)]
+mod trunk_tests;

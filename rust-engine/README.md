@@ -466,7 +466,11 @@ across all joins (and nets for route_all); failure rolls back the whole operatio
 For a congested multilayer join, the terminal search tries a direct segment
 between the two escape points when its horizontal, vertical and 45-degree
 elbows cannot improve the current route. The whole segment and both escape
-connections must clear the applicable board rules.
+connections must clear the applicable board rules. When several terminal layers
+reach the same pair of escape points, a fully obstructed set of middle segments
+is checked once per layer on the current copper. A geometrically clear segment
+remains available to a different terminal connection, including one with a
+different congestion cost.
 Consecutive proposal segments with the same heading coalesce at any angle.
 The router subtracts collinear overlap against
 existing or earlier same-net tracks of equal or greater width before clearance
