@@ -44,6 +44,11 @@ pub(super) fn toward_pad(
     let Some(target) = target else {
         return Ok(runs);
     };
+    // An axial approach already has the ordinary endpoint-cap and via
+    // landings. Reserve long neighbors for positioning an offset turn.
+    if start[0] == target[0] || start[1] == target[1] {
+        return Ok(runs);
+    }
     let grid = engine.input.rules.grid_nm;
     for axis in 0..2 {
         let sign = (target[axis] - start[axis]).signum();
@@ -85,6 +90,7 @@ mod tests {
         .unwrap();
         input.layers = vec!["F.Cu".into(), "B.Cu".into()];
         input.pads[0].layers = vec!["F.Cu".into()];
+        input.pads[0].at[1] += 100_000;
         input.rule_areas.push(serde_json::from_value(serde_json::json!({
             "id":"e18c8974-ea8c-4ad6-ba46-5d8ed014a7eb","layers":["B.Cu"],
             "outer":[[12000000,8000000],[18000000,8000000],[18000000,12000000],[12000000,12000000]],
@@ -114,6 +120,11 @@ mod tests {
         assert_eq!(
             steps_taken(start, [start[0] - grid - 1, start[1]], grid as u64),
             2
+        );
+        let aligned = [start[0], engine.input.pads[0].copper_center()[1]];
+        assert_eq!(
+            toward_pad(&engine, 1, 0, aligned, None, goals).unwrap(),
+            [None, None]
         );
         let previous = PathEdge::Track {
             start: [start[0] + grid, start[1]],
