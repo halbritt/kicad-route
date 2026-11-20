@@ -207,6 +207,7 @@ pub(crate) struct BarrierBound {
     target_layers: u32,
     layers: Vec<[Option<Barrier>; 2]>,
     through_stack: [Option<Barrier>; 2],
+    crossing_layers: [BTreeMap<i64, u32>; 2],
     ordered: [Option<OrderedBounds>; 2],
     grid: u64,
     step: u64,
@@ -242,6 +243,7 @@ impl BarrierBound {
         let mut scores = vec![[0; 2]; layers.len()];
         let mut through_stack = [None; 2];
         let mut through_scores = [0; 2];
+        let mut crossing_layers = [BTreeMap::<i64, u32>::new(), BTreeMap::new()];
         let mut parallel = [Vec::new(), Vec::new()];
         let mut too_many = [false; 2];
         let mut active = false;
@@ -321,6 +323,20 @@ impl BarrierBound {
                         }
                     }
                 } else {
+                    // A centerline crossing at this cut must occupy an open
+                    // layer. Only a rectangle spanning both board edges can
+                    // rule out a planar detour on its covered layers.
+                    if b.lo <= input.bounds.min[1 - axis] && b.hi >= input.bounds.max[1 - axis] {
+                        let cuts = &mut crossing_layers[axis];
+                        work.charge(1)?;
+                        let available = all as u32 & !(mask as u32);
+                        if let Some(open) = cuts.get_mut(&b.cut) {
+                            *open &= available;
+                        } else if cuts.len() < MAX_ORDERED_CUTS {
+                            work.search_storage(cuts.len() + 1)?;
+                            cuts.insert(b.cut, available);
+                        }
+                    }
                     for k in 0..layers.len() {
                         work.charge(1)?;
                         if mask & (1u64 << k) != 0 {
@@ -367,8 +383,58 @@ impl BarrierBound {
             grid: grid_nm as u64,
             step: minimum_step,
             layer_change: (layers.len() > 1).then_some(via_cost),
-            active,
+            active: active || crossing_layers.iter().any(|c| !c.is_empty()),
+            crossing_layers,
         })
+    }
+
+    /// Each required crossing may be traversed on any open layer. The set
+    /// carries every layer reachable with the lowest number of changes seen
+    /// so far. If none is open at the next crossing, one change reaches any
+    /// of its open layers. Permitting a direct change between every pair is a
+    /// relaxation for blind and microvias too. A path must meet the cuts on
+    /// both axes, but the same change can serve both sequences.
+    fn crossing_changes(
+        &self,
+        p: Point,
+        layer: usize,
+        target: Envelope,
+        terminals: u32,
+        work: &WorkBudget,
+    ) -> Result<u64, Failure> {
+        let mut lower = 0;
+        for (axis, cuts) in self.crossing_layers.iter().enumerate() {
+            if cuts.is_empty() {
+                continue;
+            }
+            let mut possible = 1u32 << layer;
+            let mut changes = 0;
+            let mut cross = |(&position, &allowed): (&i64, &u32)| -> Result<(), Failure> {
+                work.charge(1)?;
+                let between = p[axis] < position && position < target.0[axis]
+                    || target.1[axis] < position && position < p[axis];
+                if between && allowed != 0 {
+                    if possible & allowed == 0 {
+                        changes += 1;
+                        possible = allowed;
+                    } else {
+                        possible &= allowed;
+                    }
+                }
+                Ok(())
+            };
+            if p[axis] <= target.0[axis] {
+                for cut in cuts {
+                    cross(cut)?
+                }
+            } else {
+                for cut in cuts.iter().rev() {
+                    cross(cut)?
+                }
+            }
+            lower = lower.max(changes + u64::from(possible & terminals == 0));
+        }
+        Ok(lower)
     }
 
     pub(crate) fn is_active(&self) -> bool {
@@ -446,7 +512,7 @@ impl BarrierBound {
                 local.min(base.saturating_add(via.saturating_mul(transitions)))
             }
         };
-        let mut bound = escaped;
+        let mut bound = base;
         for axis in 0..2 {
             let travel = if let Some(ordered) = &self.ordered[axis] {
                 let profile = if backward {
@@ -469,7 +535,11 @@ impl BarrierBound {
                     .saturating_mul(self.step),
             );
         }
-        Ok(bound)
+        if let Some(via) = self.layer_change {
+            let changes = self.crossing_changes(p, layer, target, terminal_layers, work)?;
+            bound = bound.saturating_add(changes.saturating_mul(via));
+        }
+        Ok(bound.max(escaped))
     }
 }
 
