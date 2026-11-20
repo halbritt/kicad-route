@@ -5887,3 +5887,14 @@ fn cross_layer_branches_use_only_terminated_tracks_and_exact_intersections() {
         }
     }
 }
+
+#[test]
+fn a_cheaper_complete_repair_restores_its_improvement_window() {
+    let mut best = None;
+    assert!(!repair_window_elapsed(&mut best, 149, 5_000, 32));
+    assert!(!repair_window_elapsed(&mut best, 149, 5_031, 32));
+    assert!(!repair_window_elapsed(&mut best, 140, 5_032, 32));
+    assert!(!repair_window_elapsed(&mut best, 140, 5_063, 32));
+    assert!(repair_window_elapsed(&mut best, 140, 5_064, 32));
+    assert!(repair_window_elapsed(&mut None, 140, 5_064, 0));
+}

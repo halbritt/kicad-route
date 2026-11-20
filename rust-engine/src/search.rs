@@ -4181,6 +4181,22 @@ pub(crate) fn unpenalized_terminal(
     Ok(true)
 }
 
+/// A complete route which gets cheaper starts a new improvement window.
+/// Prices may be scaled by a layer policy, while the window counts states.
+fn repair_window_elapsed(
+    best: &mut Option<(u64, u64)>,
+    price: u64,
+    expanded: u64,
+    allowance: u64,
+) -> bool {
+    let (previous, found_at) = best.get_or_insert((price, expanded));
+    if price < *previous {
+        *previous = price;
+        *found_at = expanded;
+    }
+    expanded.saturating_sub(*found_at) >= allowance
+}
+
 #[allow(clippy::too_many_arguments)]
 fn walk_multilayer_bidirectional(
     engine: &Engine,
@@ -4286,6 +4302,7 @@ fn walk_multilayer_bidirectional(
     let join_start = *expanded;
     let mut minimum_vias = None;
     let mut last_checked_cost = None;
+    let mut repair_incumbent = None::<(u64, u64)>;
     let mut via_minimal = |path: &Path| -> Result<bool, Failure> {
         let minimum = match minimum_vias {
             Some(known) => known,
@@ -4315,6 +4332,9 @@ fn walk_multilayer_bidirectional(
             .is_none_or(|o| o.bus.is_none());
 
     engine.work.charge(engine.input.rule_areas.len() as u64)?;
+    let repair_share = engine.surface_search_share.filter(|_| {
+        only_through_vias && try_terminal_segments && history.is_some_and(|h| !h.is_empty())
+    });
     let try_confined_runs = try_terminal_segments
         && engine.surface_search_share.is_some()
         && history.is_none_or(|h| h.is_empty())
@@ -4351,7 +4371,18 @@ fn walk_multilayer_bidirectional(
                     && engine
                         .surface_search_share
                         .is_some_and(|share| expanded.saturating_sub(join_start) >= share);
+                // Leave the rest of the transaction time to reconnect
+                // other victims once this complete route stops improving.
+                let repair_finished = repair_share.is_some_and(|share| {
+                    repair_window_elapsed(
+                        &mut repair_incumbent,
+                        mu,
+                        *expanded,
+                        share.min(engine.layer_policy.unscale(mu).max(1)),
+                    )
+                });
                 if trial_finished
+                    || repair_finished
                     || mu <= min_f_fwd
                     || (via_only_unpopped == 0 && mu <= min_f_bwd)
                     || surface_deadline.is_some_and(|stop| *expanded >= stop)
