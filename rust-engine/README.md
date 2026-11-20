@@ -298,7 +298,11 @@ native geometry, including hole spacing between new vias on the same path.
 If none of the reachable nearby intersections permits a drill, a surface
 contact can attach to the lattice on another layer through a legal drill
 outside the lattice. The search checks both terminal stubs and the distance
-between source and destination drills before accepting the path.
+between source and destination drills before accepting the path. When
+direct departures cannot reach a drill, a local search follows legal surface
+segments around obstacles up to two lattice pitches from the contact. It
+uses the nearest reachable drilling window and charges each explored point
+to the same expansion allowance as the remaining lattice search.
 The ordinary search can still use passages between lattice points.
 
 For an oblique imported track separating the terminals, the planar bound

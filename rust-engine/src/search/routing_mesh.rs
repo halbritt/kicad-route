@@ -11,6 +11,8 @@ use crate::negotiate::{BlockedFrontier, CongestionHistory, TrialBudget};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
+mod drill_access;
+
 type Node = (Point, u8);
 
 fn link(a: Point, b: Point, layer: u8) -> PathEdge {
@@ -79,64 +81,6 @@ impl Mesh<'_> {
                 }
                 if let Some((cost, edges)) = found {
                     result.push(((q, layer), cost, edges));
-                }
-            }
-        }
-        Ok(result)
-    }
-
-    /// Keep a local drilling window even when every mesh intersection near
-    /// this contact lies in a via keepout. The surface stub and the drill
-    /// provide a second way to reach the same routing mesh on another layer.
-    fn contact_portals(
-        &self,
-        p: Point,
-        layer: u8,
-        allowed: &[bool],
-        occupied: usize,
-    ) -> Result<Vec<(Node, u64, Vec<PathEdge>)>, Failure> {
-        let mut result = self.portals(p, layer)?;
-        let last = self.engine.layer_count() - 1;
-        for &((q, _), _, _) in &result {
-            self.engine.work.charge(1)?;
-            if self
-                .engine
-                .legal_via(self.net, q, 0, last, ViaKind::Through, &[])?
-                .is_some()
-            {
-                let via = PlacedViaKey {
-                    at: q,
-                    start_layer: 0,
-                    end_layer: last as u8,
-                    kind: 0,
-                };
-                if unpenalized_terminal(self.engine, self.history, &[PathEdge::Via(via)])? {
-                    return Ok(result);
-                }
-            }
-        }
-        for via in super::layer_crossing::drill_sites(self.engine, self.net, p, usize::from(layer))?
-        {
-            let stub = link(p, via.at, layer);
-            let drill = PathEdge::Via(via);
-            if !unpenalized_terminal(self.engine, self.history, &[stub, drill])? {
-                continue;
-            }
-            let escape_cost = self.steps(p, via.at, layer).saturating_add(self.via_step);
-            for (other, &ok) in allowed.iter().enumerate() {
-                self.engine.work.charge(1)?;
-                if !ok
-                    || other == usize::from(layer)
-                    || !self.engine.layer_policy.track_allowed(self.net, other)
-                {
-                    continue;
-                }
-                for (node, cost, edges) in self.portals(via.at, other as u8)? {
-                    self.engine.work.charge(edges.len() as u64 + 2)?;
-                    self.storage(occupied + result.len() + 1)?;
-                    let mut path = vec![stub, drill];
-                    path.extend(edges);
-                    result.push((node, escape_cost.saturating_add(cost), path));
                 }
             }
         }
@@ -256,6 +200,19 @@ pub(super) fn connect(
         history,
         occupied_entries,
     };
+    // Give this search scale one net's share of the remaining trial. Closed
+    // mesh frontiers and missed off-mesh passages leave the fine search intact.
+    let share =
+        budget.current_limit.saturating_sub(*expanded) / engine.input.nets.len().max(1) as u64;
+    let stop = expanded.saturating_add(share);
+    let mut expand = || {
+        if *expanded >= stop {
+            return Ok(false);
+        }
+        budget.check_before_expand(engine, *expanded, frontier)?;
+        *expanded += 1;
+        Ok(true)
+    };
     let mut goals = HashMap::<Node, (u64, Vec<PathEdge>)>::new();
     let mut ends = Vec::new();
     for target in targets {
@@ -264,7 +221,9 @@ pub(super) fn connect(
         };
         let layer = layer as u8;
         ends.push((center, layer));
-        for (node, cost, edges) in mesh.contact_portals(center, layer, track_ok, goals.len())? {
+        for (node, cost, edges) in
+            mesh.contact_portals(center, layer, track_ok, goals.len(), &mut expand)?
+        {
             if goals.get(&node).is_none_or(|(n, _)| cost < *n) {
                 mesh.storage(goals.len() + 1)?;
                 goals.insert(node, (cost, edges));
@@ -301,6 +260,7 @@ pub(super) fn connect(
             layer,
             track_ok,
             costs.len() + open.len() + roots.len() + goals.len(),
+            &mut expand,
         )? {
             if costs.get(&node).is_none_or(|&c| cost < c) {
                 mesh.storage(costs.len() + open.len() + roots.len() + goals.len() + 3)?;
@@ -314,22 +274,18 @@ pub(super) fn connect(
             }
         }
     }
-    // Give this search scale one net's share of the remaining trial. Closed
-    // mesh frontiers and missed off-mesh passages leave the fine search intact.
-    let share =
-        budget.current_limit.saturating_sub(*expanded) / engine.input.nets.len().max(1) as u64;
-    let stop = expanded.saturating_add(share);
     let mut best_path: Option<Path> = None;
     while let Some(Reverse((priority, Reverse(cost), node))) = open.pop() {
         engine.work.charge(1)?;
-        if *expanded >= stop || best_path.as_ref().is_some_and(|p| p.steps <= priority) {
+        if best_path.as_ref().is_some_and(|p| p.steps <= priority) {
             break;
         }
         if costs.get(&node) != Some(&cost) {
             continue;
         }
-        budget.check_before_expand(engine, *expanded, frontier)?;
-        *expanded += 1;
+        if !expand()? {
+            break;
+        }
         if let Some((tail_cost, tail)) = goals.get(&node) {
             // Two neighboring mesh attachments can have different terminal
             // lengths. Retain the complete cost before comparing open nodes.
