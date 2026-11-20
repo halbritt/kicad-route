@@ -533,3 +533,49 @@ def test_plated_connector_accepts_the_inner_trunk_without_a_second_drill(tmp_pat
             assert any(pad.HitTest(t.GetStart()) or pad.HitTest(t.GetEnd()) for t in copper)
     verified = run_native_drc(saved, sidecar_source=source).raw
     assert not verified["unconnected_items"] and not verified["violations"]
+
+
+def test_distributed_surface_supply_joins_the_header_and_all_local_loads(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=7372)
+    board.set_rect_outline(0, 0, 45_000_000, 35_000_000)
+    stack = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+    for i, (x, y) in enumerate([(5, 7), (17, 7.5), (28, 8), (6, 19), (18, 20),
+                                (30, 19), (6, 28), (17, 27.5), (30, 28)]):
+        coord = (pcbnew.FromMM(x), pcbnew.FromMM(y))
+        fp = board.add_footprint(f"C{i + 1}", coord)
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", "BIAS", coord, size_nm=(850_000, 650_000),
+                      shape=pcbnew.PAD_SHAPE_RECT, layers=[pcbnew.F_Cu])
+    for ref, net, x, y, plated in [("J1", "BIAS", 39, 18, True),
+                                   ("R1", "REF", 4, 3, False), ("R2", "REF", 12, 3, False)]:
+        at = (pcbnew.FromMM(x), pcbnew.FromMM(y))
+        fp = board.add_footprint(ref, at)
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        if plated:
+            board.add_pad(fp, "1", net, at, attrib=pcbnew.PAD_ATTRIB_PTH,
+                          layers=[*stack, pcbnew.F_Mask, pcbnew.B_Mask], size_nm=(1_450_000, 1_450_000),
+                          drill_size_nm=(650_000, 650_000), shape=pcbnew.PAD_SHAPE_CIRCLE)
+        else:
+            board.add_pad(fp, "1", net, at, size_nm=(650_000, 650_000),
+                          layers=[pcbnew.F_Cu], shape=pcbnew.PAD_SHAPE_RECT)
+    board.set_project_rules()
+    source = board.save(tmp_path / "input").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 10 and not before["violations"]
+    run, _ = guarded_cli
+    saved, operation = tmp_path / "routed.kicad_pcb", tmp_path / "operation.json"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved),
+         "--operation-result", str(operation)])
+    result = json.loads(operation.read_bytes())["routing"]
+    assert result["status"] == "complete" and result["added_via_count"] == 0
+    reopened = pcbnew.LoadBoard(str(saved))
+    copper = [t for t in reopened.GetTracks() if t.GetNetname() == "BIAS"]
+    assert copper and all(t.GetLayer() == pcbnew.F_Cu for t in copper)
+    ends = {tuple(p) for t in copper for p in (t.GetStart(), t.GetEnd())}
+    assert (39_000_000, 18_000_000) in ends
+    assert any(p.HitTest(pcbnew.VECTOR2I(*q)) and q != tuple(p.GetPosition())
+               for p in reopened.GetPads() if p.GetNetname() == "BIAS" for q in ends)
+    after = run_native_drc(saved, sidecar_source=source).raw
+    assert not after["unconnected_items"] and not after["violations"]

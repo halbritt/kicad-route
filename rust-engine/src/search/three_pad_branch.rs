@@ -10,13 +10,13 @@ fn median(a: [i64; 3]) -> i64 {
 // Store axial + diagonal * sqrt(2) in nanometres. Rounding each arm to
 // integer nanometres can reverse the comparison of two near-equal trees.
 #[derive(Clone, Copy, Default)]
-struct Length {
+pub(super) struct Length {
     axial: u64,
     diagonal: u64,
 }
 
 impl Length {
-    fn between(a: Point, b: Point) -> Self {
+    pub(super) fn between(a: Point, b: Point) -> Self {
         let dx = a[0].abs_diff(b[0]);
         let dy = a[1].abs_diff(b[1]);
         Self {
@@ -32,7 +32,7 @@ impl Length {
         }
     }
 
-    fn compare(self, other: Self) -> std::cmp::Ordering {
+    pub(super) fn compare(self, other: Self) -> std::cmp::Ordering {
         let a = i128::from(self.axial) - i128::from(other.axial);
         let d = i128::from(self.diagonal) - i128::from(other.diagonal);
         if a == 0 || d == 0 || a.signum() == d.signum() {

@@ -5,6 +5,7 @@ mod monotone_trunk;
 mod octilinear_exit;
 mod octilinear_terminal;
 mod pad_field;
+mod pad_forest;
 mod reverse_sources;
 mod routing_mesh;
 mod three_pad_branch;
@@ -421,6 +422,11 @@ pub(crate) fn join_open_components(
             .as_ref()
             .is_none_or(|o| o.bus.is_none())
     {
+        if let Some(edges) =
+            pad_forest::between(engine, net, groups, budget, expanded, frontier.as_deref())?
+        {
+            return Ok(edges);
+        }
         if let Some(path) =
             three_pad_branch::between(engine, net, groups, budget, expanded, frontier.as_deref())?
         {
