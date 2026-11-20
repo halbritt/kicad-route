@@ -181,3 +181,58 @@ def test_clock_tree_joins_all_receivers_through_an_inner_channel(tmp_path, guard
     assert any(piece.GetLayer() in inner for piece in reopened.GetTracks())
     after = run_native_drc(saved, sidecar_source=source).raw
     assert not after["unconnected_items"] and not after["violations"]
+
+
+def test_inner_land_grid_pads_escape_to_drills_outside_the_package(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=36018)
+    board.set_rect_outline(0, 0, 50_000_000, 32_000_000)
+    stack = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+
+    def point(x, y):
+        return pcbnew.FromMM(x), pcbnew.FromMM(y)
+
+    def keepout(layers, x, y, right, top, *, tracks, vias):
+        ring = [point(x, y), point(right, y), point(right, top), point(x, top)]
+        board.add_keepout(layers, ring, no_tracks=tracks, no_vias=vias)
+
+    for ref, x, y, layer in [("U1", 9, 10, pcbnew.F_Cu), ("U2", 41, 20, pcbnew.B_Cu)]:
+        chip = board.add_footprint(ref, point(x, y), side="F" if layer == pcbnew.F_Cu else "B")
+        chip.Value().SetVisible(False)
+        chip.Reference().SetVisible(False)
+        for col in range(-2, 3):
+            for row in range(-2, 3):
+                board.add_pad(chip, f"{chr(67 + row)}{col + 3}", "CLK" if (col, row) == (0, 0) else "",
+                              point(x + col, y + row), size_nm=point(.45, .45),
+                              shape=pcbnew.PAD_SHAPE_CIRCLE, layers=[layer])
+        keepout(stack, x - 3.25, y - 3.25, x + 3.25, y + 3.25, tracks=False, vias=True)
+    keepout([pcbnew.F_Cu, pcbnew.B_Cu], 15, -1, 35, 33, tracks=True, vias=False)
+    for ref, x in [("R1", 4), ("R2", 10)]:
+        part = board.add_footprint(ref, point(x, 28))
+        part.Reference().SetVisible(False)
+        part.Value().SetVisible(False)
+        board.add_pad(part, "1", "REF", point(x, 28), size_nm=point(.7, .6),
+                      shape=pcbnew.PAD_SHAPE_RECT, layers=[pcbnew.F_Cu])
+    board.set_project_rules(
+        rules=dict(min_track_width=.2, min_clearance=.15, min_copper_edge_clearance=.4,
+                   min_via_diameter=.6),
+        classes=[dict(name="Default", priority=0, clearance=.15, track_width=.2,
+                      via_diameter=.6, via_drill=.3)],
+    )
+    source = board.save(tmp_path / "source").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 2 and not before["violations"]
+    run, _ = guarded_cli
+    saved, op = tmp_path / "routed.kicad_pcb", tmp_path / "route.json"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved),
+         "--operation-result", str(op)])
+    result = json.loads(op.read_bytes())["routing"]
+    assert result["status"] == "complete" and result["added_via_count"] == 2
+    reopened = pcbnew.LoadBoard(str(saved))
+    assert len(list(reopened.GetPads())) == 52
+    tracks = [t for t in reopened.GetTracks() if t.GetNetname() == "CLK"
+              and not isinstance(t, pcbnew.PCB_VIA)]
+    for face in (pcbnew.F_Cu, pcbnew.B_Cu):
+        assert any(t.GetLayer() == face and t.GetStartX() != t.GetEndX()
+                   and t.GetStartY() != t.GetEndY() for t in tracks)
+    native = run_native_drc(saved, sidecar_source=source).raw
+    assert not native["unconnected_items"] and not native["violations"]

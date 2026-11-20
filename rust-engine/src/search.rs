@@ -593,6 +593,19 @@ fn join_components_inner(
         expanded,
         frontier.as_deref(),
     )
+    .and_then(|candidate| match candidate {
+        Some(_) => Ok(candidate),
+        None => budgeted_terminal::through_pad_channels(
+            engine,
+            net,
+            source,
+            targets,
+            history,
+            budget,
+            expanded,
+            frontier.as_deref(),
+        ),
+    })
     .and_then(|candidate| candidate.map_or(result, Ok))
     .map_err(|mut e| {
         e.expanded_states = *expanded;

@@ -274,6 +274,12 @@ route may need several successive turns. The search follows clear axial runs
 toward a clipped pad contact and validates every segment after chamfering
 the bends. A blocked run leaves the ordinary search available.
 
+If two isolated surface pads cannot leave the ordinary grid, the router can
+use the gap between four adjacent pad centers. A diagonal departure reaches
+the gap, then a straight track follows the space between pad rows to a legal
+drill outside the package. Each departure and the connecting copper use the
+same rules and operation budget.
+
 A net with many isolated terminals can use the forward-only queue. At a
 source on existing copper, this queue also checks whether a legal straight
 or octilinear connection attains its smallest remaining cost. The candidate

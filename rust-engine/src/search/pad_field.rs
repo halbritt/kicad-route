@@ -179,6 +179,27 @@ fn cell_phase(
         .map(|_| site))
 }
 
+fn pad_rows(engine: &Engine, occupied: usize) -> Result<[Row<'_>; 2], Failure> {
+    let mut rows: [Row<'_>; 2] = Default::default();
+    for pad in &engine.input.pads {
+        engine.work.charge(1)?;
+        let Some(layer) = symmetric_surface(engine, pad) else {
+            continue;
+        };
+        let p = pad.copper_center();
+        engine
+            .work
+            .search_storage(occupied + rows[0].len() + rows[1].len() + 2)?;
+        for i in 0..2 {
+            rows[i]
+                .entry((layer, p[1 - i], p[i]))
+                .and_modify(|entry| *entry = None)
+                .or_insert(Some(pad));
+        }
+    }
+    Ok(rows)
+}
+
 pub(super) fn starts(
     engine: &Engine,
     net: u32,
@@ -224,23 +245,7 @@ pub(super) fn starts(
     for target in targets {
         collect_pads(target)?;
     }
-    let mut rows: [Row<'_>; 2] = Default::default();
-    for pad in &engine.input.pads {
-        engine.work.charge(1)?;
-        let Some(layer) = symmetric_surface(engine, pad) else {
-            continue;
-        };
-        let p = pad.copper_center();
-        engine
-            .work
-            .search_storage(terminals.len() + rows[0].len() + rows[1].len() + 2)?;
-        for i in 0..2 {
-            rows[i]
-                .entry((layer, p[1 - i], p[i]))
-                .and_modify(|entry| *entry = None)
-                .or_insert(Some(pad));
-        }
-    }
+    let rows = pad_rows(engine, terminals.len())?;
     let grid = engine.input.rules.grid_nm;
     let mut phases = BTreeSet::new();
     let base_storage = terminals.len() + rows[0].len() + rows[1].len();
@@ -350,4 +355,37 @@ pub(super) fn toward_target(
     }
     Ok(nearest
         .and_then(|(_, _, p)| (p != center && crate::geometry::point_in_pad(p, pad)).then_some(p)))
+}
+
+/// Candidate centers of the four gaps around a terminal in aligned pad rows.
+/// The caller checks the swept native copper for every proposed departure.
+pub(super) fn row_channels(
+    engine: &Engine,
+    contacts: [(Point, usize); 2],
+) -> Result<[Vec<Point>; 2], Failure> {
+    let rows = pad_rows(engine, 0)?;
+    let mut channels = [Vec::new(), Vec::new()];
+    for (out, (center, layer)) in channels.iter_mut().zip(contacts) {
+        engine.work.charge(1)?;
+        if !matches!(rows[0].get(&(layer, center[1], center[0])), Some(Some(_))) {
+            continue;
+        }
+        let [xs, ys] = std::array::from_fn(|axis| neighbors(&rows[axis], layer, center, axis));
+        for x in xs.into_iter().flatten() {
+            for y in ys.into_iter().flatten() {
+                engine.work.charge(1)?;
+                let opposite = [x.copper_center()[0], y.copper_center()[1]];
+                if matches!(
+                    rows[0].get(&(layer, opposite[1], opposite[0])),
+                    Some(Some(_))
+                ) {
+                    out.push([
+                        center[0].midpoint(opposite[0]),
+                        center[1].midpoint(opposite[1]),
+                    ]);
+                }
+            }
+        }
+    }
+    Ok(channels)
 }

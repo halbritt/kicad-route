@@ -139,10 +139,41 @@ pub(super) fn from_launch(
     expanded: &mut u64,
     frontier: Option<&BlockedFrontier>,
 ) -> Result<Option<Path>, Failure> {
+    from_contacts(
+        engine,
+        net,
+        starts,
+        targets
+            .iter()
+            .map(|target| target.surface_contact(track_ok, &engine.work)),
+        track_ok,
+        frontier_entries,
+        via_cost,
+        history,
+        budget,
+        expanded,
+        frontier,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn from_contacts(
+    engine: &Engine,
+    net: u32,
+    starts: &[(Point, u8, bool)],
+    ends: impl IntoIterator<Item = Result<Option<(Point, usize)>, Failure>>,
+    track_ok: &[bool],
+    frontier_entries: usize,
+    via_cost: u64,
+    history: Option<&CongestionHistory>,
+    budget: &mut TrialBudget<'_>,
+    expanded: &mut u64,
+    frontier: Option<&BlockedFrontier>,
+) -> Result<Option<Path>, Failure> {
     let mut choices = Vec::new();
     let via_step = engine.layer_policy.scale(via_cost);
-    for target in targets {
-        let Some((end, dest)) = target.surface_contact(track_ok, &engine.work)? else {
+    for target in ends {
+        let Some((end, dest)) = target? else {
             continue;
         };
         for &(at, face, via_only) in starts {
@@ -220,6 +251,122 @@ pub(super) fn from_launch(
                 for &w in &right {
                     join.connect(layer, Some(v), Some(w), &mut best, &mut expand)?;
                 }
+            }
+        }
+    }
+    Ok(best)
+}
+
+/// Surface tracks can leave a land-grid pad diagonally and continue between
+/// its neighboring rows until drilling is allowed beyond the package.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn through_pad_channels(
+    engine: &Engine,
+    net: u32,
+    source: &[super::Copper<'_>],
+    targets: &[Vec<super::Copper<'_>>],
+    history: Option<&CongestionHistory>,
+    budget: &mut TrialBudget<'_>,
+    expanded: &mut u64,
+    frontier: Option<&BlockedFrontier>,
+) -> Result<Option<Path>, Failure> {
+    let ([super::Copper::Pad(a)], [group]) = (source, targets) else {
+        return Ok(None);
+    };
+    let [super::Copper::Pad(b)] = group.as_slice() else {
+        return Ok(None);
+    };
+    if engine.layer_count() < 2
+        || a.drill.is_some()
+        || b.drill.is_some()
+        || engine.input.rules.same_net_hole_clearance_nm != 0
+        || engine.effective_rules.net(net).max_via_count.is_some()
+        || engine.effective_rules.allow_blind_buried_vias
+        || engine.effective_rules.allow_microvias
+        || engine
+            .input
+            .routing_options
+            .as_ref()
+            .is_some_and(|o| o.bus.is_some())
+    {
+        return Ok(None);
+    }
+    let allowed = super::allowed_track_layers(engine, net)?;
+    let contact = |pad| {
+        let target = TargetBounds::new(
+            super::Copper::Pad(pad),
+            engine.all_layers_slice(),
+            &engine.work,
+        )?;
+        target.surface_contact(&allowed, &engine.work)
+    };
+    let (Some((a, face)), Some((b, dest))) = (contact(a)?, contact(b)?) else {
+        return Ok(None);
+    };
+    let mut exits = super::pad_field::row_channels(engine, [(a, face), (b, dest)])?;
+    for (points, (center, layer)) in exits.iter_mut().zip([(a, face), (b, dest)]) {
+        let mut allowed = Vec::new();
+        for p in points.drain(..) {
+            if engine.legal_edge_on(net, layer, center, p)?
+                && unpenalized_terminal(engine, history, &[track(center, p, layer)])?
+            {
+                allowed.push(p);
+            }
+        }
+        *points = allowed;
+    }
+    let [mut left, mut right] = exits;
+    if left.is_empty() && right.is_empty() {
+        return Ok(None);
+    }
+    left.push(a);
+    right.push(b);
+    let grid = engine.input.rules.grid_nm as u64;
+    let cost = |a: Point, b: Point, layer: usize| {
+        (a[0].abs_diff(b[0]).div_ceil(grid) + a[1].abs_diff(b[1]).div_ceil(grid))
+            .saturating_mul(engine.layer_policy.weight(layer))
+    };
+    let mut best: Option<Path> = None;
+    for &p in &left {
+        for &q in &right {
+            engine.work.charge(1)?;
+            if p == a && q == b {
+                continue;
+            }
+            let stubs = cost(a, p, face).saturating_add(cost(q, b, dest));
+            let lower = (p[0].abs_diff(q[0]) + p[1].abs_diff(q[1]))
+                .div_ceil(grid)
+                .saturating_mul(engine.layer_policy.minimum_step(net))
+                .saturating_add(stubs);
+            if best.as_ref().is_some_and(|path| path.steps <= lower) {
+                continue;
+            }
+            if let Some(mut path) = from_contacts(
+                engine,
+                net,
+                &[(p, face as u8, false)],
+                [Ok(Some((q, dest)))],
+                &allowed,
+                left.len() + right.len(),
+                engine.effective_rules.via_cost.max(1),
+                history,
+                budget,
+                expanded,
+                frontier,
+            )? {
+                path.steps = path.steps.saturating_add(stubs);
+                if best.as_ref().is_some_and(|old| old.steps <= path.steps) {
+                    continue;
+                }
+                if a != p {
+                    path.edges.insert(0, track(a, p, face));
+                    path.points.insert(0, a);
+                }
+                if b != q {
+                    path.edges.push(track(q, b, dest));
+                    path.points.push(b);
+                }
+                best = Some(path);
             }
         }
     }
