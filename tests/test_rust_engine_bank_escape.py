@@ -425,38 +425,43 @@ def test_three_surface_contacts_share_the_same_physical_junction(tmp_path, guard
     assert not routed["unconnected_items"] and not routed["violations"]
 
 
-def test_negotiated_routes_between_perpendicular_connector_banks(tmp_path, guarded_cli):
+@pytest.mark.parametrize(("count", "rear", "keyways"), [(9, True, True), (12, False, False)])
+def test_negotiated_routes_between_perpendicular_connector_banks(tmp_path, guarded_cli, count, rear, keyways):
     board = BoardBuilder(copper_layers=4, seed=4997)
     board.set_rect_outline(0, 0, 62_000_000, 52_000_000)
 
     def point(x, y):
-        return round((62 - x) * 1_000_000), round((52 - y) * 1_000_000)
+        if rear:
+            x, y = 62 - x, 52 - y
+        return round(x * 1_000_000), round(y * 1_000_000)
 
     def keepout(layers, x, y, right, top, *, tracks=False, vias=False):
         polygon = [point(x, y), point(right, y), point(right, top), point(x, top)]
         board.add_keepout(layers, polygon, no_tracks=tracks, no_vias=vias)
 
     outer = [pcbnew.B_Cu, pcbnew.F_Cu]
-    for index in range(9):
+    face, opposite = ("B", "F") if rear else ("F", "B")
+    for index in range(count):
         y = 4.95 + index * 2.7
-        x = 17.65 + ((index * 5 + 1) % 9) * 3.4
-        for bank, at, side in [("A", point(3.35, y), "B"),
-                               ("B", point(x, 48.85), "F" if index % 3 == 0 else "B")]:
+        x = 17.65 + ((index * 5 + 1) % count) * 3.4
+        for bank, at, side in [("A", point(3.35, y), face),
+                               ("B", point(x, 48.85), opposite if index % 3 == 0 else face)]:
             fp = board.add_footprint(f"{bank}{index}", at, side=side)
             fp.Reference().SetVisible(False)
             fp.Value().SetVisible(False)
             board.add_pad(fp, "1", f"IO{index}", at, size_nm=(700_000, 650_000),
                           shape=pcbnew.PAD_SHAPE_RECT,
                           layers=[pcbnew.B_Cu if side == "B" else pcbnew.F_Cu])
-        keepout([pcbnew.B_Cu], 6.5, y - .35, 7.4, y + .35, tracks=True)
-        keepout(outer, x - .45, 44.9, x + .45, 45.9, tracks=True)
+        if keyways:
+            keepout([pcbnew.B_Cu if rear else pcbnew.F_Cu], 6.5, y - .35, 7.4, y + .35, tracks=True)
+            keepout(outer, x - .45, 44.9, x + .45, 45.9, tracks=True)
     keepout(outer, -1, -1, 10.1, 37.5, vias=True)
     keepout(outer, 13.05, 42.7, 61, 53, vias=True)
     keepout(outer, 12.4, -1, 60.5, 40.8, tracks=True)
     board.set_project_rules()
     source = board.save(tmp_path / "input").pcb_path
     before = run_native_drc(source).raw
-    assert len(before["unconnected_items"]) == 9 and not before["violations"]
+    assert len(before["unconnected_items"]) == count and not before["violations"]
 
     run, _ = guarded_cli
     saved, op = tmp_path / "routed.kicad_pcb", tmp_path / "operation.json"
@@ -467,7 +472,7 @@ def test_negotiated_routes_between_perpendicular_connector_banks(tmp_path, guard
     after = run_native_drc(saved, sidecar_source=source).raw
     assert not after["unconnected_items"] and not after["violations"]
     reopened = pcbnew.LoadBoard(str(saved))
-    assert reopened.GetCopperLayerCount() == 4 and len(list(reopened.GetPads())) == 18
+    assert reopened.GetCopperLayerCount() == 4 and len(list(reopened.GetPads())) == count * 2
 
 
 def test_surface_branch_reaches_the_middle_of_a_locked_inner_trace(tmp_path, guarded_cli):

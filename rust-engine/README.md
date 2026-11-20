@@ -351,7 +351,10 @@ to the same expansion allowance as the remaining lattice search.
 When a coarse frontier runs out of reachable points, the router can halve
 the number of grid steps between lattice lines, rounding up to a whole step.
 All resolutions draw from the same expansion allowance. The ordinary search
-can still use passages between lattice points.
+can still use passages between lattice points. During a multilayer launch inside a
+rectangular through-via keepout, the ordinary search can also take longer axial
+steps toward a pad. It sweeps the whole segment, charges its full grid distance
+and keeps one-cell steps available for turns between those longer endpoints.
 
 For an oblique imported track separating the terminals, the planar bound
 uses the shorter detour past either end. When the existing same-net tree

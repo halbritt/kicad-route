@@ -1,4 +1,5 @@
 mod budgeted_terminal;
+mod confined_runs;
 mod contact_bound;
 mod layer_crossing;
 mod monotone_trunk;
@@ -4311,6 +4312,12 @@ fn walk_multilayer_bidirectional(
             .as_ref()
             .is_none_or(|o| o.bus.is_none());
 
+    engine.work.charge(engine.input.rule_areas.len() as u64)?;
+    let try_confined_runs = try_terminal_segments
+        && engine.surface_search_share.is_some()
+        && history.is_none_or(|h| h.is_empty())
+        && engine.input.rule_areas.iter().any(|area| area.no_vias);
+
     while !q_fwd.is_empty() || (reverse_sources.is_some() && !q_bwd.is_empty()) {
         // The expansion cap limits further search. A complete path already
         // found on the current copper needs no further expansion.
@@ -4674,7 +4681,22 @@ fn walk_multilayer_bidirectional(
                         }
                     }
                 }
-                for delta in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]] {
+                let runs = if try_confined_runs && reverse_sources.is_none() {
+                    confined_runs::toward_pad(
+                        engine,
+                        net,
+                        l_idx,
+                        state.at,
+                        parent_fwd.get(&state).map(|(_, edge)| *edge),
+                        targets,
+                    )?
+                } else {
+                    [None; 2]
+                };
+                for delta in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]]
+                    .into_iter()
+                    .chain(runs.into_iter().flatten())
+                {
                     engine.work.charge(1)?;
                     let Some(x) = state.at[0].checked_add(delta[0]) else {
                         continue;
@@ -4720,9 +4742,18 @@ fn walk_multilayer_bidirectional(
                         }
                         _ => 0,
                     };
-                    let g = cost
-                        .checked_add(engine.layer_policy.step(l_idx, step_penalty))
-                        .expect("bounded search cost");
+                    let cells = confined_runs::steps_taken(state.at, at, grid as u64);
+                    let g = engine
+                        .layer_policy
+                        .step(l_idx, step_penalty)
+                        .checked_mul(cells)
+                        .and_then(|extra| cost.checked_add(extra))
+                        .ok_or_else(|| {
+                            Failure::new(
+                                Status::AdmissionExceeded,
+                                "track run cost exceeds routing range",
+                            )
+                        })?;
                     if best_fwd.get(&next).is_some_and(|&old| old <= g)
                         || settled_fwd.contains(&next)
                     {
