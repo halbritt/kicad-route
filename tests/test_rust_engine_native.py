@@ -2052,13 +2052,19 @@ def test_route_native_sparse_project_uses_kicad_rules(native_board, guarded_cli,
     sidecar = native_board.with_suffix('.kicad_pro')
     original = json.dumps(project).encode()
     sidecar.write_bytes(original)
-    board = pcbnew.LoadBoard(str(native_board))
-    settings = board.GetDesignSettings()
-    default = settings.m_NetSettings.GetDefaultNetclass()
-    width = max(default.GetTrackWidth(), settings.m_TrackMinWidth)
+    # The fixture saved this board before the sidecar existed. KiCad caches project
+    # settings for open boards, so read the on-disk input in a fresh process.
+    probe = run(['/usr/bin/python3', '-c', '''
+import json, pcbnew, sys
+board = pcbnew.LoadBoard(sys.argv[1])
+settings = board.GetDesignSettings()
+cls = settings.m_NetSettings.GetDefaultNetclass()
+print(json.dumps([max(cls.GetTrackWidth(), settings.m_TrackMinWidth), cls.GetClearance(),
+                  cls.GetViaDiameter(), cls.GetViaDrill()]))
+''', str(native_board)])
+    width, clearance, diameter, drill = json.loads(probe.stdout)
     assert width == (350000 if project else 200000)
-    assert default.GetClearance() == 200000
-    assert (default.GetViaDiameter(), default.GetViaDrill()) == (600000, 300000)
+    assert (clearance, diameter, drill) == (200000, 600000, 300000)
 
     output = native_board.with_name('sparse-routed.kicad_pcb')
     result = run([str(engine), 'route-native', str(native_board), str(output)], check=False)
