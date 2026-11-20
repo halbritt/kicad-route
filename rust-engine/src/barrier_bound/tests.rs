@@ -102,7 +102,7 @@ fn foreign_centerline_forces_either_end_with_layer_escape_and_clipped_contact() 
 }
 
 #[test]
-fn supports_only_proved_solid_rectangles_and_foreign_straight_tracks() {
+fn ignores_open_areas_and_traces_that_do_not_separate_the_terminals() {
     let mut input = article();
     let mut hole = rectangle("F.Cu");
     hole.holes.push(vec![[5, 3], [5, 6], [6, 4]]);
@@ -115,7 +115,7 @@ fn supports_only_proved_solid_rectangles_and_foreign_straight_tracks() {
     input.rule_areas = vec![hole, open, skew, crossed];
     input.tracks = vec![
         track([5, 0], [5, 8], 1, "F.Cu"),
-        track([5, 0], [6, 8], 2, "F.Cu"),
+        track([5, 6], [6, 8], 2, "F.Cu"),
         track([5, 0], [5, 8], 2, "B.Cu"),
     ];
     let w = budget();
@@ -1101,4 +1101,62 @@ fn a_generated_trace_can_prove_a_crossing_only_while_it_is_kept() {
     assert_eq!(measure(&copper, 1, 0).0, None);
     copper.rollback();
     assert_eq!(measure(&copper, 1, 0), first);
+}
+
+#[test]
+fn slanted_divider_is_admissible_and_consistent_for_every_grid_edge() {
+    let layers = vec!["F.Cu".to_owned(), "B.Cu".to_owned()];
+    let w = budget();
+    for (a, b) in [
+        ([3, 2], [11, 12]),
+        ([5, 0], [6, 8]),
+        ([3, 11], [10, 3]),
+        ([2, 6], [12, 9]),
+    ] {
+        let mut input = article();
+        input.tracks.push(track(a, b, 2, "F.Cu"));
+        // Compare the rational intersection of a physical wall and an axial
+        // grid step by cross-multiplication, including a clipped final step.
+        let legal = |layer, p: Point, q: Point| {
+            if layer != 0 {
+                return true;
+            }
+            let k = usize::from(p[0] != q[0]);
+            let j = 1 - k;
+            let (u, v) = if a[k] < b[k] { (a, b) } else { (b, a) };
+            if p[k] < u[k] || p[k] > v[k] {
+                return true;
+            }
+            let den = v[k] - u[k];
+            let pos = u[j] * den + (p[k] - u[k]) * (v[j] - u[j]);
+            pos < p[j].min(q[j]) * den || pos > p[j].max(q[j]) * den
+        };
+        let from = [1, 4];
+        let to = [13, 8];
+        for grid in [1, 2] {
+            for reach in [0, 1] {
+                let h = BarrierBound::for_join(
+                    &input,
+                    1,
+                    &input.tracks,
+                    &layers,
+                    (from, from),
+                    (to, to),
+                    reach,
+                    grid,
+                    3,
+                    5,
+                    &w,
+                )
+                .unwrap()
+                .with_terminal_layers(1, 1);
+                if a == [3, 2] && reach == 0 {
+                    assert!(h.is_active());
+                    assert!(h.estimate(from, 0, &w).unwrap() > 16u64.div_ceil(grid as u64) * 3);
+                }
+                finite_distances(&h, 2, &[(0, to)], reach, grid, 3, 5, false, legal);
+                finite_distances(&h, 2, &[(0, from)], 0, grid, 3, 5, true, legal);
+            }
+        }
+    }
 }

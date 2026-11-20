@@ -2,7 +2,9 @@
 //! removed in this relaxation. No choice of barrier can exclude a physical route.
 
 mod pad_banks;
+mod slanted;
 pub(crate) use pad_banks::PadBanks;
+use slanted::SlantedWall;
 
 use crate::budget::WorkBudget;
 use crate::model::{Failure, Input, Point, RuleArea, Track};
@@ -208,6 +210,7 @@ pub(crate) struct BarrierBound {
     source_layers: u32,
     target_layers: u32,
     layers: Vec<[Option<Barrier>; 2]>,
+    slanted: Vec<Option<SlantedWall>>,
     through_stack: [Option<Barrier>; 2],
     crossing_layers: [BTreeMap<i64, u32>; 2],
     ordered: [Option<OrderedBounds>; 2],
@@ -240,7 +243,8 @@ impl BarrierBound {
             target.1.map(|v| v.saturating_add(reach_nm)),
         );
         work.charge(layers.len() as u64)?;
-        work.search_storage(layers.len() * 2)?;
+        work.search_storage(layers.len() * 3)?;
+        let mut slanted = vec![None; layers.len()];
         let mut retained = vec![[None; 2]; layers.len()];
         let mut scores = vec![[0; 2]; layers.len()];
         let mut through_stack = [None; 2];
@@ -271,9 +275,18 @@ impl BarrierBound {
         for t in tracks {
             work.charge(1)?;
             if t.net != net {
-                if let Some(b) = Barrier::from_segment(t.start, t.end) {
-                    if let Some(k) = layer_index(&t.layer)? {
+                if let Some(k) = layer_index(&t.layer)? {
+                    if let Some(b) = Barrier::from_segment(t.start, t.end) {
                         consider(&mut retained[k], &mut scores[k], b);
+                    } else {
+                        SlantedWall::consider(
+                            &mut slanted[k],
+                            t.start,
+                            t.end,
+                            source,
+                            target,
+                            work,
+                        )?;
                     }
                 }
             }
@@ -374,12 +387,14 @@ impl BarrierBound {
                 active = true;
             }
         }
+        active |= slanted.iter().any(Option::is_some);
         Ok(Self {
             source,
             target,
             source_layers: u32::MAX,
             target_layers: u32::MAX,
             layers: retained,
+            slanted,
             through_stack,
             ordered,
             grid: grid_nm as u64,
@@ -562,7 +577,15 @@ impl BarrierBound {
             }
             Ok::<_, Failure>(h)
         };
-        let local = planar_bound(&self.layers[layer])?;
+        let mut local = planar_bound(&self.layers[layer])?;
+        if let Some(wall) = self.slanted[layer] {
+            work.charge(8)?;
+            local = local.max(
+                wall.distance((p, p), target)
+                    .div_ceil(self.grid)
+                    .saturating_mul(self.step),
+            );
+        }
         let terminal_layers = if backward {
             self.source_layers
         } else {
