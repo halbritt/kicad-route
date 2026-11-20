@@ -451,6 +451,8 @@ mod tests {
         ))
         .unwrap();
         input.layers = vec!["F.Cu".into(), "B.Cu".into()];
+        input.tracks.clear();
+        input.pads.clear();
         input.rule_areas.push(
             serde_json::from_value(serde_json::json!({
                 "id":"53b118ae-365c-4b7a-9bbf-d6fed14cd3e1","layers":["B.Cu"],
@@ -460,11 +462,18 @@ mod tests {
             .unwrap(),
         );
         let engine = Engine::new(input).unwrap();
+        let source = [10_000_000, 10_000_000];
+        let inside = [11_500_000, 10_000_000];
+        assert!(engine.legal_edge_on(1, 0, source, inside).unwrap());
+        assert!(engine
+            .legal_via(1, inside, 0, 1, ViaKind::Through, &[])
+            .unwrap()
+            .is_none());
         let mut probes = 0;
         let found = drill_sites(
             &engine,
             1,
-            [10_000_000, 10_000_000],
+            source,
             0,
             Some(&mut || {
                 probes += 1;
