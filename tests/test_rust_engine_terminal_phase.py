@@ -67,3 +67,27 @@ def test_native_terminal_slot_uses_reachable_phase(tmp_path, guarded_cli, offset
         code, stopped, output = route("tight", "--max-expansions", str(cap))
         assert (code, stopped["status"]) == (4, "budget_exhausted") and not output.exists()
         assert stopped["routing"]["expanded_states"] == cap
+
+
+def test_large_row_of_isolated_pads_closes_every_join_at_its_lower_bound(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=107)
+    board.set_rect_outline(0, 0, 36_000_000, 30_000_000)
+    row = [(5_000_000 + n * 2_150_000, 14_100_000) for n in range(14)]
+    for net, pads, face in [("BIAS", row, pcbnew.F_Cu),
+                            ("AUX", [(3_000_000, 26_000_000), (28_000_000, 26_000_000)], pcbnew.B_Cu)]:
+        for i, xy in enumerate(pads):
+            fp = board.add_footprint(net + str(i), xy, side="F" if face == pcbnew.F_Cu else "B")
+            fp.Reference().SetVisible(False)
+            fp.Value().SetVisible(False)
+            board.add_pad(fp, "1", net, xy, size_nm=(750_000, 650_000),
+                          shape=pcbnew.PAD_SHAPE_RECT, layers=[face])
+    source = board.save(tmp_path / "input").pcb_path
+    assert len(run_native_drc(source).raw["unconnected_items"]) == 14
+    saved, op = tmp_path / "closed.kicad_pcb", tmp_path / "op.json"
+    run, _ = guarded_cli
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved),
+         "--max-expansions", "14", "--operation-result", str(op)])
+    routing = json.loads(op.read_bytes())["routing"]
+    assert (routing["expanded_states"], routing["added_via_count"]) == (14, 0)
+    drc = run_native_drc(saved, sidecar_source=source).raw
+    assert not drc["unconnected_items"] and not drc["violations"]

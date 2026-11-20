@@ -273,6 +273,11 @@ route may need several successive turns. The search follows clear axial runs
 toward a clipped pad contact and validates every segment after chamfering
 the bends. A blocked run leaves the ordinary search available.
 
+A net with many isolated terminals can use the forward-only queue. At a
+source on existing copper, this queue also checks whether a legal straight
+or octilinear connection attains its smallest remaining cost. The candidate
+must reach an actual target on the same layer.
+
 For an oblique imported track separating the terminals, the planar bound
 uses the shorter detour past either end. When the existing same-net tree
 surrounds the target, reverse search can bound the distance to each section

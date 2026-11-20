@@ -1639,10 +1639,71 @@ fn search_component_path(
                 finished_fn,
             )?
         } else {
+            // A large set of target islands uses a forward-only queue. Its
+            // smallest root priority can still certify a whole planar route.
+            let from_root = |root: State, remaining: u64| {
+                if let Some(path) = octilinear_terminal::from_state(
+                    engine,
+                    net,
+                    root,
+                    remaining,
+                    &goal_bounds,
+                    true,
+                    None,
+                    &finished_fn,
+                )? {
+                    if unpenalized_terminal(engine, history, &path.edges)? {
+                        return Ok(Some(path));
+                    }
+                }
+                let layer = usize::from(root.layer);
+                if let Some(bounds) = layer_target_union[layer] {
+                    if let Some(end) = certified_straight_terminal(
+                        engine,
+                        net,
+                        root,
+                        remaining,
+                        bounds,
+                        max_eff_width,
+                        &layer_target_union,
+                        minimum_step,
+                        engine.layer_policy.scale(via_cost),
+                        None,
+                        &attachment,
+                    )? {
+                        let edge = PathEdge::Track {
+                            start: root.at,
+                            end,
+                            layer: root.layer,
+                        };
+                        if unpenalized_terminal(engine, history, &[edge])? {
+                            return Ok(Some(Path {
+                                points: vec![root.at, end],
+                                edges: vec![edge],
+                                steps: remaining,
+                            }));
+                        }
+                    }
+                }
+                Ok(None)
+            };
+            let large_join = batch_search
+                && goal_bounds.len() > 8
+                && l_count > 1
+                && !has_zone_target
+                && engine.input.rules.same_net_hole_clearance_nm == 0
+                && conflict_filter.zones.is_empty()
+                && track_via_conflicts.is_empty()
+                && engine
+                    .input
+                    .routing_options
+                    .as_ref()
+                    .is_none_or(|o| o.bus.is_none());
             walk_multilayer(
                 engine,
                 net,
                 &start_vec,
+                large_join.then_some(&from_root),
                 budget,
                 expanded,
                 track_direction_matters,
@@ -2765,6 +2826,7 @@ fn walk(
         engine,
         0,
         &start_vec,
+        None,
         &mut budget,
         expanded,
         true,
@@ -2794,6 +2856,7 @@ fn walk_multilayer(
     engine: &Engine,
     net: u32,
     starts: &[(Point, u8, bool)],
+    from_root: Option<&dyn Fn(State, u64) -> Result<Option<Path>, Failure>>,
     budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
     track_direction_matters: bool,
@@ -2933,7 +2996,7 @@ fn walk_multilayer(
     let mut local_exp = 0u64;
     while !queue.is_empty() {
         engine.work.charge(1)?;
-        let Reverse((_f, tie_g, state)) = queue.pop().unwrap();
+        let Reverse((priority, tie_g, state)) = queue.pop().unwrap();
         let cost = tie_g.g;
         if best.get(&state) != Some(&cost) {
             continue;
@@ -2951,6 +3014,13 @@ fn walk_multilayer(
         budget.check_before_expand(engine, *expanded, frontier.as_deref())?;
         *expanded = expanded.checked_add(1).expect("bounded expansion count");
         local_exp += 1;
+        if cost == 0 && !state.via_only {
+            if let Some(probe) = from_root {
+                if let Some(path) = probe(state, priority)? {
+                    return Ok(path);
+                }
+            }
+        }
         if local_exp == 2048 {
             if let (Some(probe), Some(f)) = (escape_probe.take(), frontier.as_deref_mut()) {
                 if !probe(expanded, f, budget)? {
