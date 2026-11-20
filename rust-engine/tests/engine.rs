@@ -124,6 +124,34 @@ fn output_bytes(input: Input) -> Vec<u8> {
     serde_json::to_vec(&run(input)).unwrap()
 }
 #[test]
+fn single_offset_net_reaches_its_goal_on_an_equal_cost_plateau() {
+    let mut input = base();
+    input.bounds.max = [60_000_000, 40_000_000];
+    input.rules.grid_nm = 100_000;
+    input.rules.width_nm = 100_000;
+    input.rules.clearance_nm = 150_000;
+    input.rules.edge_clearance_nm = 250_000;
+    for (p, at) in input
+        .pads
+        .iter_mut()
+        .zip([[4_000_000, 20_000_000], [12_000_000, 25_000_000]])
+    {
+        p.shape = Shape::Circle { radius_nm: 250_000 };
+        p.at = at;
+    }
+    input.max_expansions = 160;
+    let out = run(input);
+    assert_eq!(out.status, Status::Complete, "{out:?}");
+    assert!(out.added_vias.is_empty());
+    let length: i64 = out
+        .added_tracks
+        .iter()
+        .map(|t| (t.end[0] - t.start[0]).abs() + (t.end[1] - t.start[1]).abs())
+        .sum();
+    assert_eq!(length, 12_800_000);
+}
+
+#[test]
 fn off_grid_smd_escape_uses_the_other_pad_phase_after_exhaustion() {
     let mut input = base();
     input.bounds.max = [6_000_000, 4_000_000];

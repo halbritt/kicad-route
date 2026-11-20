@@ -1907,7 +1907,9 @@ pub fn solve_with_adapter(
             &tx.engine.work,
         )?;
     }
-    let prev_prefer_higher_g = tx.engine.set_prefer_higher_g(units.len() > 1);
+    // Among equal lower bounds, expand the state closer to a goal even
+    // when a single routing unit owns the entire search budget.
+    let prev_prefer_higher_g = tx.engine.set_prefer_higher_g(true);
     let res = solve_with_adapter_units(tx, adapter, expanded, batch_limit, units);
     tx.engine.set_prefer_higher_g(prev_prefer_higher_g);
     tx.engine.bus_plan.finish();
