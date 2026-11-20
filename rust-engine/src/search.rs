@@ -4327,7 +4327,7 @@ fn walk_multilayer_bidirectional(
                             && only_through_vias
                             && barriers.is_some()
                         {
-                            layer_crossing::axial(
+                            layer_crossing::between_terminals(
                                 engine,
                                 net,
                                 state,
