@@ -304,6 +304,7 @@ impl Join<'_> {
 pub(in crate::search) fn through_launch_corridors(
     engine: &crate::Engine,
     net: u32,
+    source: &[crate::components::Copper<'_>],
     starts: &[(Point, u8, bool)],
     targets: &[crate::search::TargetBounds<'_>],
     allowed: &[bool],
@@ -348,22 +349,21 @@ pub(in crate::search) fn through_launch_corridors(
         share -= 1;
         Ok(true)
     };
-    // A launch on buried copper belongs to the actual source component.
-    // Its existing electrical access is available without drilling it again.
+    // Plated pads provide a permanent contact on several layers. A seed
+    // on a routed track is only an attachment on its own face. Check
+    // the original pad geometry before using its barrel as a free transfer.
     let inner = |layer: u8| layer > 0 && usize::from(layer) + 1 < allowed.len();
-    // One plated contact can appear as a separate start on each buried
-    // face. Pick its longest legal departure across those actual faces
-    // before introducing a drill to transfer between them.
     let mut faces = std::collections::BTreeMap::<Point, u32>::new();
-    for &(at, face, via_only) in starts {
-        engine.work.charge(1)?;
-        if inner(face) && !via_only && allowed[usize::from(face)] {
-            if !faces.contains_key(&at) {
+    engine.work.charge(source.len() as u64)?;
+    for &c in source {
+        if matches!(c, crate::components::Copper::Pad(p) if p.drill.is_some()) {
+            let pad = crate::search::TargetBounds::new(c, engine.all_layers_slice(), &engine.work)?;
+            if let Some((at, mask)) = pad.plated_contact(&engine.work)? {
                 engine
                     .work
                     .search_storage(occupied + right.len() + faces.len() + 1)?;
+                *faces.entry(at).or_default() |= mask;
             }
-            *faces.entry(at).or_default() |= 1 << face;
         }
     }
     for &(at, face, via_only) in starts

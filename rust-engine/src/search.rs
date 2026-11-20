@@ -1655,6 +1655,7 @@ fn search_component_path(
             walk_multilayer_bidirectional(
                 engine,
                 net,
+                source,
                 &start_vec,
                 &goal_bounds,
                 barriers.as_ref(),
@@ -4207,6 +4208,7 @@ fn repair_window_elapsed(
 fn walk_multilayer_bidirectional(
     engine: &Engine,
     net: u32,
+    source: &[Copper<'_>],
     starts: &[(Point, u8, bool)],
     targets: &[TargetBounds<'_>],
     barriers: Option<&BarrierBound>,
@@ -4563,6 +4565,7 @@ fn walk_multilayer_bidirectional(
                         None => budgeted_terminal::through_launch_corridors(
                             engine,
                             net,
+                            source,
                             starts,
                             targets,
                             &track_ok_on_layer,
