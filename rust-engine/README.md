@@ -323,6 +323,11 @@ board-wide join, it can also search the multilayer lattice described below
 from the existing copper to any reachable surface terminal. It keeps every
 disconnected target in the ordinary queue. A complete lattice connection
 can be used once the join has consumed its share of the board budget.
+When the source tree has more launch states than the mesh can visit, a
+disconnected surface pad can escape toward the tree from its own end. The
+router tries this before the mesh when another target island already contains
+a track or via. It checks the surface approach, through-via and buried track
+under the same per-join allowance.
 
 For a net with four or more disconnected pad groups, the board-wide router
 can join unobstructed neighboring pads on a common layer before starting a
@@ -333,6 +338,12 @@ without a shared routing layer. A new branch can meet the
 interior of a trace already in its tree. The router checks each segment
 against the board, keeps plated connections at their barrel centers, and
 recomputes the actual copper components before routing the remaining gaps.
+When several separately wired groups already have plated contacts, the router
+can connect their existing barrels on a shared layer. It gives isolated
+surface pads the first opportunity to escape. It then checks direct and bent
+routes between the nearest barrels of each pair of groups. Each trial uses the
+remaining board search allowance and native clearance checks. These branches
+add tracks without drilling new holes.
 
 When an ordinary board-wide search starts probing from both ends of a join,
 it can retain a checked surface route as its best known path. It samples
@@ -379,6 +390,11 @@ copper to nearby lattice points. Every segment and layer change must clear
 native geometry, including hole spacing between new vias on the same path.
 A target with a plated barrel can accept the lattice trace on each permitted
 copper layer in its padstack. The connection reuses the existing hole.
+When the shortest pair of lattice attachments faces an obstacle, a planar
+trunk may have to move away from the destination before it can approach it.
+If every first step on a shortest path is blocked at either end, the mesh
+compares another attachment on that side with the cost of the unavoidable
+out-and-back distance. It keeps the original attachment for detours.
 If none of the reachable nearby intersections permits a drill, a surface
 contact can attach to the lattice on another layer through a legal drill
 outside the lattice. The search checks both terminal stubs and the distance

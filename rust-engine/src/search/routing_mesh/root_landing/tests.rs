@@ -1,7 +1,7 @@
 use super::*;
 use crate::{components::Copper, model::Input};
 
-fn fixture(closed: bool) -> Engine {
+fn fixture_input(closed: bool) -> Input {
     let mut input: Input = serde_json::from_str(include_str!(
         "../../../../tests/fixtures/multiterminal-native-two-nets.json"
     ))
@@ -43,7 +43,11 @@ fn fixture(closed: bool) -> Engine {
         }))
         .unwrap(),
     );
-    let mut e = Engine::new(input).unwrap();
+    input
+}
+
+fn fixture(closed: bool) -> Engine {
+    let mut e = Engine::new(fixture_input(closed)).unwrap();
     e.surface_search_share = Some(1600);
     e
 }
@@ -249,4 +253,105 @@ fn a_segmented_tree_can_use_its_far_side_barrel_to_reach_one_surface_pad() {
                 .any(|e| matches!(e,PathEdge::Track{layer:1,start,..} if *start==[12*MM,10*MM])));
         }
     }
+}
+
+#[test]
+fn mixed_islands_escape_only_the_unattached_surface_land() {
+    let mut input = fixture_input(false);
+    let mut wired_pad = input.pads[1].clone();
+    wired_pad.id = "87000000-0000-4000-8000-000000000001".into();
+    wired_pad.at = [3_000_000, 4_000_000];
+    let mut stub = input.tracks[1].clone();
+    stub.id = "87000000-0000-4000-8000-000000000002".into();
+    stub.start = wired_pad.at;
+    stub.end = [4_000_000, 4_000_000];
+    input.pads.push(wired_pad);
+    input.tracks.push(stub);
+
+    let mut engine = Engine::new(input).unwrap();
+    engine.surface_search_share = Some(1600);
+    let _scope = engine.work.scope();
+    let groups = engine.components(1).unwrap();
+    assert_eq!(groups.len(), 3);
+    let mut source = Vec::new();
+    let mut islands = Vec::new();
+    for group in groups {
+        if group
+            .iter()
+            .any(|c| matches!(c, Copper::Pad(p) if p.drill.is_some()))
+        {
+            source = group;
+        } else {
+            islands.push(group);
+        }
+    }
+
+    let allowed = [true, true, false, false];
+    for order in 0..2 {
+        if order == 1 {
+            islands.reverse();
+        }
+        let bounds: Vec<_> = islands
+            .iter()
+            .flatten()
+            .map(|&c| TargetBounds::new(c, engine.all_layers_slice(), &engine.work).unwrap())
+            .collect();
+        let bare = isolated_targets(&engine, &islands, &bounds, &allowed, 0).unwrap();
+        assert_eq!(bare.len(), 1);
+        assert!(matches!(bare[0].copper, Copper::Pad(p) if p.id == engine.input.pads[1].id));
+        assert!(
+            isolated_targets(&engine, &islands, &bounds, &[false, true, true, true], 0)
+                .unwrap()
+                .is_empty()
+        );
+
+        let mut expanded = 0;
+        let candidate = connect(
+            &engine,
+            1,
+            &source,
+            &[(engine.input.pads[0].at, 1, false)],
+            bare.iter().copied(),
+            &allowed,
+            bare.len(),
+            40,
+            None,
+            &mut TrialBudget::fixed(10_000),
+            &mut expanded,
+            None,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(expanded > 0 && expanded <= 1_600);
+        assert_eq!(candidate.points.first(), Some(&engine.input.pads[0].at));
+        assert_eq!(candidate.points.last(), Some(&engine.input.pads[1].at));
+        let holes: Vec<_> = candidate
+            .edges
+            .iter()
+            .filter_map(|e| match e {
+                PathEdge::Via(v) => Some(v.at),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(holes.len(), 1);
+        assert!((14_000_000..=16_000_000).contains(&holes[0][0]));
+        assert!((6_000_000..=8_000_000).contains(&holes[0][1]));
+    }
+    // Two isolated surface lands with no wired competitor use the regular mesh.
+    let pads: Vec<_> = islands
+        .into_iter()
+        .map(|g| {
+            g.into_iter()
+                .filter(|c| matches!(c, Copper::Pad(_)))
+                .collect()
+        })
+        .collect();
+    let bounds: Vec<_> = pads
+        .iter()
+        .flatten()
+        .map(|&c| TargetBounds::new(c, engine.all_layers_slice(), &engine.work).unwrap())
+        .collect();
+    assert!(isolated_targets(&engine, &pads, &bounds, &allowed, 0)
+        .unwrap()
+        .is_empty());
 }

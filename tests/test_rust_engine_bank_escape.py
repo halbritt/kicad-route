@@ -683,3 +683,59 @@ def test_alternating_inner_guards_connect_through_reserved_drill_slots(tmp_path,
         # The plated terminal already reaches the buried track. The four
         # slots and the opposite surface land each need one new drill.
         assert len(drills) == len(slots) + 1
+
+
+def test_existing_plated_branches_share_copper_below_connector_banks(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=7739)
+    stack = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+
+    def point(x, y):
+        return pcbnew.FromMM(x), pcbnew.FromMM(y)
+
+    board.set_rect_outline(*point(0, 0), *point(40, 22))
+    for ref, net, xy, plated in [
+        ("J1", "SUPPLY", (5.2, 9.4), True), ("J2", "SUPPLY", (9.2, 9.4), True),
+        ("J3", "SUPPLY", (19.4, 12.6), True), ("J4", "SUPPLY", (31.7, 9.1), True),
+        ("R1", "SUPPLY", (19.8, 15.6), False), ("R2", "SUPPLY", (32.5, 6.3), False),
+        ("C1", "SUPPLY", (19.4, 9.1), False),
+        ("R3", "SUPPLY", (20.8, 16.6), False), ("R4", "SUPPLY", (33.8, 6.3), False),
+        ("P1", "STATUS", (3.2, 19.2), False), ("P2", "STATUS", (8.7, 19.4), False),
+    ]:
+        at = point(*xy)
+        fp = board.add_footprint(ref, at)
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        if plated:
+            board.add_pad(fp, "1", net, at, attrib=pcbnew.PAD_ATTRIB_PTH,
+                          layers=[*stack, pcbnew.F_Mask, pcbnew.B_Mask], size_nm=point(1.2, 1.2),
+                          shape=pcbnew.PAD_SHAPE_CIRCLE, drill_size_nm=point(.5, .5))
+        else:
+            board.add_pad(fp, "1", net, at, size_nm=point(.8, .65),
+                          shape=pcbnew.PAD_SHAPE_RECT, layers=[pcbnew.F_Cu])
+    for a, b in [(point(5.2, 9.4), point(9.2, 9.4)),
+                 (point(19.4, 9.1), point(19.4, 12.6))]:
+        points = [tuple(x + (y - x) * i // 48 for x, y in zip(a, b)) for i in range(49)]
+        for head, tail in zip(points, points[1:]):
+            board.add_track("SUPPLY", head, tail, 200_000, layer=pcbnew.F_Cu, locked=True)
+    for a, b in [((19.8, 15.6), (20.8, 16.6)), ((32.5, 6.3), (33.8, 6.3))]:
+        board.add_track("SUPPLY", point(*a), point(*b), 200_000, layer=pcbnew.F_Cu, locked=True)
+    for layers, x, y, right, top in [
+        ([stack[0], stack[1], stack[3]], 12.5, 2.4, 13.9, 18.3),
+        ([stack[0], stack[1], stack[3]], 24.6, 3.5, 26.1, 18.7),
+        ([stack[2]], 24.9, 9.2, 26, 13.1),
+    ]:
+        ring = [point(x, y), point(right, y), point(right, top), point(x, top)]
+        board.add_keepout(layers, ring, no_tracks=True, no_vias=False)
+    board.set_project_rules()
+    source = board.save(tmp_path / "input").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 5 and not before["violations"]
+    run, _ = guarded_cli
+    saved = tmp_path / "supply.kicad_pcb"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved), "--max-expansions", "4000"])
+    after = run_native_drc(saved, sidecar_source=source).raw
+    assert not after["unconnected_items"] and not after["violations"]
+    reopened = pcbnew.LoadBoard(str(saved))
+    routed = list(reopened.GetTracks())
+    assert not any(isinstance(t, pcbnew.PCB_VIA) for t in routed)
+    assert any(t.GetNetname() == "SUPPLY" and t.GetLayer() == pcbnew.In2_Cu for t in routed)

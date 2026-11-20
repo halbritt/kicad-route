@@ -2,6 +2,8 @@ use super::{link, Failure, Mesh, MeshPricing, Node, Path, PathEdge, Point};
 use crate::search::monotone_trunk::clear_span;
 use std::collections::HashMap;
 
+mod entry_access;
+
 type Tail = (u64, Vec<PathEdge>);
 
 impl Mesh<'_> {
@@ -52,7 +54,26 @@ impl Mesh<'_> {
                 }
             }
         }
-        let mut pairs = best.into_iter().flatten().collect::<Vec<_>>();
+        drop(by_layer);
+        let mut pairs = Vec::new();
+        let count = best.len();
+        let can_extend = self
+            .occupied_entries
+            .saturating_add(occupied)
+            .saturating_add(3 * count)
+            <= self.engine.input.limits.max_search_entries;
+        for pair in best.into_iter().flatten() {
+            if can_extend {
+                if let Some((alternative, detour)) =
+                    self.accessible_neighbor(pair, roots, costs, goals)?
+                {
+                    pairs.push(alternative);
+                    pairs.push((detour, pair.1, pair.2));
+                    continue;
+                }
+            }
+            pairs.push(pair);
+        }
         self.engine
             .work
             .charge(pairs.len() as u64 * pairs.len().max(1).next_power_of_two().ilog2() as u64)?;

@@ -1774,7 +1774,11 @@ fn search_component_path(
                 &start_vec,
                 large_join.then_some(&from_root),
                 (large_join && !track_via_count && engine.surface_search_share.is_some())
-                    .then_some(goal_bounds.as_slice()),
+                    .then_some(ForwardTerminals {
+                        source,
+                        islands: targets,
+                        bounds: &goal_bounds,
+                    }),
                 budget,
                 expanded,
                 track_direction_matters,
@@ -2937,13 +2941,19 @@ fn allowed_track_layers(engine: &Engine, net: u32) -> Result<Vec<bool>, Failure>
         .collect()
 }
 
+struct ForwardTerminals<'a, 'c> {
+    source: &'a [Copper<'c>],
+    islands: &'a [Vec<Copper<'c>>],
+    bounds: &'a [TargetBounds<'c>],
+}
+
 #[allow(clippy::too_many_arguments)]
 fn walk_multilayer(
     engine: &Engine,
     net: u32,
     starts: &[(Point, u8, bool)],
     from_root: Option<&dyn Fn(State, u64) -> Result<Option<Path>, Failure>>,
-    surface_targets: Option<&[TargetBounds<'_>]>,
+    surface_targets: Option<ForwardTerminals<'_, '_>>,
     budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
     track_direction_matters: bool,
@@ -3115,7 +3125,8 @@ fn walk_multilayer(
         *expanded = expanded.checked_add(1).expect("bounded expansion count");
         local_exp += 1;
         if local_exp == mesh_at && mesh_path.is_none() && only_through_vias {
-            if let Some(targets) = surface_targets {
+            if let Some(ref terminals) = surface_targets {
+                let targets = terminals.bounds;
                 // Many disconnected islands make reverse seeding expensive.
                 // The coarser mesh can still join any one of them. Keep the
                 // full ordinary frontier for cheaper routes and other islands.
@@ -3132,21 +3143,51 @@ fn walk_multilayer(
                 let allowance =
                     retry_allowance.unwrap_or(remaining / engine.input.nets.len().max(1) as u64);
                 let stop = expanded.saturating_add(allowance).min(budget.current_limit);
-                mesh_path = routing_mesh::connect(
-                    engine,
-                    net,
-                    starts,
-                    targets,
-                    &tracks,
-                    occupied,
-                    via_cost,
-                    history,
-                    budget,
-                    expanded,
-                    frontier.as_deref(),
-                    Some(stop),
-                )?;
                 let first_attempt = retry_allowance.is_none();
+                // When the wired source has more launch states than the mesh
+                // can visit, work backwards from a bare pad first. Other
+                // target islands can remain for later joins on the same net.
+                if first_attempt && starts.len() as u64 > allowance {
+                    let bare = routing_mesh::root_landing::isolated_targets(
+                        engine,
+                        terminals.islands,
+                        targets,
+                        &tracks,
+                        occupied,
+                    )?;
+                    if !bare.is_empty() {
+                        mesh_path = routing_mesh::root_landing::connect(
+                            engine,
+                            net,
+                            terminals.source,
+                            starts,
+                            bare.iter().copied(),
+                            &tracks,
+                            occupied + bare.len(),
+                            via_cost,
+                            history,
+                            budget,
+                            expanded,
+                            frontier.as_deref(),
+                        )?;
+                    }
+                }
+                if mesh_path.is_none() {
+                    mesh_path = routing_mesh::connect(
+                        engine,
+                        net,
+                        starts,
+                        targets,
+                        &tracks,
+                        occupied,
+                        via_cost,
+                        history,
+                        budget,
+                        expanded,
+                        frontier.as_deref(),
+                        Some(stop),
+                    )?;
+                }
                 if mesh_path.is_none() && allowance != 0 && *expanded == stop {
                     // The mesh hit its quota. Earn a larger retry by settling the
                     // same number of ordinary states first. Doubling bounds the

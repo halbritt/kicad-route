@@ -377,3 +377,141 @@ fn buried_copper_can_reach_a_distant_plated_pad_without_another_drill() {
         }
     }
 }
+
+// Two adjacent inner-layer portals share a real through-via at DRILL. The
+// nearer portal has equal unobstructed route length but its three approaches
+// toward PLATED run into foreign lands. DRILL itself has a clear axial run.
+#[test]
+fn a_terminal_can_use_the_next_portal_when_its_closest_approach_faces_copper() {
+    let closed = [9 * MM, 17 * MM];
+    let mut input: Input = serde_json::from_str(include_str!(
+        "../../../../tests/fixtures/multiterminal-native-two-nets.json"
+    ))
+    .unwrap();
+    input.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+        .map(String::from)
+        .to_vec();
+    input.rules.width_nm = 200_000;
+    input.rules.clearance_nm = 150_000;
+    input.tracks.clear();
+    input.pads.truncate(2);
+    input.pads[0].at = PLATED;
+    input.pads[0].layers = input.layers.clone();
+    input.pads[0].drill = Some(DrillShape::Circle {
+        diameter_nm: 600_000,
+    });
+    input.pads[1].at = SMT;
+    input.pads[1].net = 1;
+    input.pads[1].layers = vec!["F.Cu".into()];
+    let mut neighbor = input.pads[1].clone();
+    neighbor.net = 2;
+    neighbor.layers = vec!["In1.Cu".into()];
+    neighbor.shape = Shape::Circle { radius_nm: 120_000 };
+    for (i, at) in [
+        [8_450_000, 17 * MM],
+        [9 * MM, 16_450_000],
+        [8_500_000, 16_500_000],
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        neighbor.at = at;
+        neighbor.id = format!("50010000-0000-4000-8000-{i:012}");
+        input.pads.push(neighbor.clone());
+    }
+    for diagonal_blocked in [true, false] {
+        if !diagonal_blocked {
+            input.pads.pop();
+        }
+        let engine = Engine::new(input.clone()).unwrap();
+        let grid = engine.input.rules.grid_nm as u64;
+        let mesh = Mesh {
+            engine: &engine,
+            net: 1,
+            grid,
+            pitch: MM,
+            via_step: engine.layer_policy.scale(engine.effective_rules.via_cost),
+            history: None,
+            occupied_entries: 0,
+            pricing: MeshPricing::Unpenalized,
+        };
+        let drill = PlacedViaKey {
+            at: DRILL,
+            start_layer: 0,
+            end_layer: 3,
+            kind: 0,
+        };
+        let mut away = vec![link(SMT, DRILL, 0), PathEdge::Via(drill)];
+        let direct = away.clone();
+        away.push(link(DRILL, closed, 1));
+        let stub = mesh.steps(SMT, DRILL, 0) + mesh.via_step;
+        let tail = stub + mesh.steps(DRILL, closed, 1);
+        let expected = stub + mesh.steps(PLATED, DRILL, 1);
+        assert_eq!(expected, tail + mesh.steps(PLATED, closed, 1));
+        assert!(engine
+            .legal_via(1, DRILL, 0, 3, super::super::ViaKind::Through, &[])
+            .unwrap()
+            .is_some());
+        for reverse in [false, true] {
+            let (roots, costs, goals) = if reverse {
+                (
+                    HashMap::from([((closed, 1), away.clone()), ((DRILL, 1), direct.clone())]),
+                    HashMap::from([((closed, 1), tail), ((DRILL, 1), stub)]),
+                    HashMap::from([((PLATED, 1), (0, vec![]))]),
+                )
+            } else {
+                (
+                    HashMap::from([((PLATED, 1), vec![])]),
+                    HashMap::from([((PLATED, 1), 0)]),
+                    HashMap::from([
+                        ((closed, 1), (tail, away.clone())),
+                        ((DRILL, 1), (stub, direct.clone())),
+                    ]),
+                )
+            };
+            let pairs = mesh.entry_pairs(&roots, &costs, &goals, 0, 0).unwrap();
+            let leg = |p| {
+                if reverse {
+                    ((p, 1), (PLATED, 1))
+                } else {
+                    ((PLATED, 1), (p, 1))
+                }
+            };
+            let (c1, c2) = leg(closed);
+            if !diagonal_blocked {
+                // The diagonal can be the only shortest step off this portal.
+                assert_eq!(pairs, vec![(expected, c1, c2)]);
+                continue;
+            }
+            let (d1, d2) = leg(DRILL);
+            let detour = 2 * (MM as u64 / grid) * engine.layer_policy.weight(1);
+            assert_eq!(pairs, vec![(expected, d1, d2), (expected + detour, c1, c2)]);
+            let mut used = 0;
+            let path = mesh
+                .visible_entries(&roots, &costs, &goals, 0, 0, &mut || {
+                    used += 1;
+                    Ok(used <= 32)
+                })
+                .unwrap()
+                .unwrap();
+            assert_eq!(path.steps, expected);
+            let ends = if reverse {
+                (SMT, PLATED)
+            } else {
+                (PLATED, SMT)
+            };
+            assert_eq!(
+                (path.points.first(), path.points.last()),
+                (Some(&ends.0), Some(&ends.1))
+            );
+            for e in &path.edges {
+                match *e {
+                    PathEdge::Via(v) => assert_eq!(v, drill),
+                    PathEdge::Track { start, end, layer } => assert!(engine
+                        .legal_edge_on(1, usize::from(layer), start, end)
+                        .unwrap()),
+                }
+            }
+        }
+    }
+}

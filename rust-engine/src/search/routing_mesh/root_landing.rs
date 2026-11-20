@@ -7,13 +7,46 @@ use super::{
     Point, TargetBounds, TrialBudget,
 };
 
+/// All ordinary goal bounds are in island order. A pad in an already wired
+/// island has additional ways to attach, so reserve the reverse drill search
+/// for islands whose only copper is one native surface land.
+pub(in crate::search) fn isolated_targets<'a, 'c>(
+    engine: &Engine,
+    islands: &[Vec<Copper<'c>>],
+    mut bounds: &'a [TargetBounds<'c>],
+    allowed: &[bool],
+    occupied: usize,
+) -> Result<Vec<&'a TargetBounds<'c>>, Failure> {
+    let mut bare = Vec::new();
+    let mut wired = false;
+    for group in islands {
+        engine.work.charge(1 + group.len() as u64)?;
+        let (members, rest) = bounds.split_at(group.len());
+        bounds = rest;
+        if let [target] = members {
+            if target.surface_contact(allowed, &engine.work)?.is_some() {
+                engine.work.search_storage(occupied + bare.len() + 1)?;
+                bare.push(target);
+                continue;
+            }
+        }
+        wired |= group
+            .iter()
+            .any(|c| matches!(c, Copper::Track(_) | Copper::Via(_)));
+    }
+    if !wired {
+        bare.clear();
+    }
+    Ok(bare)
+}
+
 #[allow(clippy::too_many_arguments)]
-pub(in crate::search) fn connect(
+pub(in crate::search) fn connect<'t, 'c: 't>(
     engine: &Engine,
     net: u32,
     source: &[Copper],
     starts: &[(Point, u8, bool)],
-    targets: &[TargetBounds<'_>],
+    targets: impl IntoIterator<Item = &'t TargetBounds<'c>>,
     allowed: &[bool],
     occupied: usize,
     via_cost: u64,
