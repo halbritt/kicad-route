@@ -2271,6 +2271,24 @@ def _read_pro_min_resolved_spokes(board_path: Path) -> int | None:
     return None
 
 
+def _twice_fill_area(poly_set):
+    """Exact twice-area in nm² of KiCad's filled polygon vertices, including holes."""
+    def ring_area(ring):
+        points = ring.CPoints()
+        if len(points) < 3:
+            return 0
+        previous = points[-1]
+        value = 0
+        for point in points:
+            value += previous.x * point.y - previous.y * point.x
+            previous = point
+        return abs(value)
+
+    return sum(ring_area(poly_set.COutline(i))
+               - sum(ring_area(poly_set.CHole(i, h)) for h in range(poly_set.HoleCount(i)))
+               for i in range(poly_set.OutlineCount()))
+
+
 def _extract_pour_facts(board_path: Path, board=None) -> dict:
     if board is None:
         board = pcbnew.LoadBoard(str(board_path))
@@ -2391,15 +2409,17 @@ def _extract_pour_facts(board_path: Path, board=None) -> dict:
             pieces = []
             for i in range(fill.OutlineCount()):
                 s = pcbnew.SHAPE_POLY_SET()
-                s.AddOutline(fill.COutline(i))
+                s.AddPolygon(fill.Polygon(i))
                 pieces.append(s)
             pieces.sort(key=lambda s: -s.Area())
             for i, s in enumerate(pieces):
                 base_pid = f"{net}@{lname(layer)}/{z.GetZoneName() or 'zone' + str(zi)}#{i}"
                 pid = base_pid if base_pid not in polygons else f"{net}@{lname(layer)}/{z.GetZoneName() or 'zone'}#{zi}:{i}"
+                area = _twice_fill_area(s)
                 polygons[pid] = {
                     'net': net, 'layer': lname(layer), 'zone': z.GetZoneName(),
-                    'area_mm2': round(s.Area() / nm / nm, 4), 'bbox_mm': box(s),
+                    'area_mm2': round(area / (2 * nm * nm), 4), 'bbox_mm': box(s),
+                    '_shape': s, '_twice_area': area,
                     'pads': [], 'vias': 0, 'tracks': 0, '_tiles': tile(s),
                     '_bounds': bounds(s.BBox()), '_layer': layer, '_zone_idx': zi,
                 }
@@ -2426,6 +2446,7 @@ def _extract_pour_facts(board_path: Path, board=None) -> dict:
             for tb, piece in p['_tiles']
         )
 
+    overlapping = _PourUnionFind()
     ids = sorted(polygons)
     for i, a in enumerate(ids):
         for b in ids[i + 1:]:
@@ -2434,6 +2455,7 @@ def _extract_pour_facts(board_path: Path, board=None) -> dict:
                     and hits(pa['_bounds'], pb['_bounds'])
                     and any(hits(ta, tb) and overlap(qa, qb) > 0 for ta, qa in pa['_tiles'] for tb, qb in pb['_tiles'])):
                 uf.union(('poly', a), ('poly', b))
+                overlapping.union(a, b)
 
     def polys_on(net, layer):
         return [(pid, p) for pid, p in polygons.items() if p['net'] == net and p['_layer'] == layer]
@@ -2521,11 +2543,23 @@ def _extract_pour_facts(board_path: Path, board=None) -> dict:
                     if kind == 'pad' and (ti, layer) not in track_pads.get(ident, []):
                         track_pads.setdefault(ident, []).append((ti, layer))
 
+    # Overlapping same-net fills cover the same copper, even across separate zones.
+    groups = {}
+    for pid in polygons:
+        groups.setdefault(overlapping.find(pid), []).append(pid)
     comp_area = {}
-    for pid, p in polygons.items():
-        root = uf.find(('poly', pid))
-        comp_area.setdefault(p['net'], {}).setdefault(root, 0.0)
-        comp_area[p['net']][root] += p['area_mm2']
+    layer_area = Counter()
+    for first, *others in groups.values():
+        p = polygons[first]
+        area = p['_twice_area']
+        if others:
+            copper = pcbnew.SHAPE_POLY_SET(p['_shape'])
+            for other in others:
+                copper.BooleanAdd(polygons[other]['_shape'])
+            area = _twice_fill_area(copper)
+        layer_area[(p['net'], p['layer'])] += area
+        root = uf.find(('poly', first))
+        comp_area.setdefault(p['net'], Counter())[root] += area
     main_comp = {net: max(c.items(), key=lambda kv: (kv[1], str(kv[0])))[0] for net, c in comp_area.items()}
     for pid, p in polygons.items():
         p['in_main'] = uf.find(('poly', pid)) == main_comp.get(p['net'])
@@ -2591,9 +2625,10 @@ def _extract_pour_facts(board_path: Path, board=None) -> dict:
     layers = {}
     for p in polygons.values():
         lk = f"{p['net']}@{p['layer']}"
-        rec = layers.setdefault(lk, {'net': p['net'], 'layer': p['layer'], 'area_mm2': 0.0,
+        area = layer_area[(p['net'], p['layer'])]
+        rec = layers.setdefault(lk, {'net': p['net'], 'layer': p['layer'], 'area_twice_nm2': area,
+                                     'area_mm2': round(area / (2 * nm * nm), 4),
                                      'polygons': 0, 'islands_off_main': 0})
-        rec['area_mm2'] = round(rec['area_mm2'] + p['area_mm2'], 4)
         rec['polygons'] += 1
         rec['islands_off_main'] += 0 if p['in_main'] else 1
     return {
@@ -2606,18 +2641,29 @@ def _extract_pour_facts(board_path: Path, board=None) -> dict:
     }
 
 
+def _pour_area_rows(ref, cand):
+    for name in sorted(ref['layers'].keys() | cand['layers'].keys()):
+        before = ref['layers'].get(name, {}).get('area_twice_nm2', 0)
+        after = cand['layers'].get(name, {}).get('area_twice_nm2', 0)
+        yield {'net_layer': name, 'area_twice_nm2': [before, after],
+               'area_mm2': [round(v / 2_000_000_000_000, 4) for v in (before, after)],
+               'area_delta_mm2': (after - before) / 2_000_000_000_000,
+               'area_delta_pct': (after - before) * 100 / before if before else None}
+
+
 def _compare_pour_facts(ref: dict, cand: dict, *, area_loss_pct: float | None = None,
                         min_spokes: int | None = None) -> tuple[bool, list[dict]]:
     board_min = int(ref.get('min_resolved_spokes') or 0)
     minimum = max(board_min, int(min_spokes or 0))
     failures = []
-    for lk in sorted(set(ref['layers']) | set(cand['layers'])):
-        r, c = ref['layers'].get(lk), cand['layers'].get(lk)
-        ra, ca = (r or {}).get('area_mm2', 0.0), (c or {}).get('area_mm2', 0.0)
-        pct = round(100.0 * (ca - ra) / ra, 3) if ra else None
-        if area_loss_pct is not None and pct is not None and -pct > area_loss_pct:
-            failures.append({'kind': 'area_loss', 'net_layer': lk, 'area_mm2': [ra, ca],
-                             'delta_pct': pct, 'limit_pct': area_loss_pct})
+    if area_loss_pct is not None:
+        numerator, denominator = Decimal(str(area_loss_pct)).as_integer_ratio()
+        for row in _pour_area_rows(ref, cand):
+            before, after = row['area_twice_nm2']
+            if (before - after) * 100 * denominator > before * numerator:
+                failures.append({'kind': 'area_loss', 'net_layer': row['net_layer'],
+                                 'area_mm2': row['area_mm2'], 'area_delta_mm2': row['area_delta_mm2'],
+                                 'delta_pct': row['area_delta_pct'], 'limit_pct': area_loss_pct})
 
     def eff_spokes(rec):
         return float('inf') if rec['solid'] else rec['spokes'] + rec['track_spokes']
@@ -3224,18 +3270,12 @@ def measure_layer_policy(source, candidate, area_loss, reference):
         cand_sha = hashlib.sha256(candidate_data).hexdigest()
         ref, cand = _extract_pour_facts(original, before), _extract_pour_facts(other, after)
         ok, violations = _compare_pour_facts(ref, cand, area_loss_pct=area_loss)
-        rows = []
-        for name in sorted(ref['layers'].keys() | cand['layers'].keys()):
-            ra = ref['layers'].get(name, {}).get('area_mm2', 0.0)
-            ca = cand['layers'].get(name, {}).get('area_mm2', 0.0)
-            rows.append({'net_layer': name, 'area_mm2': [ra, ca],
-                         'area_delta_pct': round(100.0 * (ca - ra) / ra, 3) if ra else None})
         result = {'source': _layer_copper_inventory(before, ref_sha),
                   'candidate': _layer_copper_inventory(after, cand_sha),
                   'sidecars': {s: hashlib.sha256(original.with_suffix(s).read_bytes()).hexdigest()
                                for s in ('.kicad_pro', '.kicad_dru') if original.with_suffix(s).is_file()},
                   'preservation': [{'check': 'pour_integrity', 'status': 'PASS' if ok else 'FAIL', 'detail': violations}],
-                  'pour': {'area_loss_limit_pct': area_loss, 'layers': rows}}
+                  'pour': {'area_loss_limit_pct': area_loss, 'layers': list(_pour_area_rows(ref, cand))}}
         if reference is not None:
             result['reference'] = _reference_plane_measurement(other, after, cand_sha, reference)
         return result

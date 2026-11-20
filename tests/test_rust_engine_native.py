@@ -2602,7 +2602,7 @@ def test_m3_3_native_route_and_pour_integrity_checks(guarded_cli, tmp_path):
         ('spokes_below_minimum', lambda c: c['pads'][pad_key].update({'spokes': 1, 'track_spokes': 0})),
         ('lost_fill_contact', lambda c: c['pads'][pad_key].update({'touches_fill': False})),
         ('lost_pad_reach', lambda c: c['pads'].pop(pad_key)),
-        ('area_loss', lambda c: c['layers'][layer_key].update({'area_mm2': 1.0})),
+        ('area_loss', lambda c: c['layers'][layer_key].update({'area_twice_nm2': 2_000_000_000_000})),
     ]:
         cand = copy.deepcopy(ref)
         mutate(cand)
@@ -2655,10 +2655,94 @@ def test_m3_3_extract_pour_facts_unions_overlapping_unnamed_zones(tmp_path):
 
     facts = bridge._extract_pour_facts(bpath)
     layer = facts['layers']['GND@F.Cu']
+    first, second = [z.GetFilledPolysList(pcbnew.F_Cu) for z in board.Zones()]
+    copper = pcbnew.SHAPE_POLY_SET(first)
+    copper.BooleanAdd(second)
+    assert copper.Area() < first.Area() + second.Area()
+    assert layer['area_twice_nm2'] == 2 * copper.Area()
     assert layer['polygons'] == 2
     assert layer['islands_off_main'] == 0, layer
     assert facts['pads']['J1.1@F.Cu']['in_main'] is True
     assert facts['pads']['J2.1@F.Cu']['in_main'] is True
+
+    # Removing a nested third fill changes no physical copper on this layer.
+    nested = pcbnew.ZONE(board)
+    nested.SetLayer(pcbnew.F_Cu)
+    nested.SetNetCode(1)
+    nested.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+    _add_rect_outline(nested.Outline(), 10_000_000, 8_000_000, 13_000_000, 11_000_000)
+    board.Add(nested)
+    pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+    with_nested = tmp_path / 'nested.kicad_pcb'
+    assert pcbnew.SaveBoard(str(with_nested), board)
+    measured = bridge.measure_layer_policy(with_nested, bpath, 0, None)
+    row, = measured['pour']['layers']
+    assert row['area_delta_mm2'] == 0 and row['area_delta_pct'] == 0
+    assert measured['preservation'][0]['status'] == 'PASS'
+
+
+def test_saved_pour_policy_detects_one_nm_keepout_change_and_keeps_explicit_holes(tmp_path):
+    board = pcbnew.BOARD()
+    board.Add(pcbnew.NETINFO_ITEM(board, 'GND', 1))
+    edge = pcbnew.PCB_SHAPE(board)
+    edge.SetLayer(pcbnew.Edge_Cuts)
+    edge.SetShape(pcbnew.SHAPE_T_RECT)
+    edge.SetStart(pcbnew.VECTOR2I(0, 0))
+    edge.SetEnd(pcbnew.VECTOR2I(26_000_000, 16_000_000))
+    edge.SetWidth(50_000)
+    board.Add(edge)
+    zone = pcbnew.ZONE(board)
+    zone.SetLayer(pcbnew.F_Cu)
+    zone.SetNetCode(1)
+    zone.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_NEVER)
+    _add_rect_outline(zone.Outline(), 2_000_000, 2_000_000, 22_000_000, 12_000_000)
+    board.Add(zone)
+    keepout = pcbnew.ZONE(board)
+    keepout.SetLayer(pcbnew.F_Cu)
+    keepout.SetIsRuleArea(True)
+    keepout.SetDoNotAllowZoneFills(True)
+    board.Add(keepout)
+
+    paths = []
+    native_areas = []
+    for name, extra_nm in (('source', 0), ('candidate', 1)):
+        keepout.Outline().RemoveAllContours()
+        _add_rect_outline(keepout.Outline(), 8_000_000, 5_000_000, 12_000_000 + extra_nm, 9_000_000)
+        pcbnew.ZONE_FILLER(board).Fill(board.Zones())
+        path = tmp_path / f'{name}.kicad_pcb'
+        assert pcbnew.SaveBoard(str(path), board)
+        paths.append(path)
+        saved = pcbnew.LoadBoard(str(path))
+        saved_zone = next(z for z in saved.Zones() if not z.GetIsRuleArea())
+        fill = saved_zone.GetFilledPolysList(pcbnew.F_Cu)
+        native_areas.append(fill.Area())
+        assert not fill.Contains(pcbnew.VECTOR2I(10_000_000, 7_000_000))
+        # A saved fractured cutout and a separate native hole ring describe identical copper.
+        explicit = pcbnew.SHAPE_POLY_SET(fill)
+        explicit.Unfracture()
+        assert explicit.HoleCount(0) == 1 and explicit.Area() == fill.Area()
+        saved_zone.SetFilledPolysList(pcbnew.F_Cu, explicit)
+        explicit_area = bridge._extract_pour_facts(path, saved)['layers']['GND@F.Cu']['area_twice_nm2']
+        assert explicit_area == 2 * native_areas[-1]
+    assert native_areas[0] - native_areas[1] == 4_000_000
+    inputs = [path.read_bytes() for path in paths]
+    loss_pct = (native_areas[0] - native_areas[1]) * 100 / native_areas[0]
+    for bound, expected in ((0, 'FAIL'), (loss_pct * 0.99, 'FAIL'), (loss_pct * 1.01, 'PASS')):
+        output = tmp_path / f'measured-{bound}.json'
+        subprocess.run([sys.executable, str(ROOT / 'tools/rust_engine_kicad.py'), 'measure-layer-policy',
+                        *map(str, paths), str(output), '--pour-area-loss', str(bound)], check=True)
+        result = json.loads(output.read_bytes())
+        check, = result['preservation']
+        row, = result['pour']['layers']
+        assert check['status'] == expected
+        assert row['area_mm2'][0] == row['area_mm2'][1]
+        assert row['area_delta_mm2'] == -0.000004
+        assert row['area_delta_pct'] == -loss_pct
+        assert row['area_twice_nm2'] == [2 * a for a in native_areas]
+        if expected == 'FAIL':
+            failure, = check['detail']
+            assert failure['area_delta_mm2'] == row['area_delta_mm2']
+    assert [path.read_bytes() for path in paths] == inputs
 
 
 def test_m4_1_crossing_nets_ripup_reroute_preserves_input_and_drc(tmp_path, guarded_cli):
