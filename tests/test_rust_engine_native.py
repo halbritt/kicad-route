@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import uuid
 
 import pcbnew
@@ -4597,3 +4598,21 @@ def test_route_native_per_net_policy_refuses_through_via_crossing_excluded_inner
     assert json.loads(result.stdout)['status'] == 'unroutable'
     assert native_board.read_bytes() == original
     assert not target.exists()
+
+
+def test_layer_policy_probe_measures_saved_track_and_rule_bytes_without_changing_input(native_board, tmp_path):
+    board = native_board
+    rules = board.with_suffix('.kicad_dru')
+    rules.write_text('(version 1)\n')
+    output = tmp_path / 'policy.json'
+    data = board.read_bytes()
+    subprocess.run([sys.executable, str(ROOT / 'tools/rust_engine_kicad.py'), 'measure-layer-policy',
+                    str(board), str(board), str(output), '--pour-area-loss', '0.5'], check=True)
+    facts = json.loads(output.read_bytes())
+    assert facts['source'] == facts['candidate']
+    assert facts['candidate']['sha256'] == hashlib.sha256(data).hexdigest()
+    track, = facts['candidate']['tracks']
+    assert (track['net'], track['layer'], track['width']) == ('OBSTACLE', 'F.Cu', 250000)
+    assert facts['sidecars']['.kicad_dru'] == hashlib.sha256(rules.read_bytes()).hexdigest()
+    assert facts['pour'] == {'area_loss_limit_pct': 0.5, 'layers': []}
+    assert board.read_bytes() == data
