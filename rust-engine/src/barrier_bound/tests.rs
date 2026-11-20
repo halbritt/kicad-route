@@ -1,5 +1,5 @@
 use super::*;
-use crate::model::Limits;
+use crate::model::{Limits, RuleArea};
 use std::{cmp::Reverse, collections::BinaryHeap};
 
 fn article() -> Input {

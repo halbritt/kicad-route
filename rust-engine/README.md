@@ -268,6 +268,11 @@ face, the router queries the current copper index for an earlier net’s track
 that makes a same-face detour more expensive than two through-vias. It uses
 this bound at a launch site only when it finds a legal path of that cost.
 Each component join sees the copper left by the most recent negotiation.
+When a rectangular via keepout covers a surface join, a shortest planar
+route may need several successive turns. The search follows clear axial runs
+toward a clipped pad contact and validates every segment after chamfering
+the bends. A blocked run leaves the ordinary search available.
+
 For an oblique imported track separating the terminals, the planar bound
 uses the shorter detour past either end. When the existing same-net tree
 surrounds the target, reverse search can bound the distance to each section

@@ -4274,6 +4274,18 @@ fn walk_multilayer_bidirectional(
                         } else {
                             direct
                         };
+                        let tail = if tail.is_none() && previous.is_none() {
+                            monotone_trunk::from_launch(
+                                engine,
+                                net,
+                                state,
+                                priority - cost,
+                                targets,
+                                attachment,
+                            )?
+                        } else {
+                            tail
+                        };
                         if let Some(tail) = tail {
                             if unpenalized_terminal(engine, history, &tail.edges)? {
                                 let mut path = reconstruct_bi_path(

@@ -952,6 +952,29 @@ pub struct RuleArea {
     #[serde(default, skip_serializing_if = "is_false")]
     pub no_zone_fills: bool,
 }
+impl RuleArea {
+    /// A ring with four alternating axis-aligned nonempty sides bounds its full
+    /// rectangle. An optional repeated closing vertex does not change the ring.
+    pub(crate) fn rectangular_bounds(&self) -> Option<(Point, Point)> {
+        if !self.holes.is_empty() || !self.extra_polygons.is_empty() {
+            return None;
+        }
+        let p = match self.outer.as_slice() {
+            [a, b, c, d] => [a, b, c, d],
+            [a, b, c, d, end] if a == end => [a, b, c, d],
+            _ => return None,
+        };
+        let lo = [p[0][0].min(p[2][0]), p[0][1].min(p[2][1])];
+        let hi = [p[0][0].max(p[2][0]), p[0][1].max(p[2][1])];
+        if (0..2).any(|k| lo[k].abs_diff(hi[k]) < 2) {
+            return None;
+        }
+        let corners = [[p[0][0], p[2][1]], [p[2][0], p[0][1]]];
+        ((*p[1] == corners[0] && *p[3] == corners[1])
+            || (*p[1] == corners[1] && *p[3] == corners[0]))
+            .then_some((lo, hi))
+    }
+}
 impl Track {
     /// Outward copper envelope for an admitted track, including odd-nm widths
     /// and diagonal endpoint caps. It is not a final collision predicate.

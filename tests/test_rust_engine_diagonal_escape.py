@@ -289,3 +289,48 @@ def test_two_diagonal_pad_exits_meet_in_a_surface_channel(tmp_path, guarded_cli,
     assert sum(dx == dy and dx > 0 for dx, dy in deltas) == 2
     after = run_native_drc(output, sidecar_source=source).raw
     assert not after["unconnected_items"] and not after["violations"]
+
+
+def test_winding_surface_channel_without_via_access(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=3317)
+    scale = pcbnew.FromMM
+    def point(x, y):
+        return scale(x), scale(y)
+
+    board.set_rect_outline(0, 0, *point(35, 35))
+    for ref, net, x, y, face in [("J1", "SIG", 3, 4, pcbnew.F_Cu),
+                                 ("J2", "SIG", 29, 18, pcbnew.F_Cu),
+                                 ("R1", "REF", 4, 27, pcbnew.B_Cu),
+                                 ("R2", "REF", 25, 27, pcbnew.B_Cu)]:
+        at = point(x, y)
+        fp = board.add_footprint(ref, at, side="F" if face == pcbnew.F_Cu else "B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", net, at, size_nm=point(.8, .8),
+                      shape=pcbnew.PAD_SHAPE_RECT, layers=[face])
+    for sign, edge in [(1, 36), (-1, -1)]:
+        y, gap = 4, sign * .85
+        wall = [(-1, y + gap)]
+        for x, next_y in [(8, 8), (15, 13), (22, 18)]:
+            wall.extend([(x - gap, y + gap), (x - gap, next_y + gap)])
+            y = next_y
+        wall.extend([(36, y + gap), (36, edge), (-1, edge)])
+        board.add_keepout([pcbnew.F_Cu], [point(*v) for v in wall],
+                          no_tracks=True, no_vias=True)
+    board.add_keepout([pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu],
+                      [point(-1, -1), point(36, -1), point(36, 36), point(-1, 36)],
+                      no_tracks=False, no_vias=True)
+    source = board.save(tmp_path / "input").pcb_path
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    saved, op = tmp_path / "winding.kicad_pcb", tmp_path / "op.json"
+    run([str(engine), "route-native", str(source), str(saved), "--max-expansions", "2",
+         "--operation-result", str(op)])
+    routing = json.loads(op.read_bytes())["routing"]
+    assert (routing["status"], routing["expanded_states"], routing["added_via_count"]) == (
+        "complete", 2, 0)
+    drc = run_native_drc(saved, sidecar_source=source).raw
+    assert not drc["violations"] and not drc["unconnected_items"]
+    reopened = pcbnew.LoadBoard(str(saved))
+    signal = [t for t in reopened.GetTracks() if t.GetNetname() == "SIG"]
+    assert len(signal) >= 4 and all(t.GetLayer() == pcbnew.F_Cu for t in signal)

@@ -64,24 +64,9 @@ pub(super) fn from_state(
         if sign.contains(&0) {
             continue;
         }
-        // An integer movement on each axis must place the endpoint on pad
-        // copper. Intersect the two intervals with x_steps + y_steps = steps.
-        let extent = |k: usize| {
-            let d0 = (target.lo[k] - a[k]) * sign[k];
-            let d1 = (target.hi[k] - a[k]) * sign[k];
-            let lo = d0.min(d1).max(1) as u64;
-            (
-                lo.div_ceil(grid as u64),
-                (d0.max(d1).max(0) as u64).div_ceil(grid as u64),
-            )
-        };
-        let (xmin, xmax) = extent(0);
-        let (ymin, ymax) = extent(1);
-        let lo = xmin.max(steps.saturating_sub(ymax));
-        let hi = xmax.min(steps.saturating_sub(ymin));
-        if hi < lo || ymin > steps {
+        let Some([lo, hi]) = split_range(a, target, sign, grid, steps, 0) else {
             continue;
-        }
+        };
         // The middle of the overlap includes the symmetric octant landing of
         // round pads. Its endpoints also cover long rectangular lands.
         let parts = pad.shape.parts();
@@ -188,6 +173,31 @@ pub(super) fn from_state(
         }
     }
     Ok(None)
+}
+
+/// Split a fixed Manhattan cost across the two axes. A wide contact cap can
+/// reach outside the pad box; callers must verify the proposed landing.
+pub(super) fn split_range(
+    source: Point,
+    target: &TargetBounds<'_>,
+    sign: Point,
+    grid: i64,
+    steps: u64,
+    margin: i64,
+) -> Option<[u64; 2]> {
+    let extent = |k: usize| {
+        let d0 = (target.lo[k] - margin - source[k]) * sign[k];
+        let d1 = (target.hi[k] + margin - source[k]) * sign[k];
+        (
+            (d0.min(d1).max(1) as u64).div_ceil(grid as u64),
+            (d0.max(d1).max(0) as u64).div_ceil(grid as u64),
+        )
+    };
+    let (xmin, xmax) = extent(0);
+    let (ymin, ymax) = extent(1);
+    let lo = xmin.max(steps.saturating_sub(ymax));
+    let hi = xmax.min(steps.saturating_sub(ymin));
+    (hi >= lo && ymin <= steps).then_some([lo, hi])
 }
 
 // Use the same via legality, drill span and cost as the ordinary grid transition.
