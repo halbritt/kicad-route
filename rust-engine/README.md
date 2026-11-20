@@ -204,7 +204,11 @@ hole-clearance constraint, equal estimated total costs favor the state with
 more of the route already traversed.
 In bidirectional search, the reverse frontier estimates distance to source
 anchors on its own grid phase. A full grid step preserves both coordinate
-residues, and a via preserves the position.
+residues, and a via preserves the position. For phases with more than 16
+anchors, each layer records the extrema of x, y, x+y and x−y. For example,
+a point inside the bounding box of a diagonal trace can still lie many grid
+steps from the trace. The largest projection gap and the sum of the two
+Cartesian gaps each bound that distance from below.
 On fixed copper, an empty reverse frontier prompts a check for full-grid
 track endpoints on those phases. When neither a clipped track, a full
 track nor a via can land, the source search can finish immediately and

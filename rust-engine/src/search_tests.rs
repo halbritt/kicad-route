@@ -5211,6 +5211,21 @@ fn reverse_bound_uses_only_reachable_lattice_phases_and_charges_evaluations() {
     let sources = super::ReverseSources::new(&many, 10, &work).unwrap();
     assert_eq!(sources.estimate([0, 0], 0, 1, 8, &work).unwrap(), 18);
     assert_eq!(sources.estimate([1, 1], 1, 1, 8, &work).unwrap(), 8);
+    // Inside the X/Y box of a diagonal branch, the distance to that branch
+    // can still be many grid steps. Compare all probes with exact anchors.
+    let diagonal: Vec<_> = (0..24).map(|i| ([i * 10, i * 10], 0, false)).collect();
+    let hull = super::ReverseSources::new(&diagonal, 10, &work).unwrap();
+    for x in -1..=24 {
+        for y in -1..=24 {
+            let p = [10 * x, 10 * y];
+            let exact = diagonal
+                .iter()
+                .map(|&(q, _, _)| (q[0].abs_diff(p[0]) + q[1].abs_diff(p[1])) / 10)
+                .min()
+                .unwrap();
+            assert_eq!(hull.estimate(p, 0, 1, 8, &work).unwrap(), exact);
+        }
+    }
     let limited = crate::budget::WorkBudget::new(Limits {
         max_work: 1,
         ..Limits::default()
