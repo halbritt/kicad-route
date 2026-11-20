@@ -490,6 +490,136 @@ fn join_components_inner(
     result
 }
 
+#[derive(Default)]
+struct PadAxes {
+    coordinates: [BTreeMap<i64, u32>; 2],
+    entries: usize,
+}
+
+impl PadAxes {
+    fn new(
+        targets: &[Vec<Copper<'_>>],
+        stackup: &[String],
+        work: &WorkBudget,
+    ) -> Result<Self, Failure> {
+        let mut axes = Self::default();
+        for target in targets.iter().flatten() {
+            work.charge(1)?;
+            if let Copper::Pad(pad) = target {
+                let center = pad.copper_center();
+                let mask = target.layer_mask(stackup);
+                for (axis, coordinates) in axes.coordinates.iter_mut().enumerate() {
+                    let entry = coordinates.entry(center[axis]);
+                    if matches!(entry, std::collections::btree_map::Entry::Vacant(_)) {
+                        axes.entries += 1;
+                        work.search_storage(axes.entries)?;
+                    }
+                    *entry.or_default() |= mask;
+                }
+            }
+        }
+        Ok(axes)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn trace_taps(
+    track: &Track,
+    source: &[Copper<'_>],
+    targets: &[Vec<Copper<'_>>],
+    stackup: &[String],
+    mask: u32,
+    work: &WorkBudget,
+    axes: &mut Option<PadAxes>,
+    anchors: &mut Vec<Point>,
+) -> Result<(), Failure> {
+    // The usual single-pad perpendicular projection needs no coordinate index.
+    if let [group] = targets {
+        if let [terminal @ Copper::Pad(pad)] = group.as_slice() {
+            if let Some(fixed) = (0..2).find(|&i| track.start[i] == track.end[i]) {
+                let axis = 1 - fixed;
+                let at = pad.copper_center()[axis];
+                let (a, b) = (track.start[axis], track.end[axis]);
+                if terminal.layer_mask(stackup) & mask != 0 && a.min(b) < at && at < a.max(b) {
+                    let mut point = track.start;
+                    point[axis] = at;
+                    anchors.push(point);
+                }
+                return Ok(());
+            }
+        }
+    }
+    let axes = match axes {
+        Some(axes) => axes,
+        None => axes.insert(PadAxes::new(targets, stackup, work)?),
+    };
+    let mut connected = false;
+    for (axis, coordinates) in axes.coordinates.iter().enumerate() {
+        let (a, b) = (track.start[axis], track.end[axis]);
+        if a == b {
+            continue;
+        }
+        let interval = (
+            std::ops::Bound::Excluded(a.min(b)),
+            std::ops::Bound::Excluded(a.max(b)),
+        );
+        for (&at, &layers) in coordinates.range(interval) {
+            work.charge(1)?;
+            if mask & layers == 0 {
+                continue;
+            }
+            let other = 1 - axis;
+            let delta = i128::from(b - a);
+            let offset = i128::from(at - a) * i128::from(track.end[other] - track.start[other]);
+            if offset % delta != 0 {
+                continue;
+            }
+            if !connected {
+                if !trace_ends_connected(track, source, stackup, work)? {
+                    return Ok(());
+                }
+                connected = true;
+            }
+            let mut point = track.start;
+            point[axis] = at;
+            point[other] += (offset / delta) as i64;
+            work.search_storage(axes.entries + anchors.len() + 1)?;
+            anchors.push(point);
+        }
+    }
+    Ok(())
+}
+
+// Preserve the opportunity to connect a free tip. Branching from the middle
+// of a track whose far end is still open can leave a native dangling stub.
+fn trace_ends_connected(
+    track: &Track,
+    source: &[Copper<'_>],
+    stackup: &[String],
+    work: &WorkBudget,
+) -> Result<bool, Failure> {
+    let mut probe = track.clone();
+    for end in [track.start, track.end] {
+        probe.start = end;
+        probe.end = end;
+        let mut connected = false;
+        for &other in source {
+            work.charge(1)?;
+            if matches!(other, Copper::Track(t) if std::ptr::eq(t, track)) {
+                continue;
+            }
+            if other.touches_route(&probe, stackup, work)? {
+                connected = true;
+                break;
+            }
+        }
+        if !connected {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn search_component_path(
     engine: &Engine,
@@ -511,35 +641,22 @@ fn search_component_path(
     let mut via_only_starts: BTreeSet<(Point, u8)> = BTreeSet::new();
     let mut via_seed_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut seed_blocked_vias: Vec<(u8, u8, bool)> = Vec::new();
-    // A final pad opposite the interior of an existing trace can take a
-    // perpendicular branch. Endpoints alone make the result depend on which pad
-    // appeared first in the input. The ordinary seed checks below still apply.
-    let tap_target = match targets {
-        [group] => match group.as_slice() {
-            [pad @ Copper::Pad(p)] => Some((p.copper_center(), pad.layer_mask(stackup))),
-            _ => None,
-        },
-        _ => None,
-    };
+    let mut pad_axes = None;
     for c in source {
         engine.work.charge(1)?;
         let c_mask = c.layer_mask(stackup);
         let mut anchors = c.anchors(engine.input.bounds.min, engine.input.rules.grid_nm);
-        if let (Copper::Track(t), Some((pad, layers))) = (c, tap_target) {
-            if c_mask & layers != 0 {
-                for axis in 0..2 {
-                    let a = t.start[axis];
-                    let b = t.end[axis];
-                    if a.min(b) < pad[axis]
-                        && pad[axis] < a.max(b)
-                        && t.start[1 - axis] == t.end[1 - axis]
-                    {
-                        let mut projection = t.start;
-                        projection[axis] = pad[axis];
-                        anchors.push(projection);
-                    }
-                }
-            }
+        if let Copper::Track(t) = c {
+            trace_taps(
+                t,
+                source,
+                targets,
+                stackup,
+                c_mask,
+                &engine.work,
+                &mut pad_axes,
+                &mut anchors,
+            )?;
         }
         for l_idx in 0..l_count {
             if (c_mask & source_layers & (1u32 << l_idx)) == 0 {
