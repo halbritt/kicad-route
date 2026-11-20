@@ -5282,20 +5282,20 @@ fn reverse_bound_uses_only_reachable_lattice_phases_and_charges_evaluations() {
         ([0, 0], 1, false),
     ];
     let work = crate::budget::WorkBudget::new(Limits::default());
-    let sources = super::ReverseSources::new(&starts, 10, &work).unwrap();
+    let sources = super::ReverseSources::new(&starts, 10, &work, &[]).unwrap();
     assert_eq!(sources.estimate([1, 1], 0, 1, 8, &work).unwrap(), 10);
     assert_eq!(sources.estimate([0, 0], 0, 1, 8, &work).unwrap(), 8);
 
     // The larger per-layer envelope remains confined to its own lattice.
     let mut many: Vec<_> = (0..24).map(|i| ([100 + i * 10, 0], 1, false)).collect();
     many.push(([1, 1], 0, false));
-    let sources = super::ReverseSources::new(&many, 10, &work).unwrap();
+    let sources = super::ReverseSources::new(&many, 10, &work, &[]).unwrap();
     assert_eq!(sources.estimate([0, 0], 0, 1, 8, &work).unwrap(), 18);
     assert_eq!(sources.estimate([1, 1], 1, 1, 8, &work).unwrap(), 8);
     // Inside the X/Y box of a diagonal branch, the distance to that branch
     // can still be many grid steps. Compare all probes with exact anchors.
     let diagonal: Vec<_> = (0..24).map(|i| ([i * 10, i * 10], 0, false)).collect();
-    let hull = super::ReverseSources::new(&diagonal, 10, &work).unwrap();
+    let hull = super::ReverseSources::new(&diagonal, 10, &work, &[]).unwrap();
     for x in -1..=24 {
         for y in -1..=24 {
             let p = [10 * x, 10 * y];
@@ -5553,7 +5553,8 @@ fn full_grid_terminal_landing_matches_exhaustive_phases_and_incoming_edges() {
                     for y in 0..grid {
                         let phase = [x, y];
                         let sources =
-                            ReverseSources::new(&[(phase, 0, false)], grid, &engine.work).unwrap();
+                            ReverseSources::new(&[(phase, 0, false)], grid, &engine.work, &[])
+                                .unwrap();
                         let found = has_full_track_landing(
                             &engine,
                             1,
