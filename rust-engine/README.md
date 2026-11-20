@@ -340,8 +340,10 @@ against the board, keeps plated connections at their barrel centers, and
 recomputes the actual copper components before routing the remaining gaps.
 When several separately wired groups already have plated contacts, the router
 can connect their existing barrels on a shared layer. It gives isolated
-surface pads the first opportunity to escape. It then checks direct and bent
-routes between the nearest barrels of each pair of groups. Each trial uses the
+surface pads the first opportunity to escape. It keeps ordinary search first
+when the number of source and target copper-item pairs per layer fits the
+remaining share of the join. Larger trees can check direct and bent routes
+between the nearest barrels of each pair of groups. Each trial uses the
 remaining board search allowance and native clearance checks. These branches
 add tracks without drilling new holes.
 

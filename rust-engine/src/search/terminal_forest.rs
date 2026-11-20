@@ -210,7 +210,19 @@ pub(super) fn between(
     let deadline = expanded.saturating_add(share).min(budget.current_limit);
     // With two independently wired plated branches, the common layers let us
     // join their local copper before searching from every track on the root.
-    if root_is_wired_and_plated && wired_plated_groups >= 2 && !isolated_surface_pad {
+    // A short routed branch can inspect its copper contacts within the
+    // ordinary join's share. Reserve the barrel proposal for larger trees.
+    work.charge(groups.len() as u64)?;
+    let target_items = groups[1..].iter().map(Vec::len).sum::<usize>();
+    let pair_slots = groups[0]
+        .len()
+        .saturating_mul(target_items)
+        .div_ceil(engine.layer_count()) as u64;
+    if root_is_wired_and_plated
+        && wired_plated_groups >= 2
+        && !isolated_surface_pad
+        && pair_slots > deadline.saturating_sub(*expanded)
+    {
         if let Some(edges) = plated::between(
             engine,
             net,
@@ -671,7 +683,9 @@ mod tests {
 
     #[test]
     fn wired_branches_share_existing_holes_across_separate_layer_keepouts() {
-        for inner_closed in [false, true] {
+        for (inner_closed, count, joins) in
+            [(false, 48i64, true), (true, 48, false), (false, 1, false)]
+        {
             let mut input = stitched_layout();
             enable_through_vias(&mut input);
             let mut extra = input.pads[2].clone();
@@ -695,7 +709,6 @@ mod tests {
             // Split the two existing connector traces into the short
             // straight segments produced by a prior routing pass.
             for track in input.tracks.drain(..2).collect::<Vec<_>>() {
-                let count = 48i64;
                 let at = |i: i64| {
                     [0, 1].map(|axis| {
                         track.start[axis] + i * (track.end[axis] - track.start[axis]) / count
@@ -752,8 +765,9 @@ mod tests {
                 None,
             )
             .unwrap();
-            assert!(expanded > 0 && expanded <= 300);
-            if inner_closed {
+            assert!(expanded <= 300);
+            assert_eq!(expanded > 0, count > 1);
+            if !joins {
                 assert!(edges.is_none());
             } else {
                 let edges = edges.unwrap();
