@@ -63,7 +63,9 @@ impl Mesh<'_> {
             for dy in [-self.pitch, 0, self.pitch] {
                 self.engine.work.charge(1)?;
                 let q = [nearest[0] + dx, nearest[1] + dy];
-                let mut found: Option<(u64, Vec<PathEdge>)> = None;
+                // The two elbow orders traverse the same axial and diagonal
+                // displacement on this layer. The first clear order has the
+                // minimum price, including rounding each leg to grid steps.
                 for route in octilinear_elbow_paths(p, q) {
                     let mut cost = 0u64;
                     let mut edges = Vec::new();
@@ -74,14 +76,10 @@ impl Mesh<'_> {
                         cost = cost.saturating_add(self.steps(w[0], w[1], layer));
                         edges.push(link(w[0], w[1], layer));
                     }
-                    if edges.len() + 1 == route.len()
-                        && found.as_ref().is_none_or(|(n, _)| cost < *n)
-                    {
-                        found = Some((cost, edges));
+                    if edges.len() + 1 == route.len() {
+                        result.push(((q, layer), cost, edges));
+                        break;
                     }
-                }
-                if let Some((cost, edges)) = found {
-                    result.push(((q, layer), cost, edges));
                 }
             }
         }
@@ -426,6 +424,56 @@ impl Mesh<'_> {
 mod tests {
     use super::*;
     use crate::model::Input;
+
+    #[test]
+    fn portal_elbows_include_the_first_clear_order_at_the_same_grid_price() {
+        let mut input: Input = serde_json::from_str(include_str!(
+            "../../tests/fixtures/multiterminal-native-two-nets.json"
+        ))
+        .unwrap();
+        input.tracks.clear();
+        input.pads.retain(|p| p.net == 1);
+        let a = [8_800_000, 7_200_000];
+        let b = [12_000_000, 12_000_000];
+        for blocked in [false, true] {
+            let mut board = input.clone();
+            if blocked {
+                board.pads[0].net = 3;
+                board.pads[0].at = [11_650_000, 10_050_000];
+                board.pads[0].shape = crate::model::Shape::Circle { radius_nm: 100_000 };
+                board.rules.clearance_nm = 100_000;
+            }
+            let engine = Engine::new(board).unwrap();
+            let mesh = Mesh {
+                engine: &engine,
+                net: 1,
+                grid: 250_000,
+                pitch: 4_000_000,
+                via_step: 5,
+                history: None,
+                occupied_entries: 0,
+            };
+            let options = octilinear_elbow_paths(a, b);
+            let prices: Vec<_> = options
+                .iter()
+                .map(|r| r.windows(2).map(|s| mesh.steps(s[0], s[1], 0)).sum::<u64>())
+                .collect();
+            assert_eq!(prices, [33, 33]);
+            let (node, price, edges) = mesh
+                .portals(a, 0)
+                .unwrap()
+                .into_iter()
+                .find(|r| r.0 == (b, 0))
+                .unwrap();
+            assert_eq!(node, (b, 0));
+            assert_eq!(price, prices[0]);
+            let expected: Vec<_> = options[usize::from(blocked)]
+                .windows(2)
+                .map(|s| link(s[0], s[1], 0))
+                .collect();
+            assert_eq!(edges, expected);
+        }
+    }
 
     #[test]
     fn plated_terminal_connects_on_its_listed_inner_layer_without_a_new_hole() {
