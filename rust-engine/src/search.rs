@@ -3972,6 +3972,39 @@ fn cannot_improve_incumbent(
     Ok(cost.saturating_add(remaining) >= incumbent)
 }
 
+pub(crate) fn unpenalized_terminal(
+    engine: &Engine,
+    history: Option<&crate::negotiate::CongestionHistory>,
+    edges: &[PathEdge],
+) -> Result<bool, Failure> {
+    let Some(history) = history.filter(|h| !h.is_empty()) else {
+        return Ok(true);
+    };
+    for edge in edges {
+        match *edge {
+            PathEdge::Track { start, end, layer } => {
+                if !history.unpenalized_track(engine, layer, start, end)? {
+                    return Ok(false);
+                }
+            }
+            PathEdge::Via(via) => {
+                engine.charge_work(u64::from(via.end_layer - via.start_layer) + 1)?;
+                if history.via_penalty(
+                    via.at,
+                    via.start_layer,
+                    via.end_layer,
+                    engine.input.bounds.min,
+                    engine.input.rules.grid_nm,
+                ) != 0
+                {
+                    return Ok(false);
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn walk_multilayer_bidirectional(
     engine: &Engine,
@@ -4085,7 +4118,6 @@ fn walk_multilayer_bidirectional(
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     let mut local_exp = 0u64;
     let try_terminal_segments = batch_search
-        && history.is_none_or(|h| h.is_empty())
         && engine
             .input
             .routing_options
@@ -4282,17 +4314,19 @@ fn walk_multilayer_bidirectional(
                             (previous.is_none() && only_through_vias).then_some(via_cost),
                             &finished,
                         )? {
-                            let mut path = reconstruct_bi_path(
-                                &parent_fwd,
-                                &parent_bwd,
-                                &engine.work,
-                                &MeetRecord::DirectFwd(state),
-                                priority,
-                            )?;
-                            engine.work.charge(tail.edges.len() as u64)?;
-                            path.points.extend(tail.points.into_iter().skip(1));
-                            path.edges.extend(tail.edges);
-                            return Ok(path);
+                            if unpenalized_terminal(engine, history, &tail.edges)? {
+                                let mut path = reconstruct_bi_path(
+                                    &parent_fwd,
+                                    &parent_bwd,
+                                    &engine.work,
+                                    &MeetRecord::DirectFwd(state),
+                                    priority,
+                                )?;
+                                engine.work.charge(tail.edges.len() as u64)?;
+                                path.points.extend(tail.points.into_iter().skip(1));
+                                path.edges.extend(tail.edges);
+                                return Ok(path);
+                            }
                         }
                     }
                     if let Some(bounds) = layer_target_bounds[l_idx] {
@@ -4309,21 +4343,24 @@ fn walk_multilayer_bidirectional(
                             previous.map(|(_, e)| *e),
                             attachment,
                         )? {
-                            let mut path = reconstruct_bi_path(
-                                &parent_fwd,
-                                &parent_bwd,
-                                &engine.work,
-                                &MeetRecord::DirectFwd(state),
-                                priority,
-                            )?;
-                            engine.work.charge(2)?;
-                            path.points.push(end);
-                            path.edges.push(PathEdge::Track {
+                            let edge = PathEdge::Track {
                                 start: state.at,
                                 end,
                                 layer: state.layer,
-                            });
-                            return Ok(path);
+                            };
+                            if unpenalized_terminal(engine, history, &[edge])? {
+                                let mut path = reconstruct_bi_path(
+                                    &parent_fwd,
+                                    &parent_bwd,
+                                    &engine.work,
+                                    &MeetRecord::DirectFwd(state),
+                                    priority,
+                                )?;
+                                engine.work.charge(2)?;
+                                path.points.push(end);
+                                path.edges.push(edge);
+                                return Ok(path);
+                            }
                         }
                     }
                 }
