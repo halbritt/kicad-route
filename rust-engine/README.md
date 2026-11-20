@@ -277,7 +277,11 @@ the bends. A blocked run leaves the ordinary search available.
 A net with many isolated terminals can use the forward-only queue. At a
 source on existing copper, this queue also checks whether a legal straight
 or octilinear connection attains its smallest remaining cost. The candidate
-must reach an actual target on the same layer.
+must reach an actual target on the same layer. If this queue stalls on a
+board-wide join, it can also search the multilayer lattice described below
+from the existing copper to any reachable surface terminal. It keeps every
+disconnected target in the ordinary queue. A complete lattice connection
+can be used once the join has consumed its share of the board budget.
 
 When an ordinary board-wide search starts probing from both ends of a join,
 it can retain a checked surface route as its best known path. It samples

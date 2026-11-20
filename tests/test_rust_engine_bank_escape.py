@@ -138,3 +138,46 @@ def test_displaced_slots_on_inner_layers_connect_all_terminals(tmp_path, guarded
     assert not drc["unconnected_items"] and not drc["violations"]
     reopened = pcbnew.LoadBoard(str(saved))
     assert sum(isinstance(piece, pcbnew.PCB_VIA) for piece in reopened.GetTracks()) == 2
+
+
+def test_clock_tree_joins_all_receivers_through_an_inner_channel(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=8023)
+    board.set_rect_outline(0, 0, 54_000_000, 34_000_000)
+
+    def point(x, y):
+        return pcbnew.FromMM(x), pcbnew.FromMM(y)
+
+    pads = [(1, "CLK", (4.45, 9.35), pcbnew.F_Cu)]
+    pads.extend((i + 2, "CLK", (48.45, 4.05 + 2.25 * i), pcbnew.F_Cu) for i in range(12))
+    pads.extend([(20, "REF", (3, 31), pcbnew.B_Cu), (21, "REF", (9, 31), pcbnew.B_Cu)])
+    for index, net, xy, side in pads:
+        pos = point(*xy)
+        fp = board.add_footprint(f"J{index}", pos, side="F" if side == pcbnew.F_Cu else "B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        pad = board.add_pad(fp, "1", net, pos, size_nm=point(.76, .6),
+                            shape=pcbnew.PAD_SHAPE_RECT, layers=[side])
+        pad.SetUuid(pcbnew.KIID(f"16bf72c0-a980-478d-a236-{index:012x}"))
+
+    inner = [pcbnew.In1_Cu, pcbnew.In2_Cu]
+    for layers, x, bottom, right, top in [
+        ([pcbnew.F_Cu, pcbnew.B_Cu], 10, -1, 41, 35),
+        (inner, 16, -1, 17.4, 17), (inner, 26.5, 11, 27.9, 35), (inner, 37, -1, 38.4, 19),
+    ]:
+        corners = [point(x, bottom), point(right, bottom), point(right, top), point(x, top)]
+        board.add_keepout(layers, corners, no_tracks=True, no_vias=False)
+    board.set_project_rules()
+    source = board.save(tmp_path / "source").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 13 and not before["violations"]
+    run, _ = guarded_cli
+    saved, op = tmp_path / "routed.kicad_pcb", tmp_path / "route.json"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved),
+         "--operation-result", str(op)])
+    result = json.loads(op.read_bytes())["routing"]
+    assert result["status"] == "complete" and result["expanded_states"] <= 100_000
+    reopened = pcbnew.LoadBoard(str(saved))
+    assert len(list(reopened.GetPads())) == 15
+    assert any(piece.GetLayer() in inner for piece in reopened.GetTracks())
+    after = run_native_drc(saved, sidecar_source=source).raw
+    assert not after["unconnected_items"] and not after["violations"]

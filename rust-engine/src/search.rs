@@ -1706,6 +1706,8 @@ fn search_component_path(
                 net,
                 &start_vec,
                 large_join.then_some(&from_root),
+                (large_join && !track_via_count && engine.surface_search_share.is_some())
+                    .then_some(goal_bounds.as_slice()),
                 budget,
                 expanded,
                 track_direction_matters,
@@ -2829,6 +2831,7 @@ fn walk(
         0,
         &start_vec,
         None,
+        None,
         &mut budget,
         expanded,
         true,
@@ -2853,12 +2856,27 @@ fn walk(
     )
 }
 
+fn allowed_track_layers(engine: &Engine, net: u32) -> Result<Vec<bool>, Failure> {
+    engine
+        .all_layers_slice()
+        .iter()
+        .map(
+            |name| match engine.effective_rules.track_width_for(net, name) {
+                Ok(_) => Ok(true),
+                Err(e) if e.status == Status::Unroutable => Ok(false),
+                Err(e) => Err(e),
+            },
+        )
+        .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn walk_multilayer(
     engine: &Engine,
     net: u32,
     starts: &[(Point, u8, bool)],
     from_root: Option<&dyn Fn(State, u64) -> Result<Option<Path>, Failure>>,
+    surface_targets: Option<&[TargetBounds<'_>]>,
     budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
     track_direction_matters: bool,
@@ -2996,10 +3014,19 @@ fn walk_multilayer(
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     let mut local_exp = 0u64;
+    let join_deadline = engine
+        .surface_search_share
+        .map(|share| expanded.saturating_add(share));
+    let mut mesh_path: Option<Path> = None;
     while !queue.is_empty() {
         engine.work.charge(1)?;
         let Reverse((priority, tie_g, state)) = queue.pop().unwrap();
         let cost = tie_g.g;
+        if let Some(path) = mesh_path
+            .take_if(|p| p.steps <= priority || join_deadline.is_some_and(|stop| *expanded >= stop))
+        {
+            return Ok(path);
+        }
         if best.get(&state) != Some(&cost) {
             continue;
         }
@@ -3016,6 +3043,34 @@ fn walk_multilayer(
         budget.check_before_expand(engine, *expanded, frontier.as_deref())?;
         *expanded = expanded.checked_add(1).expect("bounded expansion count");
         local_exp += 1;
+        if local_exp == 256 && only_through_vias {
+            if let Some(targets) = surface_targets {
+                // Many disconnected islands make reverse seeding expensive.
+                // The coarser mesh can still join any one of them. Keep the
+                // full ordinary frontier for cheaper routes and other islands.
+                let tracks = allowed_track_layers(engine, net)?;
+                let occupied = best.len()
+                    + parent.len()
+                    + queue.len()
+                    + settled_by_pos.len()
+                    + via_cache.len()
+                    + via_arena.total_len
+                    + tv_arena.total_len;
+                mesh_path = routing_mesh::connect(
+                    engine,
+                    net,
+                    starts,
+                    targets,
+                    &tracks,
+                    occupied,
+                    engine.effective_rules.via_cost.max(1),
+                    history,
+                    budget,
+                    expanded,
+                    frontier.as_deref(),
+                )?;
+            }
+        }
         if cost == 0 && !state.via_only {
             if let Some(probe) = from_root {
                 if let Some(path) = probe(state, priority)? {
@@ -3058,6 +3113,9 @@ fn walk_multilayer(
                     parent.get(&state).map(|(_, e)| *e),
                 )?)
         {
+            if let Some(path) = mesh_path.take_if(|p| p.steps <= cost) {
+                return Ok(path);
+            }
             return reconstruct_path(&parent, &engine.work, state, cost);
         }
 
@@ -3421,10 +3479,7 @@ fn walk_multilayer(
             }
         }
     }
-    Err(Failure::new(
-        Status::Unroutable,
-        "search frontier exhausted",
-    ))
+    mesh_path.ok_or_else(|| Failure::new(Status::Unroutable, "search frontier exhausted"))
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -4057,17 +4112,9 @@ fn walk_multilayer_bidirectional(
 ) -> Result<Path, Failure> {
     let grid = engine.input.rules.grid_nm;
     let l_count = engine.layer_count();
-    let stackup = engine.all_layers_slice();
     let only_through_vias =
         !engine.effective_rules.allow_blind_buried_vias && !engine.effective_rules.allow_microvias;
-    let mut track_ok_on_layer = vec![false; l_count];
-    for (l_idx, l_name) in stackup.iter().enumerate() {
-        match engine.effective_rules.track_width_for(net, l_name) {
-            Ok(_) => track_ok_on_layer[l_idx] = true,
-            Err(e) if e.status == Status::Unroutable => {}
-            Err(e) => return Err(e),
-        }
-    }
+    let track_ok_on_layer = allowed_track_layers(engine, net)?;
     let min_step = engine.layer_policy.minimum_step(net);
     let via_bound = engine.layer_policy.scale(via_cost);
     let mut reverse_sources: Option<ReverseSources> = None;
