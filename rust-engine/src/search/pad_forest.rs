@@ -72,51 +72,79 @@ pub(super) fn between(
         return Ok(None);
     }
     engine.work.charge(n as u64)?;
-    if groups
-        .iter()
-        .any(|g| !matches!(g.as_slice(), [Copper::Pad(_)]))
-    {
-        return Ok(None);
-    }
     let allowed = allowed_track_layers(engine, net)?;
     let layer_mask = allowed
         .iter()
         .enumerate()
         .fold(0, |mask, (i, ok)| mask | (u32::from(*ok) << i));
-    let storage = n.saturating_mul(8);
     let work = &engine.work;
-    // This proposal is optional. Leave the normal router its budget if a
-    // quadratic scan cannot fit even before checking the actual copper.
+    let mut preconnected = false;
+    let mut pad_count = 0usize;
+    for group in groups {
+        preconnected |= group.len() > 1;
+        work.charge(group.len() as u64)?;
+        for item in group {
+            match item {
+                Copper::Pad(_) => pad_count += 1,
+                Copper::Via(_) => {}
+                Copper::Track(t) => {
+                    if !super::trace_ends_connected(t, group, engine.all_layers_slice(), work)? {
+                        return Ok(None);
+                    }
+                }
+                _ => return Ok(None),
+            }
+        }
+    }
+    let storage = n.saturating_mul(8).saturating_add(pad_count);
     if storage > engine.input.limits.max_search_entries
-        || (n as u64).saturating_mul(n as u64).saturating_mul(2) > work.remaining()
+        || (pad_count as u64)
+            .saturating_mul(pad_count as u64)
+            .saturating_mul(2)
+            > work.remaining()
     {
         return Ok(None);
     }
     work.search_storage(storage)?;
     let mut pins = Vec::with_capacity(n);
+    let mut shared_layers = layer_mask;
     for group in groups {
-        work.charge(1)?;
-        let [item @ Copper::Pad(pad)] = group.as_slice() else {
-            return Ok(None);
-        };
-        let target = TargetBounds::new(*item, engine.all_layers_slice(), work)?;
-        let contact = match target.surface_contact(&allowed, work)? {
-            Some((p, layer)) => Some((p, 1 << layer)),
-            None => target.plated_contact(work)?,
-        };
-        let Some((p, layers)) = contact else {
-            return Ok(None);
-        };
-        if layers & layer_mask == 0 {
+        let mut group_layers = 0;
+        let mut contacts = Vec::new();
+        for item in group {
+            work.charge(1)?;
+            let Copper::Pad(pad) = *item else {
+                continue;
+            };
+            let target = TargetBounds::new(*item, engine.all_layers_slice(), work)?;
+            let contact = match target.surface_contact(&allowed, work)? {
+                Some((p, layer)) => Some((p, 1 << layer)),
+                None => target.plated_contact(work)?,
+            };
+            if let Some((p, layers)) = contact {
+                if layers & layer_mask != 0 {
+                    group_layers |= layers & layer_mask;
+                    contacts.push((p, layers & layer_mask, pad));
+                }
+            }
+        }
+        if contacts.is_empty() {
             return Ok(None);
         }
-        pins.push((p, layers & layer_mask, *pad));
+        shared_layers &= group_layers;
+        pins.push(contacts);
     }
-    // Prim's algorithm gives each pad at most one incoming span. A blocked
+    // A partially wired component can expose pads on opposite faces. When
+    // the groups share no routing layer, leave the layer transitions to the
+    // multilayer search before committing to more planar branches.
+    if shared_layers == 0 && preconnected {
+        return Ok(None);
+    }
+    // Prim's algorithm gives each component at most one incoming span. A blocked
     // span leaves two independent copper islands for the ordinary search.
     let deadline = expanded.saturating_add(share).min(budget.current_limit);
     let mut in_tree = vec![false; n];
-    let mut nearest = vec![None::<(u128, usize)>; n];
+    let mut nearest = vec![None::<(u128, usize, usize, usize)>; n];
     let mut edges: Vec<(usize, PathEdge)> = Vec::new();
     let mut cluster: Vec<_> = (0..n).collect();
     let mut joins = 0;
@@ -128,9 +156,9 @@ pub(super) fn between(
         let Some(i) = next else {
             break;
         };
-        let (a, mask, pad) = pins[i];
-        if let Some((_, origin)) = nearest[i] {
-            let (b, layers, previous_pad) = pins[origin];
+        if let Some((_, origin, source_pin, destination_pin)) = nearest[i] {
+            let (a, mask, pad) = pins[i][destination_pin];
+            let (b, layers, previous_pad) = pins[origin][source_pin];
             'span: for layer in 0..allowed.len() {
                 work.charge(1)?;
                 if mask & layers & (1 << layer) == 0 {
@@ -210,15 +238,23 @@ pub(super) fn between(
         }
         in_tree[i] = true;
         work.charge(n as u64)?;
-        for (k, &(b, layers, _)) in pins.iter().enumerate() {
-            if in_tree[k] || mask & layers == 0 {
+        for (k, other) in pins.iter().enumerate() {
+            if in_tree[k] {
                 continue;
             }
-            let distance =
-                u128::from(a[0].abs_diff(b[0])).pow(2) + u128::from(a[1].abs_diff(b[1])).pow(2);
-            let value = (distance, i);
-            if nearest[k].is_none_or(|old| value < old) {
-                nearest[k] = Some(value);
+            for (source_pin, &(a, mask, _)) in pins[i].iter().enumerate() {
+                work.charge(other.len() as u64)?;
+                for (destination_pin, &(b, layers, _)) in other.iter().enumerate() {
+                    if mask & layers == 0 {
+                        continue;
+                    }
+                    let distance = u128::from(a[0].abs_diff(b[0])).pow(2)
+                        + u128::from(a[1].abs_diff(b[1])).pow(2);
+                    let value = (distance, i, source_pin, destination_pin);
+                    if nearest[k].is_none_or(|old| value < old) {
+                        nearest[k] = Some(value);
+                    }
+                }
             }
         }
     }
@@ -243,6 +279,82 @@ mod tests {
         let p = projections([20, 20], [10, 10], [12, 16]).collect::<Vec<_>>();
         assert!(p.contains(&[14, 14]));
         assert!(p.iter().all(|v| v[0] == v[1] && (10..=20).contains(&v[0])));
+    }
+
+    #[test]
+    fn a_preconnected_pair_can_branch_from_either_pad() {
+        let mut template: Input = serde_json::from_str(include_str!(
+            "../../tests/fixtures/multiterminal-native-two-nets.json"
+        ))
+        .unwrap();
+        template.layers = vec!["F.Cu".into(), "B.Cu".into()];
+        template.pads.truncate(5);
+        for (p, x) in template.pads.iter_mut().zip([12, 24, 7, 29, 34]) {
+            p.net = 1;
+            p.layers = vec!["F.Cu".into()];
+            p.at = [x * 1_000_000, 8_000_000];
+        }
+        template.tracks.truncate(1);
+        template.tracks[0].net = 1;
+        template.tracks[0].start = template.pads[0].at;
+        template.tracks[0].end = template.pads[1].at;
+        for (dangling, opposite_face) in [(false, false), (true, false), (false, true)] {
+            let mut input = template.clone();
+            if dangling {
+                input.tracks[0].end[0] -= 2_000_000;
+            }
+            if opposite_face {
+                input.pads[4].layers = vec!["B.Cu".into()];
+            }
+            let mut engine = Engine::new(input).unwrap();
+            engine.surface_search_share = Some(100);
+            let components = engine.components(1).unwrap();
+            let mut expanded = 0;
+            let result = between(
+                &engine,
+                1,
+                &components,
+                &mut TrialBudget::fixed(100),
+                &mut expanded,
+                None,
+            )
+            .unwrap();
+            if dangling || opposite_face {
+                assert!(result.is_none());
+                assert_eq!(expanded, 0);
+                continue;
+            }
+            let edges = result.unwrap();
+            assert_eq!(edges.len(), 3);
+            assert_eq!(expanded, 3);
+            let mut spans = Vec::new();
+            for edge in edges {
+                let PathEdge::Track {
+                    start,
+                    end,
+                    layer: 0,
+                } = edge
+                else {
+                    panic!("expected front trace")
+                };
+                assert!(engine.legal_edge_on(1, 0, start, end).unwrap());
+                let pad_x = |p| {
+                    engine
+                        .input
+                        .pads
+                        .iter()
+                        .find(|pad| crate::geometry::point_in_pad(p, pad))
+                        .unwrap()
+                        .at[0]
+                        / 1_000_000
+                };
+                let a = pad_x(start);
+                let b = pad_x(end);
+                spans.push((a.min(b), a.max(b)));
+            }
+            spans.sort_unstable();
+            assert_eq!(spans, [(7, 12), (24, 29), (29, 34)]);
+        }
     }
 
     #[test]

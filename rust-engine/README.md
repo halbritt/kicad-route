@@ -293,9 +293,12 @@ from the existing copper to any reachable surface terminal. It keeps every
 disconnected target in the ordinary queue. A complete lattice connection
 can be used once the join has consumed its share of the board budget.
 
-For a net with four or more isolated pads, the board-wide router can join
-unobstructed neighboring pads on a common layer before starting a maze
-search. It builds a geometric spanning forest. A new branch can meet the
+For a net with four or more disconnected pad groups, the board-wide router
+can join unobstructed neighboring pads on a common layer before starting a
+maze search. It builds a geometric spanning forest. Where existing traces
+link several pads, any pad in that component can supply the next branch.
+The multilayer search handles dangling trace ends and partially routed groups
+without a shared routing layer. A new branch can meet the
 interior of a trace already in its tree. The router checks each segment
 against the board, keeps plated connections at their barrel centers, and
 recomputes the actual copper components before routing the remaining gaps.
