@@ -154,7 +154,11 @@ adapter checks it against the original board bytes. CLI input is at most 16 MiB.
 
 Search uses four orthogonal directions, uniform one-step cost and an incoming
 heading in the dominance key. All multi-component and two-pad nets use multi-source A* from every
-legal pad center and incumbent/generated track endpoint in the first component, targeting all other components. Its heuristic
+legal pad center and track endpoint in the first component, targeting all other
+components. A final pad can also branch perpendicularly from a straight track.
+When both ends of a source track already connect to other copper in its
+component, a terminal can branch from an interior point sharing its x or y
+coordinate, including an exact integer point on a diagonal trace. Its heuristic
 is the minimum, over target items, of the sum of the two rounded-up axis gaps
 in grid steps to a bounding box containing the endpoints that can make contact.
 For pads, tracks and vias the expansion uses the route's floored half-width
@@ -209,11 +213,10 @@ budget is 1..=1,000,000 for the whole batch; settled
 states, including the found goal, count once per state/direction. Stale queue
 entries do not count. Frontier exhaustion and budget exhaustion are distinct.
 
-The component search is not complete for continuous routing. A component whose
-pad centers and track endpoints are all illegal seeds can fail even when a
-mid-span exit exists. The grid may miss a legal corridor or an attachment away from its searched
-edges. Along each searched edge, integer terminal endpoints are covered by the
-convex-interval calculation; this does not add mid-span source seeds. Multi-terminal routing repeatedly joins the first current component to a
+The component search covers a finite set of seed points. The grid can miss
+a legal corridor or another usable point inside a source track. Along each
+searched edge, the convex-interval calculation covers integer terminal
+endpoints. Multi-terminal routing repeatedly joins the first current component to a
 reachable target component and recomputes connectivity after every join.
 Already-connected pad groups and disconnected incumbent tracks participate
 equally; a net succeeds only when all required copper is connected. This can

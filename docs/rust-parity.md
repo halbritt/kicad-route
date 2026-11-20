@@ -76,6 +76,33 @@ the candidate. The shared-host runs used Rust 1.99.1 and KiCad 10.0.8.
 They establish a reproducible board outcome. More repetitions under
 controlled load would be needed to attribute the timing difference.
 
+### Matched native runs at `032b789`
+
+KiCad 10.0.8 regraded each saved board with its input project, custom rules
+and zone refill. Each release build (Rust 1.99.1, locked dependencies) ran
+three times on the same host, alternating the two revisions. Each revision
+produced identical output bytes across its three runs on every completed case.
+Wall time, process CPU time and GNU time's maximum process RSS are medians.
+
+| Input | Revision | Opens | Native errors | Vias | Track length (mm) | Expansions | Work units | Wall (s) | CPU (s) | RSS (KiB) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| route_demo | 9ac137a | 0 | 0 | 3 | 163.553 | 3,325 | 668,516 | 1.89 | 1.32 | 280,416 |
+| route_demo | 032b789 | 0 | 0 | 3 | 163.553 | 3,325 | 668,738 | 1.86 | 1.31 | 281,524 |
+| T4-04 | 9ac137a | 0 | 0 | 64 | 2,741.775 | 718,513 | 135,756,020 | 4.95 | 4.77 | 238,372 |
+| T4-04 | 032b789 | 0 | 0 | 54 | 2,738.363 | 721,817 | 146,809,207 | 5.40 | 5.24 | 238,072 |
+| complex_hierarchy | 9ac137a | 0 | 0 | 3 | 1,125.903 | 78,412 | 40,830,733 | 6.11 | 5.90 | 292,900 |
+| complex_hierarchy | 032b789 | 0 | 0 | 3 | 1,125.903 | 67,596 | 37,704,417 | 6.86 | 6.59 | 294,660 |
+| tigard_fab | 9ac137a | — | — | — | — | 100,000 | 44,890,302 | 1.71 | 1.62 | 170,324 |
+| tigard_fab | 032b789 | — | — | — | — | 100,000 | 45,516,724 | 1.24 | 1.23 | 170,816 |
+
+The four-layer T4-04 fixture closed all 48 opens across its 24 three-pad nets
+under its existing 1,000,000 expansion and 250,000,000 work limits. Both
+outputs had zero native violations. The newer board used ten fewer vias and
+took 0.45 s longer. Both revisions produced the same copper on the two-layer
+external board, closing 87 opens with all 68 existing library warnings still
+present. Both exhausted the production expansion allowance on the four-layer
+Tigard input and left the destination absent.
+
 ### External corpus boards
 
 Under KiCad 10.0.8, two release runs of `route-native` at `c9e7d08` on the
