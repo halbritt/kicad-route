@@ -1038,3 +1038,68 @@ fn offset_copper_tree_escapes_surface_keepouts_on_a_four_layer_board() {
         .sum();
     assert_eq!(length, 14_500_000);
 }
+
+#[test]
+fn a_grown_branch_can_be_reached_from_another_islands_grid() {
+    // The two left terminals share a grid. Only the right bank's grid can
+    // cross the gap through the shield, then turn onto the original branch.
+    let mut board = fixture(&[[20, 50], [40, 50], [85, 55], [85, 75], [95, 85]]);
+    for (i, (bottom, top)) in [(0, 52), (58, 100)].into_iter().enumerate() {
+        board.rule_areas.push(RuleArea {
+            id: id(100 + i),
+            name: None,
+            layers: vec!["F.Cu".into()],
+            outer: vec![[50, bottom], [65, bottom], [65, top], [50, top]],
+            holes: Vec::new(),
+            extra_polygons: Vec::new(),
+            no_tracks: true,
+            no_vias: true,
+            no_pads: false,
+            no_footprints: false,
+            no_zone_fills: false,
+        });
+    }
+    for incumbent in [false, true] {
+        let mut article = board.clone();
+        if incumbent {
+            article.tracks.push(track(90, 1, [20, 50], [40, 50], true));
+            article.tracks.push(track(91, 1, [85, 55], [85, 75], true));
+        }
+        let result = run(article.clone());
+        assert_eq!(result.status, Status::Complete, "{:?}", result.reason);
+        assert!(connected(&article, &result.added_tracks, 1));
+        assert!(result.removed_track_ids.is_empty() && result.added_vias.is_empty());
+        assert!(result.added_tracks.iter().any(|t| {
+            t.start[1] == 55
+                && t.end[1] == 55
+                && t.start[0].min(t.end[0]) < 50
+                && t.start[0].max(t.end[0]) > 65
+        }));
+        let mut capped = article.clone();
+        capped.max_expansions = result.expanded_states - 1;
+        let limited = run(capped);
+        assert_eq!(limited.status, Status::BudgetExhausted);
+        assert_eq!(limited.expanded_states, result.expanded_states - 1);
+        assert!(limited.added_tracks.is_empty() && limited.removed_track_ids.is_empty());
+        article.rule_areas[0].outer[2][1] = 58;
+        article.rule_areas[0].outer[3][1] = 58;
+        let sealed = run(article);
+        assert_eq!(sealed.status, Status::Unroutable);
+        assert!(sealed.added_tracks.is_empty() && sealed.removed_track_ids.is_empty());
+    }
+
+    // Start on the opposite side with three isolated pads. Neither other
+    // pad can reach the first alone. They must form a branch before it can
+    // land on their copper from the only grid that fits the aperture.
+    board.pads.truncate(3);
+    board.pads.rotate_right(1);
+    let result = run(board.clone());
+    assert_eq!(result.status, Status::Complete, "{:?}", result.reason);
+    assert!(connected(&board, &result.added_tracks, 1));
+    assert!(result.added_vias.is_empty());
+    board.limits.max_work = result.work_used - 1;
+    let limited = run(board);
+    assert_eq!(limited.status, Status::WorkExhausted);
+    assert_eq!(limited.work_used, result.work_used - 1);
+    assert!(limited.added_tracks.is_empty() && limited.removed_track_ids.is_empty());
+}

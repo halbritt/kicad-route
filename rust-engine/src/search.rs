@@ -311,6 +311,7 @@ fn search_inner(
 /// A target may attach anywhere along the last swept edge, not only at a
 /// grid node or an incumbent endpoint. This is a bounded grid search, not a
 /// proof that no continuous attachment exists when the frontier is exhausted.
+#[cfg(test)]
 pub(crate) fn join_components(
     engine: &Engine,
     net: u32,
@@ -334,7 +335,7 @@ pub(crate) fn join_components(
 }
 
 #[allow(clippy::too_many_arguments)]
-#[allow(dead_code)]
+#[cfg(test)]
 pub(crate) fn join_components_negotiated(
     engine: &Engine,
     net: u32,
@@ -359,6 +360,7 @@ pub(crate) fn join_components_negotiated(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(crate) fn join_components_negotiated_with_budget(
     engine: &Engine,
     net: u32,
@@ -381,6 +383,68 @@ pub(crate) fn join_components_negotiated_with_budget(
         Some(frontier),
         engine.prefer_higher_g(),
     )
+}
+
+/// A board-wide join can start on any disconnected island. Preserve the
+/// first choice and its cost. If that frontier exhausts against fixed copper,
+/// another island may have a different launch lattice or reach a third island.
+pub(crate) fn join_open_components(
+    engine: &Engine,
+    net: u32,
+    groups: &mut [Vec<Copper<'_>>],
+    budget: &mut crate::negotiate::TrialBudget<'_>,
+    expanded: &mut u64,
+    history: Option<&crate::negotiate::CongestionHistory>,
+    mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
+) -> Result<Path, Failure> {
+    let batch = frontier.is_some() && engine.prefer_higher_g();
+    let history = history.filter(|h| !h.is_empty());
+    let mut try_from = |groups: &[Vec<Copper<'_>>], frontier: Option<&mut _>| {
+        join_components_inner(
+            engine,
+            net,
+            &groups[0],
+            &groups[1..],
+            budget,
+            expanded,
+            history,
+            frontier,
+            batch,
+        )
+    };
+    let mut result = try_from(groups, frontier.as_deref_mut());
+    if matches!(groups, [a, b] if matches!(a.as_slice(), [Copper::Pad(_)]) &&
+                                       matches!(b.as_slice(), [Copper::Pad(_)]))
+    {
+        // The two-pad search already considers the other pad's grid.
+        return result;
+    }
+    for i in 1..groups.len() {
+        if !matches!(&result, Err(e) if e.status == Status::Unroutable)
+            || frontier.as_deref().is_some_and(|f| !f.probes().is_empty())
+        {
+            // Generated copper blockers belong to negotiation. Hard limits
+            // and failures apply to the whole operation.
+            break;
+        }
+        if i == 1 {
+            // Refillable pours have their own directional landing policy.
+            for group in groups.iter() {
+                engine.work.charge(group.len() as u64)?;
+                if group
+                    .iter()
+                    .any(|c| !matches!(c, Copper::Pad(_) | Copper::Via(_) | Copper::Track(_)))
+                {
+                    return result;
+                }
+            }
+        }
+        engine.work.charge(1)?;
+        groups.swap(0, i);
+        result = try_from(groups, frontier.as_deref_mut());
+        groups.swap(0, i);
+    }
+    result
 }
 
 #[allow(clippy::too_many_arguments)]
