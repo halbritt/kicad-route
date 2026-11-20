@@ -256,10 +256,11 @@ its original layer on a through-via, cross an obstacle on another layer of
 equal track cost, and return on a second through-via. The search checks both
 drills, all three tracks and the clipped landing. For uncapped surface pads
 that require track contact, the obstacle-distance bound uses the track cap's
-reach around the destination. A straight track from an earlier net can force
-the same detour as an imported track. For each component join the router
-queries the current copper index between the source and destination. Removing
-a net during negotiation removes its tracks from the next estimate.
+reach around the destination. When all launch sites and landings lie on one
+face, the router queries the current copper index for an earlier net’s track
+that makes a same-face detour more expensive than two through-vias. It uses
+this bound at a launch site only when it finds a legal path of that cost.
+Each component join sees the copper left by the most recent negotiation.
 
 The original single-layer search used unit step costs, a fixed net-ID order
 and no rip-up. Current multilayer negotiation can change the routing order

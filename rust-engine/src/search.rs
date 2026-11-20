@@ -1193,7 +1193,7 @@ fn search_component_path(
         && !track_via_count
         && !has_zone_target
         && goal_bounds.len() <= 8;
-    let barriers = if reversible
+    let (barriers, routed_crossing) = if reversible
         && (!engine.copper.input().is_empty()
             || !engine.input.rule_areas.is_empty()
             || !engine.pad_banks.is_empty()
@@ -1248,20 +1248,30 @@ fn search_component_path(
             &engine.work,
         )?;
         engine.pad_banks.include(engine, net, &mut candidate)?;
-        if engine.copper.has_generated_tracks() {
-            candidate.include_routed_tracks(&engine.copper, net, &engine.work)?;
-        }
-        if candidate.is_active() {
-            engine.work.charge(start_vec.len() as u64)?;
-            let source_mask = start_vec
-                .iter()
-                .fold(0u32, |mask, &(_, layer, _)| mask | (1u32 << layer));
-            Some(candidate.with_terminal_layers(source_mask, track_terminals.unwrap_or(u32::MAX)))
+        engine.work.charge(start_vec.len() as u64)?;
+        let source_mask = start_vec
+            .iter()
+            .fold(0u32, |mask, &(_, layer, _)| mask | (1u32 << layer));
+        let crossing = if batch_search
+            && source_mask.is_power_of_two()
+            && track_terminals == Some(source_mask)
+            && engine.copper.has_generated_tracks()
+        {
+            candidate.routed_crossing_cost(
+                &engine.copper,
+                net,
+                source_mask.trailing_zeros() as usize,
+                &engine.work,
+            )?
         } else {
             None
-        }
+        };
+        let barriers = candidate.is_active().then(|| {
+            candidate.with_terminal_layers(source_mask, track_terminals.unwrap_or(u32::MAX))
+        });
+        (barriers, crossing)
     } else {
-        None
+        (None, None)
     };
     loop {
         let use_bidirectional =
@@ -1592,6 +1602,7 @@ fn search_component_path(
                 &start_vec,
                 &goal_bounds,
                 barriers.as_ref(),
+                routed_crossing,
                 max_eff_width,
                 &layer_target_union,
                 via_cost,
@@ -4020,6 +4031,7 @@ fn walk_multilayer_bidirectional(
     starts: &[(Point, u8, bool)],
     targets: &[TargetBounds<'_>],
     barriers: Option<&BarrierBound>,
+    routed_crossing: Option<u64>,
     max_eff_width: i64,
     layer_target_bounds: &[Option<(Point, Point)>],
     via_cost: u64,
@@ -4325,13 +4337,13 @@ fn walk_multilayer_bidirectional(
                         let tail = if direct.is_none()
                             && previous.is_none()
                             && only_through_vias
-                            && barriers.is_some()
+                            && (barriers.is_some() || routed_crossing.is_some())
                         {
                             layer_crossing::axial(
                                 engine,
                                 net,
                                 state,
-                                priority - cost,
+                                (priority - cost).max(routed_crossing.unwrap_or(0)),
                                 targets,
                                 via_cost,
                                 attachment,
@@ -4346,7 +4358,7 @@ fn walk_multilayer_bidirectional(
                                     &parent_bwd,
                                     &engine.work,
                                     &MeetRecord::DirectFwd(state),
-                                    priority,
+                                    cost.saturating_add(tail.steps),
                                 )?;
                                 engine.work.charge(tail.edges.len() as u64)?;
                                 path.points.extend(tail.points.into_iter().skip(1));

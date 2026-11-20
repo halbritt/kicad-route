@@ -390,45 +390,52 @@ impl BarrierBound {
         })
     }
 
-    /// A previous net's traces remain fixed during this join. Rebuild the
-    /// estimate after a negotiation changes the authoritative copper store.
-    pub(crate) fn include_routed_tracks(
-        &mut self,
+    /// Every launch and landing lies on this face. If crossing a foreign
+    /// trace on that face costs strictly more than two layer changes, an
+    /// actual two-via path of the stated cost attains the whole join's bound.
+    /// Negotiation may change the trace before the next join.
+    pub(crate) fn routed_crossing_cost(
+        &self,
         copper: &crate::state::CopperStore,
         net: u32,
+        layer: usize,
         work: &WorkBudget,
-    ) -> Result<(), Failure> {
+    ) -> Result<Option<u64>, Failure> {
         use crate::spatial::SweptAabb;
         use std::ops::ControlFlow;
-        // A separating segment that increases the closest Manhattan distance
-        // must intersect the rectangle between the closest points of the two
-        // envelopes. Overlapping intervals admit the same coordinate on both.
+        let Some(via) = self.layer_change else {
+            return Ok(None);
+        };
         let mut a = [0; 2];
         let mut b = [0; 2];
-        for axis in 0..2 {
-            a[axis] = self.target.0[axis].clamp(self.source.0[axis], self.source.1[axis]);
-            b[axis] = a[axis].clamp(self.target.0[axis], self.target.1[axis]);
+        for k in 0..2 {
+            a[k] = self.target.0[k].clamp(self.source.0[k], self.source.1[k]);
+            b[k] = a[k].clamp(self.target.0[k], self.target.1[k]);
         }
         if a == b {
-            return Ok(());
+            return Ok(None);
         }
-        let region = SweptAabb::swept(a, b, 0, 0);
-        for layer in 0..self.layers.len() {
-            work.charge(1)?;
-            let _ = copper.visit_generated_layer_candidates(
-                layer,
-                region,
-                Some(net),
-                work,
-                |_, t| {
-                    if let Some(wall) = Barrier::from_segment(t.start, t.end) {
-                        self.retain_layer_wall(layer, wall);
+        let steps: [u64; 2] = std::array::from_fn(|k| a[k].abs_diff(b[k]).div_ceil(self.grid));
+        let crossing = (steps[0] + steps[1])
+            .saturating_mul(self.step)
+            .saturating_add(via.saturating_mul(2));
+        let found = copper.visit_generated_layer_candidates(
+            layer,
+            SweptAabb::swept(a, b, 0, 0),
+            Some(net),
+            work,
+            |_, t| {
+                if let Some(wall) = Barrier::from_segment(t.start, t.end) {
+                    work.charge(1)?;
+                    let detour = wall.detour(self.source, self.target).div_ceil(self.grid);
+                    if (steps[wall.axis] + detour).saturating_mul(self.step) > crossing {
+                        return Ok(ControlFlow::Break(()));
                     }
-                    Ok(ControlFlow::Continue(()))
-                },
-            )?;
-        }
-        Ok(())
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        Ok(found.is_break().then_some(crossing))
     }
 
     fn retain_layer_wall(&mut self, layer: usize, wall: Barrier) {
