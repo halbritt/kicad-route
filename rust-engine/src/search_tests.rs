@@ -5381,3 +5381,102 @@ fn straight_certificate_uses_the_first_contact_cell_and_checks_the_entire_track(
     let (blocked, _) = join(input, true, 8);
     assert_eq!(blocked.unwrap_err().status, Status::BudgetExhausted);
 }
+
+#[test]
+fn full_grid_terminal_landing_matches_exhaustive_phases_and_incoming_edges() {
+    let mut outcomes = [0, 0];
+    let grid = 6;
+    for face in ["F.Cu", "B.Cu"] {
+        let l = usize::from(face == "B.Cu");
+        for shape in [
+            Shape::Circle { radius_nm: 2 },
+            Shape::Rect {
+                half_size_nm: [3, 1],
+            },
+        ] {
+            let mut terminal = pad(1, 1, [-1, 2], shape);
+            terminal.layers = vec![face.to_string()];
+            for mask in 0..16 {
+                let walls: Vec<_> = [
+                    ([-5, -10], [-5, 12]),
+                    ([4, -10], [4, 12]),
+                    ([-11, -1], [9, -1]),
+                    ([-11, 6], [9, 6]),
+                ]
+                .into_iter()
+                .enumerate()
+                .filter_map(|(i, (a, b))| {
+                    (mask & (1 << i) != 0).then(|| {
+                        let mut t = track(i as u64 + 10, 2, a, b, 2);
+                        t.layer = face.into();
+                        t
+                    })
+                })
+                .collect();
+                let input: Input = serde_json::from_value(serde_json::json!({
+                    "version":1,"source_id":"b".repeat(64),"layer":"F.Cu","layers":["F.Cu","B.Cu"],
+                    "bounds":{"min":[-14,-14],"max":[14,14]},
+                    "rules":{"width_nm":2,"grid_nm":grid,"clearance_nm":1,"edge_clearance_nm":0},
+                    "nets":[{"id":1,"name":"data"},{"id":2,"name":"guard"}],"pads":[terminal],
+                    "tracks":walls,"max_expansions":100000
+                }))
+                .unwrap();
+                let engine = Engine::new(input).unwrap();
+                let target = Copper::Pad(&terminal);
+                let stack = engine.all_layers_slice();
+                let bound = TargetBounds::new(target, stack, &engine.work).unwrap();
+                let foreign: Vec<_> = walls.iter().map(Body::track).collect();
+                let body = Body::pad(&terminal);
+                // Enumerate the entire board, independently of the target envelope,
+                // phase iteration and contact/clearance procedures in the router.
+                let mut live = BTreeSet::new();
+                for x in -14_i64..=14 {
+                    for y in -14_i64..=14 {
+                        let end = [x, y];
+                        if !body.contacts(Body::segment(end, end, 2)) {
+                            continue;
+                        }
+                        if [[x - grid, y], [x + grid, y], [x, y - grid], [x, y + grid]]
+                            .into_iter()
+                            .any(|start| legal(&engine.input, &foreign, start, end))
+                        {
+                            live.insert(end.map(|v| v.rem_euclid(grid)));
+                        }
+                    }
+                }
+                let cap_touches = |p: Point, layer: usize, edge: Option<PathEdge>| {
+                    assert_eq!(layer, l);
+                    assert!(
+                        matches!(edge,Some(PathEdge::Track {start,end,..}) if start==p && end==p)
+                    );
+                    let mut cap = track(100, 1, p, p, 2);
+                    cap.layer = face.into();
+                    target.touches_route(&cap, stack, &engine.work)
+                };
+                for x in 0..grid {
+                    for y in 0..grid {
+                        let phase = [x, y];
+                        let sources =
+                            ReverseSources::new(&[(phase, 0, false)], grid, &engine.work).unwrap();
+                        let found = has_full_track_landing(
+                            &engine,
+                            1,
+                            &sources,
+                            std::slice::from_ref(&bound),
+                            &cap_touches,
+                        )
+                        .unwrap();
+                        assert_eq!(
+                            found,
+                            live.contains(&phase),
+                            "{face}, walls={mask}, phase={phase:?}"
+                        );
+                        outcomes[usize::from(found)] += 1;
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(outcomes.iter().sum::<usize>(), 2304);
+    assert!(outcomes.into_iter().all(|n| n > 0));
+}
