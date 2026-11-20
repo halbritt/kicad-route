@@ -1,4 +1,5 @@
 mod contact_bound;
+mod layer_crossing;
 mod monotone_trunk;
 mod octilinear_exit;
 mod octilinear_terminal;
@@ -4304,7 +4305,7 @@ fn walk_multilayer_bidirectional(
                         }
                     };
                     if changed_heading {
-                        if let Some(tail) = octilinear_terminal::from_state(
+                        let direct = octilinear_terminal::from_state(
                             engine,
                             net,
                             state,
@@ -4313,7 +4314,25 @@ fn walk_multilayer_bidirectional(
                             previous.is_none(),
                             (previous.is_none() && only_through_vias).then_some(via_cost),
                             &finished,
-                        )? {
+                        )?;
+                        let tail = if direct.is_none()
+                            && previous.is_none()
+                            && only_through_vias
+                            && barriers.is_some()
+                        {
+                            layer_crossing::axial(
+                                engine,
+                                net,
+                                state,
+                                priority - cost,
+                                targets,
+                                via_cost,
+                                attachment,
+                            )?
+                        } else {
+                            direct
+                        };
+                        if let Some(tail) = tail {
                             if unpenalized_terminal(engine, history, &tail.edges)? {
                                 let mut path = reconstruct_bi_path(
                                     &parent_fwd,
