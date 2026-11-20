@@ -3169,8 +3169,7 @@ impl Engine {
             }
         }
         for t in normalized {
-            self.copper.split_short_branch_taps(&t, &self.work)?;
-            self.copper.insert(t, &self.work)?;
+            self.copper.insert_joined_track(t, &self.work)?;
         }
         for (_, v) in pending_vias {
             self.copper.insert_via(v, &self.work)?;

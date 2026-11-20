@@ -58,6 +58,25 @@ pub struct CopperStore {
     last_hit_generated: Cell<bool>,
 }
 
+// gap2 retains odd-nanometre half widths. The far cap has to overlap the
+// finite host; a tangency, a collinear overlap, or a near-centerline touch
+// does not need a new junction.
+fn short_tap(arm: &Track, host: &Track) -> Option<crate::model::Point> {
+    let lo = host.start.min(host.end);
+    let hi = host.start.max(host.end);
+    let gap2 = i128::from(host.width_nm) + i128::from(arm.width_nm);
+    [(arm.start, arm.end), (arm.end, arm.start)]
+        .into_iter()
+        .find_map(|(tap, far)| {
+            (lo < tap
+                && tap < hi
+                && crate::geometry::orientation(host.start, host.end, tap) == 0
+                && crate::geometry::orientation(host.start, host.end, far) != 0
+                && crate::geometry::point_near_segment(far, host.start, host.end, gap2, false))
+            .then_some(tap)
+        })
+}
+
 impl CopperStore {
     #[allow(dead_code)]
     pub(crate) fn new(
@@ -703,68 +722,91 @@ impl CopperStore {
         Ok(())
     }
 
-    /// An ordinary branch can leave its first short bend wholly attached to
-    /// an axial trunk's copper. KiCad needs an endpoint at that T junction.
-    pub(crate) fn split_short_branch_taps(
+    /// A branch end exactly on a trunk centerline may still be reported
+    /// dangling when its first short bend also touches the trunk's copper.
+    /// Make the tap an endpoint on the trunk, whichever piece arrived first.
+    pub(crate) fn insert_joined_track(
         &mut self,
-        arm: &Track,
+        mut track: Track,
         work: &WorkBudget,
     ) -> Result<(), Failure> {
-        let short_offset = |axis: usize| {
-            let distance = arm.start[axis].abs_diff(arm.end[axis]);
-            distance > 0 && distance < arm.width_nm as u64
-        };
-        if !(short_offset(0) || short_offset(1)) || !self.has_generated_for_net(arm.net) {
-            return Ok(());
-        }
-        let layer = self.layer_idx(&arm.layer);
-        for (tap, far) in [(arm.start, arm.end), (arm.end, arm.start)] {
-            let mut hosts = Vec::new();
-            let _ = self.generated_spatial[layer].visit_matching(
-                SweptAabb::swept(tap, tap, 0, 0),
-                None,
-                work,
-                |&seq, &slot| {
-                    work.charge(1)?;
-                    let host = self.slots[slot as usize].as_ref().unwrap();
-                    if host.net == arm.net
-                        && host.width_nm == arm.width_nm
-                        && (0..2).any(|axis| {
-                            let along = 1 - axis;
-                            host.start[axis] == tap[axis]
-                                && host.end[axis] == tap[axis]
-                                && short_offset(axis)
-                                && host.start[along].min(host.end[along]) < tap[along]
-                                && tap[along] < host.start[along].max(host.end[along])
-                        })
-                        && crate::geometry::point_near_segment(
-                            far,
-                            host.start,
-                            host.end,
-                            2 * i128::from(host.width_nm),
-                            false,
-                        )
-                    {
-                        work.search_storage(hosts.len() + 1)?;
-                        hosts.push(seq);
-                    }
-                    Ok(ControlFlow::Continue(()))
+        let taps = self.split_short_branch_taps(&track, work)?;
+        for tap in taps {
+            work.charge(1)?;
+            self.insert(
+                Track {
+                    end: tap,
+                    ..track.clone()
                 },
+                work,
             )?;
-            for seq in hosts {
-                self.admit_journal(1, work)?;
-                work.charge(2 * self.generated_spatial[layer].mutation_work())?;
-                let host = self.remove_raw(seq);
-                let mut first = host.clone();
-                let mut second = host.clone();
-                first.end = tap;
-                second.start = tap;
-                self.journal.push(Undo::SplitTrack(seq, host));
-                self.add_raw(seq, first);
-                self.insert(second, work)?;
-            }
+            track.start = tap;
         }
-        Ok(())
+        self.insert(track, work)
+    }
+
+    fn split_short_branch_taps(
+        &mut self,
+        incoming: &Track,
+        work: &WorkBudget,
+    ) -> Result<Vec<crate::model::Point>, Failure> {
+        let mut taps = Vec::new();
+        if !self.has_generated_for_net(incoming.net) {
+            return Ok(taps);
+        }
+        let layer = self.layer_idx(&incoming.layer);
+        let mut hosts = Vec::new();
+        // A single query over the arriving centerline's bounds limits visits
+        // to the generated spatial index. Its extent never expands into a
+        // sequence of grid points, even for a board-length diagonal.
+        let _ = self.generated_spatial[layer].visit_matching(
+            SweptAabb::swept(incoming.start, incoming.end, 0, 0),
+            None,
+            work,
+            |&seq, &slot| {
+                let existing = self.slots[slot as usize].as_ref().unwrap();
+                work.charge(1)?;
+                if existing.net != incoming.net {
+                    return Ok(ControlFlow::Continue(()));
+                }
+                if let Some(tap) = short_tap(incoming, existing) {
+                    work.search_storage(hosts.len() + taps.len() + 1)?;
+                    hosts.push((seq, tap));
+                }
+                if let Some(tap) = short_tap(existing, incoming) {
+                    work.search_storage(hosts.len() + taps.len() + 1)?;
+                    taps.push(tap);
+                }
+                Ok(ControlFlow::Continue(()))
+            },
+        )?;
+        // Stable along-track order preserves the source end of the original
+        // trunk and allocates reproducible identities for the other pieces.
+        work.charge(hosts.len() as u64 * (1 + hosts.len().max(1).ilog2() as u64))?;
+        hosts.sort_unstable();
+        for (seq, tap) in hosts {
+            self.admit_journal(1, work)?;
+            work.charge(2 * self.generated_spatial[layer].mutation_work())?;
+            let original = self.remove_raw(seq);
+            let first = Track {
+                end: tap,
+                ..original.clone()
+            };
+            let second = Track {
+                start: tap,
+                ..original.clone()
+            };
+            self.journal.push(Undo::SplitTrack(seq, original));
+            self.add_raw(seq, first);
+            self.insert(second, work)?;
+        }
+        work.charge(taps.len() as u64 * (2 + taps.len().max(1).ilog2() as u64))?;
+        taps.sort_unstable();
+        taps.dedup();
+        if incoming.start > incoming.end {
+            taps.reverse();
+        }
+        Ok(taps)
     }
 
     pub(crate) fn insert_via(&mut self, mut v: Via, work: &WorkBudget) -> Result<(), Failure> {
@@ -917,7 +959,6 @@ mod tests {
             ([48, 56], [42, 50], 1, "F.Cu", 10), // off centerline
             ([50, 60], [40, 50], 1, "F.Cu", 10), // tangent end caps
             ([40, 56], [40, 50], 1, "F.Cu", 10), // collinear
-            (arm.start, arm.end, 1, "F.Cu", 9),
             (arm.start, arm.end, 1, "B.Cu", 10),
             (arm.start, arm.end, 2, "F.Cu", 10),
         ] {
@@ -980,6 +1021,139 @@ mod tests {
             assert_eq!(store.generated().collect::<Vec<_>>(), [&original]);
         }
         assert_eq!(restored_ids[0], restored_ids[1]);
+    }
+
+    #[test]
+    fn generated_junction_uses_exact_centerline_for_both_orders_and_widths() {
+        let tap = [15_000_000, 15_000_000];
+        for (start, end, far, host_width) in [
+            (
+                [15_000_000, 25_000_000],
+                [15_000_000, 5_000_000],
+                [15_150_000, 15_150_000],
+                200_000,
+            ),
+            (
+                [8_000_000, 8_000_000],
+                [22_000_000, 22_000_000],
+                [15_212_132, 15_000_000],
+                240_000,
+            ),
+            (
+                [21_000_000, 23_000_000],
+                [9_000_000, 7_000_000],
+                [15_212_132, 15_000_000],
+                160_001,
+            ),
+        ] {
+            let host = Track {
+                start,
+                end,
+                width_nm: host_width,
+                ..dummy_track(1, 0)
+            };
+            let arm = Track {
+                start: tap,
+                end: far,
+                width_nm: 200_000,
+                ..dummy_track(1, 0)
+            };
+            for arm_first in [false, true] {
+                let mut store = CopperStore::new(Vec::new(), BTreeSet::new(), &"e".repeat(64), 0);
+                let work = WorkBudget::new(Limits::default());
+                let (first, second) = if arm_first {
+                    (&arm, &host)
+                } else {
+                    (&host, &arm)
+                };
+                store.begin(&work).unwrap();
+                store.insert_joined_track(first.clone(), &work).unwrap();
+                store.commit();
+                let prior = store.generated().next().unwrap().clone();
+                // Exhaust the live-item budget after the first host half.
+                let limited = WorkBudget::new(Limits {
+                    max_items: 2,
+                    ..Limits::default()
+                });
+                store.begin(&limited).unwrap();
+                assert_eq!(
+                    store
+                        .insert_joined_track(second.clone(), &limited)
+                        .unwrap_err()
+                        .status,
+                    Status::AdmissionExceeded
+                );
+                store.rollback();
+                assert_eq!(store.generated().collect::<Vec<_>>(), [&prior]);
+                assert!(store.index_consistent());
+                let mut attempts = Vec::new();
+                for _ in 0..2 {
+                    store.begin(&work).unwrap();
+                    store.insert_joined_track(second.clone(), &work).unwrap();
+                    let pieces = store.generated().cloned().collect::<Vec<_>>();
+                    assert_eq!(pieces.len(), 3);
+                    for (p, q, width) in [
+                        (start, tap, host_width),
+                        (tap, end, host_width),
+                        (tap, far, 200_000),
+                    ] {
+                        assert!(pieces
+                            .iter()
+                            .any(|t| t.start == p && t.end == q && t.width_nm == width));
+                    }
+                    assert_eq!(pieces[0].id, prior.id);
+                    assert_eq!(pieces[0].start, first.start);
+                    assert!(store.index_consistent());
+                    attempts.push(pieces);
+                    store.rollback();
+                    assert_eq!(store.generated().collect::<Vec<_>>(), [&prior]);
+                    assert!(store.index_consistent());
+                }
+                assert_eq!(attempts[0], attempts[1]);
+            }
+            let off = Track {
+                start: [tap[0] + 1, tap[1]],
+                ..arm.clone()
+            };
+            assert_eq!(short_tap(&off, &host), None);
+            let long = Track {
+                end: [tap[0] + 2_000_000, tap[1]],
+                ..arm.clone()
+            };
+            assert_eq!(short_tap(&long, &host), None);
+        }
+    }
+
+    #[test]
+    fn an_arriving_trunk_keeps_multiple_taps_in_its_own_direction() {
+        let mut store = CopperStore::new(Vec::new(), BTreeSet::new(), &"c".repeat(64), 0);
+        let work = WorkBudget::new(Limits::default());
+        store.begin(&work).unwrap();
+        for x in [30, 70, 30] {
+            let arm = Track {
+                start: [x, 100],
+                end: [x + 3, 106],
+                width_nm: 10,
+                ..dummy_track(1, 0)
+            };
+            store.insert_joined_track(arm, &work).unwrap();
+        }
+        let trunk = Track {
+            start: [100, 100],
+            end: [0, 100],
+            width_nm: 10,
+            ..dummy_track(1, 0)
+        };
+        store.insert_joined_track(trunk, &work).unwrap();
+        let pieces = store
+            .generated()
+            .filter(|t| t.start[1] == 100 && t.end[1] == 100)
+            .map(|t| (t.start[0], t.end[0]))
+            .collect::<Vec<_>>();
+        assert_eq!(pieces, [(100, 70), (70, 30), (30, 0)]);
+        store.rollback();
+        assert!(store.generated().next().is_none());
+        assert!(store.index_consistent());
     }
 
     #[test]

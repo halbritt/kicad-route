@@ -499,7 +499,11 @@ different congestion cost.
 Consecutive proposal segments with the same heading coalesce at any angle.
 The router subtracts collinear overlap against
 existing or earlier same-net tracks of equal or greater width before clearance
-validation and insertion.
+validation and insertion. When a generated branch ends on the interior of another
+generated track’s centerline on the same net and layer, and its other end cap
+also overlaps that track, the router divides the host at the tap. Both pieces
+retain the host’s geometry and width. The same rule applies when the branch
+was inserted first.
 
 Thin copper that the
 conservative contact model cannot join fails honestly rather than reporting
@@ -772,6 +776,7 @@ reserves N iterations before an array build, sort or reverse.
 | Search seeds, successor attempts, admitted queue pushes and all pops (including stale) | 1 per action; push includes bounded map updates |
 | Path reconstruction, reversal, coalescing and proposal construction | 1 per visited/reserved point per stage |
 | Collinear overlap subtraction | 1 per scanned track, 1 per overlap before sort, 1 per merge, 1 per reversed/emitted span |
+| Short branch junctions | Generated spatial visits, one check per candidate, scratch admission for each tap, sorting and deduplication, and journaled index updates for each split |
 | Copper insert/remove | Insert: 1 + ID candidates + `generated_spatial.mutation_work()`. Remove: 1 per removed track + `1 + generated_spatial.mutation_work()` per removal |
 
 Admission checks bound combined queue/maps before insertion, total copper before
