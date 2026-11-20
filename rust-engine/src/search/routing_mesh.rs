@@ -15,6 +15,7 @@ mod corner_guides;
 mod drill_access;
 mod plane_approach;
 mod portal_visibility;
+pub(super) mod root_landing;
 
 type Node = (Point, u8);
 
@@ -195,6 +196,10 @@ impl Mesh<'_> {
                 PathEdge::Via(via) => PathEdge::Via(via),
             });
         }
+        self.validated_edges(edges)
+    }
+
+    fn validated_edges(&self, edges: Vec<PathEdge>) -> Result<Option<Path>, Failure> {
         let mut points = Vec::new();
         let mut vias = Vec::new();
         let mut steps = 0u64;

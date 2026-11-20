@@ -4544,9 +4544,10 @@ fn walk_multilayer_bidirectional(
                     && try_terminal_segments
                     && engine.surface_search_share.is_some()
                 {
-                    let proposal = budgeted_terminal::from_launch(
+                    let escape = routing_mesh::root_landing::connect(
                         engine,
                         net,
+                        source,
                         starts,
                         targets,
                         &track_ok_on_layer,
@@ -4556,8 +4557,24 @@ fn walk_multilayer_bidirectional(
                         budget,
                         expanded,
                         frontier.as_deref(),
-                        None,
                     )?;
+                    let proposal = match escape {
+                        Some(path) => Some(path),
+                        None => budgeted_terminal::from_launch(
+                            engine,
+                            net,
+                            starts,
+                            targets,
+                            &track_ok_on_layer,
+                            q_fwd.len() + best_fwd.len() + parent_fwd.len(),
+                            via_cost,
+                            history,
+                            budget,
+                            expanded,
+                            frontier.as_deref(),
+                            None,
+                        )?,
+                    };
                     let proposal = match proposal {
                         Some(path) => Some(path),
                         None => routing_mesh::connect(

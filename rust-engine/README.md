@@ -301,6 +301,14 @@ backtracking segments toward the obstacles and checks 45-degree cuts across
 the bends. The final route must fit the original expansion and work budgets.
 The grid search continues when these lines do not meet.
 
+When a routed tree has a plated connection and its remaining terminals are
+pads on one face, a pad can need several turns before a through-via fits.
+For a pad whose axial drill samples are blocked, the router can search nearby
+surface tracks for a reachable hole. On each permitted support layer it probes
+clear horizontal and vertical runs from the existing tree and the discovered
+holes. The complete branch includes the surface tracks and the through-via,
+with congestion charged on both layers and across the via span.
+
 If two isolated surface pads cannot leave the ordinary grid, the router can
 use the gap between four adjacent pad centers. A diagonal departure reaches
 the gap, then a straight track follows the space between pad rows to a legal

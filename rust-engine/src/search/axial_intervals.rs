@@ -436,30 +436,62 @@ pub(super) fn connect(
         .min(remaining / engine.input.nets.len().max(1) as u64)
         .min(direct_steps);
     let stop = expanded.saturating_add(allowance);
+    let max_steps = direct_steps
+        .saturating_mul(engine.layer_policy.weight(l as usize))
+        .saturating_add(engine.layer_policy.scale(via_cost).saturating_mul(2))
+        .min(incumbent.unwrap_or(u64::MAX));
+    between(
+        engine,
+        net,
+        l,
+        a,
+        b,
+        starts,
+        &[b],
+        max_steps,
+        occupied,
+        &mut || {
+            if *expanded >= stop {
+                return Ok(false);
+            }
+            budget.check_before_expand(engine, *expanded, frontier)?;
+            *expanded += 1;
+            Ok(true)
+        },
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(super) fn between(
+    engine: &Engine,
+    net: u32,
+    l: u8,
+    a: Point,
+    b: Point,
+    starts: &[(Point, u8, bool)],
+    goals: &[Point],
+    max_steps: u64,
+    occupied: usize,
+    expand: &mut impl FnMut() -> Result<bool, Failure>,
+) -> Result<Option<Path>, Failure> {
     let mut search = WaveSearch {
         engine,
         net,
         layer: l as usize,
         grid: engine.input.rules.grid_nm,
         guides: [a, b],
-        // Do not spend the shared trial on a planar route whose detour costs
-        // more than the two layer changes of an unobstructed alternative.
-        max_steps: distance
-            .div_ceil(engine.input.rules.grid_nm as u64)
-            .saturating_mul(engine.layer_policy.weight(l as usize))
-            .saturating_add(engine.layer_policy.scale(via_cost).saturating_mul(2))
-            .min(incumbent.unwrap_or(u64::MAX)),
+        max_steps,
         occupied,
         wave: Default::default(),
     };
-    for axis in 0..2 {
-        if *expanded >= stop {
-            return Ok(None);
-        }
-        budget.check_before_expand(engine, *expanded, frontier)?;
-        *expanded += 1;
-        if let Some(path) = search.add_line(1, b, axis, None)? {
-            return Ok(Some(path));
+    for &goal in goals {
+        for axis in 0..2 {
+            if !expand()? {
+                return Ok(None);
+            }
+            if let Some(path) = search.add_line(1, goal, axis, None)? {
+                return Ok(Some(path));
+            }
         }
     }
     for &(seed, layer, via_only) in starts {
@@ -468,26 +500,25 @@ pub(super) fn connect(
             continue;
         }
         for axis in 0..2 {
-            if *expanded >= stop {
+            if !expand()? {
                 return Ok(None);
             }
-            budget.check_before_expand(engine, *expanded, frontier)?;
-            *expanded += 1;
             if let Some(path) = search.add_line(0, seed, axis, None)? {
                 return Ok(Some(path));
             }
         }
     }
     let mut side = 0;
-    while *expanded < stop {
+    loop {
         if search.wave[side].turns.is_empty() {
             side = 1 - side;
         }
         if search.wave[side].turns.is_empty() {
             break;
         }
-        budget.check_before_expand(engine, *expanded, frontier)?;
-        *expanded += 1;
+        if !expand()? {
+            break;
+        }
         if let Some(path) = search.advance(side)? {
             return Ok(Some(path));
         }
