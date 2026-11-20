@@ -8,6 +8,7 @@ mod octilinear_exit;
 mod octilinear_terminal;
 mod pad_field;
 mod pad_forest;
+mod prewired_trees;
 mod terminal_forest;
 pub(crate) use pad_forest::route_shared_footprint_branches;
 mod reverse_sources;
@@ -414,7 +415,7 @@ pub(crate) fn join_open_components(
     budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
     history: Option<&crate::negotiate::CongestionHistory>,
-    mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
+    frontier: Option<&mut crate::negotiate::BlockedFrontier>,
 ) -> Result<Vec<PathEdge>, Failure> {
     let batch = frontier.is_some() && engine.prefer_higher_g();
     let history = history.filter(|h| !h.is_empty());
@@ -442,6 +443,30 @@ pub(crate) fn join_open_components(
             return Ok(path);
         }
     }
+    let origin = if batch {
+        prewired_trees::origin(engine, groups)?
+    } else {
+        0
+    };
+    groups.swap(0, origin);
+    let result = join_from_first(
+        engine, net, groups, budget, expanded, history, frontier, batch,
+    );
+    groups.swap(0, origin);
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+fn join_from_first(
+    engine: &Engine,
+    net: u32,
+    groups: &mut [Vec<Copper<'_>>],
+    budget: &mut crate::negotiate::TrialBudget<'_>,
+    expanded: &mut u64,
+    history: Option<&crate::negotiate::CongestionHistory>,
+    mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
+    batch: bool,
+) -> Result<Vec<PathEdge>, Failure> {
     let mut try_from = |groups: &[Vec<Copper<'_>>], frontier: Option<&mut _>| {
         join_components_inner(
             engine,
