@@ -4109,6 +4109,19 @@ fn walk_multilayer_bidirectional(
             if best_fwd.get(&state) != Some(&cost) || !settled_fwd.insert(state) {
                 continue;
             }
+            // A cheaper ordinary arrival can take every planar exit available
+            // immediately after a through-via. It can also meet either reverse
+            // arrival. A via contacting the target is a different terminal.
+            if only_through_vias && state.arrived_by_via && !state.is_via_goal {
+                engine.work.charge(1)?;
+                let planar = State {
+                    arrived_by_via: false,
+                    ..state
+                };
+                if best_fwd.get(&planar).is_some_and(|&g| g < cost) {
+                    continue;
+                }
+            }
             if state.via_only {
                 via_only_unpopped -= 1;
             }
@@ -4507,6 +4520,16 @@ fn walk_multilayer_bidirectional(
             }
             if best_bwd.get(&bkey) != Some(&cost) || !settled_bwd.insert(bkey) {
                 continue;
+            }
+            if only_through_vias && bkey.arrived_by_via {
+                engine.work.charge(1)?;
+                let planar = BiKey {
+                    arrived_by_via: false,
+                    ..bkey
+                };
+                if best_bwd.get(&planar).is_some_and(|&g| g < cost) {
+                    continue;
+                }
             }
             budget.check_before_expand(engine, *expanded, frontier.as_deref())?;
             *expanded = expanded.checked_add(1).expect("bounded expansion count");
