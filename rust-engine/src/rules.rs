@@ -303,7 +303,7 @@ pub struct NetClassPattern {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProjectRules {
-    pub version: u32,
+    pub version: Option<u32>,
     pub minimums: BoardMinimums,
     pub classes: Vec<NetClassDef>,
     pub assignments: BTreeMap<String, Vec<String>>,
@@ -930,20 +930,30 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
     let obj = root
         .as_object()
         .ok_or_else(|| Failure::new(Status::Invalid, ".kicad_pro root must be a JSON object"))?;
-    let meta = obj
-        .get("meta")
-        .and_then(|v| v.as_object())
-        .ok_or_else(|| Failure::new(Status::Unsupported, ".kicad_pro missing meta object"))?;
-    let version_u64 = meta
-        .get("version")
-        .and_then(|v| v.as_u64())
-        .ok_or_else(|| Failure::new(Status::Unsupported, ".kicad_pro missing meta.version"))?;
-    if !(1..=3).contains(&version_u64) {
-        return Err(Failure::new(
-            Status::Unsupported,
-            format!("unsupported .kicad_pro meta.version {version_u64}"),
-        ));
-    }
+    let version = if let Some(meta) = obj.get("meta") {
+        let meta = meta
+            .as_object()
+            .ok_or_else(|| Failure::new(Status::Invalid, ".kicad_pro meta must be an object"))?;
+        meta.get("version")
+            .map(|value| {
+                let n = value.as_u64().ok_or_else(|| {
+                    Failure::new(
+                        Status::Invalid,
+                        ".kicad_pro meta.version must be an unsigned integer",
+                    )
+                })?;
+                if !(1..=3).contains(&n) {
+                    return Err(Failure::new(
+                        Status::Unsupported,
+                        format!("unsupported .kicad_pro meta.version {n}"),
+                    ));
+                }
+                Ok(n as u32)
+            })
+            .transpose()?
+    } else {
+        None
+    };
 
     let mut minimums = BoardMinimums::default();
     let mut use_height_for_length_calcs: Option<bool> = None;
@@ -1028,7 +1038,13 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
         let ns = ns_val.as_object().ok_or_else(|| {
             Failure::new(Status::Invalid, ".kicad_pro net_settings must be an object")
         })?;
-        if let Some(cls_arr) = ns.get("classes").and_then(|v| v.as_array()) {
+        if let Some(cls_val) = ns.get("classes") {
+            let cls_arr = cls_val.as_array().ok_or_else(|| {
+                Failure::new(
+                    Status::Invalid,
+                    ".kicad_pro net_settings.classes must be an array",
+                )
+            })?;
             for item in cls_arr {
                 let c = item.as_object().ok_or_else(|| {
                     Failure::new(
@@ -1309,7 +1325,7 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
     }
 
     Ok(ProjectRules {
-        version: version_u64 as u32,
+        version,
         minimums,
         classes,
         assignments,
@@ -3901,13 +3917,64 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
     }
 
     let pro = match &input.project_rules {
-        Some(text) => Some(parse_kicad_pro(text.as_bytes())?),
+        Some(text) => {
+            let mut project = parse_kicad_pro(text.as_bytes())?;
+            if project.version.is_none() {
+                // Sparse KiCad projects inherit their missing electrical rules from the
+                // loaded board. Do not supply guessed width or via sizes for a raw request.
+                let missing_default = || {
+                    Failure::new(
+                    Status::Unsupported,
+                    "unversioned .kicad_pro requires resolved native Default netclass track width, clearance, and via dimensions",
+                )
+                };
+                let board = input
+                    .board_design_settings
+                    .as_ref()
+                    .ok_or_else(missing_default)?;
+                let default = board
+                    .netclasses
+                    .iter()
+                    .find(|class| class.name == "Default")
+                    .ok_or_else(missing_default)?;
+                if default.track_width_nm <= 0
+                    || default.clearance_nm < 0
+                    || default.via_drill_nm <= 0
+                    || default.via_diameter_nm <= default.via_drill_nm
+                {
+                    return Err(missing_default());
+                }
+                if let Some(raw) = project.classes.iter().find(|class| class.name == "Default") {
+                    if raw.track_width_nm != default.track_width_nm
+                        || raw.clearance_nm != default.clearance_nm
+                        || raw.via_diameter_nm != default.via_diameter_nm
+                        || raw.via_drill_nm != default.via_drill_nm
+                    {
+                        return Err(Failure::new(Status::Invalid,
+                            "unversioned .kicad_pro Default netclass disagrees with native board settings"));
+                    }
+                }
+                let declared: BTreeSet<_> =
+                    project.classes.iter().map(|c| c.name.clone()).collect();
+                project.classes.extend(
+                    board
+                        .netclasses
+                        .iter()
+                        .filter(|class| !declared.contains(&class.name))
+                        .cloned(),
+                );
+                if project.assignments.is_empty() && project.patterns.is_empty() {
+                    project.assignments.clone_from(&board.netclass_assignments);
+                }
+            }
+            Some(project)
+        }
         None => input.board_design_settings.as_ref().and_then(|bds| {
             if bds.netclasses.is_empty() && bds.netclass_assignments.is_empty() {
                 None
             } else {
                 Some(ProjectRules {
-                    version: 3,
+                    version: None,
                     minimums: BoardMinimums::default(),
                     classes: bds.netclasses.clone(),
                     assignments: bds.netclass_assignments.clone(),
@@ -4515,7 +4582,7 @@ mod tests {
             }
         }"#;
         let parsed = parse_kicad_pro(pro).unwrap();
-        assert_eq!(parsed.version, 3);
+        assert_eq!(parsed.version, Some(3));
         assert_eq!(parsed.minimums.min_track_width_nm, 300_000);
         assert_eq!(parsed.minimums.min_via_diameter_nm, 1_500_000);
         assert!(parsed.minimums.allow_blind_buried_vias);

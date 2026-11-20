@@ -74,7 +74,13 @@ helper terminates its descendants and removes the staging directory. If the host
 temporary filesystem owns any remaining staging files.
 
 The native adapter accepts boards with two to 32 copper layers and reads the
-project and custom-rule files beside the source board. Copper geometry uses
+project and custom-rule files beside the source board. An empty project or one
+with no declared format version uses the Default netclass that KiCad loads from
+the board and project. Its track width, clearance and through-via dimensions
+must be resolved. Any board-wide minima and custom rules still apply. An
+explicit project format version must be in the supported range of 1 through 3.
+
+Copper geometry uses
 KiCad's standard layer names, such as `F.Cu` and `In1.Cu`. When the board
 renames a copper layer, the optional `board_design_settings.layer_aliases` map
 in the request associates its standard name with its display name. KiCad
