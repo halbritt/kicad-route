@@ -503,6 +503,13 @@ fn search_component_path(
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
     prefer_higher_g: bool,
 ) -> Result<Path, Failure> {
+    // On an isolated pad-to-pad join, follow a minimum-cost plateau toward the
+    // target. A history-dependent drill clearance can require several competing
+    // approaches to the same location, so keep their normal ordering.
+    let prefer_higher_g = prefer_higher_g
+        || (engine.input.rules.same_net_hole_clearance_nm == 0
+            && matches!(source, [Copper::Pad(_)])
+            && matches!(targets, [group] if matches!(group.as_slice(), [Copper::Pad(_)])));
     let landings = std::cell::RefCell::new(FillLandings::default());
     let stackup = engine.all_layers_slice();
     let l_count = engine.layer_count();
