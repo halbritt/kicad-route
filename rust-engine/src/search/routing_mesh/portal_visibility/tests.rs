@@ -297,3 +297,28 @@ fn the_mesh_joins_a_plated_connector_and_surface_land_before_the_grid_can_cross_
     }
     assert_eq!(drills.len(), 1);
 }
+
+#[test]
+fn a_recessed_plane_channel_needs_the_last_clear_point_beyond_the_first_mesh_step() {
+    let mut input = board(false, false, true).input;
+    // The opening is two steps to the west. A guard on the far side
+    // prevents a third step. One mesh step from either pad cannot see it.
+    for corner in &mut input.rule_areas[0].outer {
+        if corner[0] == 3_500_000 {
+            corner[0] = 2_500_000;
+        }
+    }
+    input.rule_areas.push(
+        serde_json::from_value(serde_json::json!({
+            "id":"40000000-0000-4000-8000-000000000008","layers":["In1.Cu"],
+            "outer":[[750_000,2*MM],[1_250_000,2*MM],[1_250_000,4*MM],[750_000,4*MM]],
+            "no_tracks":true,"no_vias":false
+        }))
+        .unwrap(),
+    );
+    let engine = Engine::new(input).unwrap();
+    for reverse in [false, true] {
+        let (path, _) = route(&engine, reverse, 25, 96);
+        assert!(path.unwrap().points.iter().any(|p| p[0] == 2 * MM));
+    }
+}
