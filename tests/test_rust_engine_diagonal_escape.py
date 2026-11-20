@@ -140,3 +140,54 @@ def test_multilayer_board_uses_legal_diagonal_into_surface_pad(tmp_path, guarded
     assert all(t.GetLayer() == signal_layer and t.GetWidth() == 200_000 for t in tracks)
     deltas = [(abs(t.GetStartX() - t.GetEndX()), abs(t.GetStartY() - t.GetEndY())) for t in tracks]
     assert any(dx == dy and dx > 0 for dx, dy in deltas)
+
+
+@pytest.mark.parametrize("reverse,sealed", [(False, False), (True, False), (False, True)])
+def test_opposite_surface_lands_with_a_remote_via(tmp_path, guarded_cli, reverse, sealed):
+    board = BoardBuilder(copper_layers=4, seed=303)
+    board.set_rect_outline(0, 0, 30_000_000, 22_000_000)
+    launch, dest = (pcbnew.B_Cu, pcbnew.F_Cu) if reverse else (pcbnew.F_Cu, pcbnew.B_Cu)
+    layers = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
+
+    def xy(x, y):
+        return (30_000_000 - x if reverse else x, y)
+
+    def pad(ref, net, pos, layer):
+        fp = board.add_footprint(ref, pos, side="F" if layer == pcbnew.F_Cu else "B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", net, pos, size_nm=(900_000, 950_000),
+                      shape=pcbnew.PAD_SHAPE_RECT, layers=[layer])
+
+    a, b = xy(3_000_000, 3_000_000), xy(17_000_000, 10_000_000)
+    pad("J1", "SENSE", a, launch)
+    pad("J2", "SENSE", b, dest)
+    pad("T1", "SHIFT", xy(4_000_000, 18_000_000), dest)
+    pad("T2", "SHIFT", xy(15_000_000, 18_000_000), dest)
+    for polygon in [[(0, 160_000), (21_840_000, 22_000_000), (0, 22_000_000)],
+                    [(160_000, 0), (30_000_000, 0), (30_000_000, 22_000_000), (22_160_000, 22_000_000)]]:
+        board.add_keepout([launch], [xy(*p) for p in polygon], no_tracks=True, no_vias=False)
+    stop = 30_000_000 if sealed else 8_000_000
+    via_keepout = [(0, 0), (stop, 0), (stop, 22_000_000), (0, 22_000_000)]
+    board.add_keepout(layers, [xy(*p) for p in via_keepout], no_tracks=False, no_vias=True)
+    source = board.save(tmp_path / "input").pcb_path
+    output = tmp_path / "routed.kicad_pcb"
+    op = tmp_path / "op.json"
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    run([str(engine), "route-native", str(source), str(output), "--operation-result", str(op)], check=False)
+    result = json.loads(op.read_bytes())
+    if sealed:
+        assert result["status"] == "unroutable" and not output.exists()
+        return
+    assert result["status"] == "complete"
+    drc = bridge.native_violations(output, tmp_path / "drc.json")
+    assert not drc["violations"] and not drc["unconnected_items"]
+    saved = pcbnew.LoadBoard(str(output))
+    copper = [t for t in saved.GetTracks() if t.GetNetname() == "SENSE"]
+    vias = [t for t in copper if isinstance(t, pcbnew.PCB_VIA)]
+    tracks = [t for t in copper if not isinstance(t, pcbnew.PCB_VIA)]
+    assert len(vias) == 1 and vias[0].GetViaType() == pcbnew.VIATYPE_THROUGH
+    via_position = tuple(vias[0].GetPosition())
+    assert sorted(t.GetLayer() for t in tracks) == sorted([launch, dest])
+    assert all(via_position in (tuple(t.GetStart()), tuple(t.GetEnd())) for t in tracks)

@@ -224,7 +224,10 @@ penalties, the router can also finish on a surface pad using a 45-degree
 segment and an optional axial leg. Each diagonal step costs one step per axis.
 At a launch, bend or layer change the router checks whether the entire legal
 path to a pad-interior landing meets the minimum forward priority. Its last
-cell may end between grid points. The original single-layer search used unit step costs, a fixed net-ID order
+cell may end between grid points. At a source on the opposite board face
+from the destination, the two legs can meet at a through-via when both
+layers have the same track cost. The engine checks both conductors, the
+entire via span and the pad landing, and includes the via cost in the bound. The original single-layer search used unit step costs, a fixed net-ID order
 and no rip-up. Current multilayer negotiation can change the routing order
 and rip up generated copper. When several single-ended nets still require
 routing, a surface pad with only one or two clear axial departures and no
