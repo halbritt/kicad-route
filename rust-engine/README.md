@@ -191,7 +191,10 @@ These outward-rounded boxes contain every endpoint-cap contact; each cardinal
 edge, including a shortened final edge, moves at most one grid step in one axis.
 The estimate therefore underestimates remaining unit-step cost, is consistent
 across edges, and is zero at every accepted goal. Reversible multilayer search
-also bounds the cost around fixed obstacles. On a shared centerline, a bank of
+also bounds the cost around fixed obstacles. A single elongated surface lead
+can force a signal to pass either end before it reaches its destination.
+The router considers a cut perpendicular to the long axis of such a lead.
+On a shared centerline, a bank of
 foreign surface pads can leave too little room for a track under the actual
 layer width and pair clearance. Strictly overlapping clearance intervals
 constrain the planar detour on that layer. Tangent intervals still admit a

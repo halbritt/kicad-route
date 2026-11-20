@@ -706,6 +706,75 @@ fn circular_pad_banks_respect_tangent_gaps_layers_and_own_net_with_exact_distanc
 }
 
 #[test]
+fn isolated_elongated_lands_bound_terminal_escape_without_forbidding_vias() {
+    use crate::{model::Shape, Engine};
+    let mut cuts = 0;
+    for transpose in [false, true] {
+        let xy = |x, y| if transpose { [y, x] } else { [x, y] };
+        for own in [false, true] {
+            let mut input = article();
+            input.layers = vec!["F.Cu".into(), "B.Cu".into()];
+            input.bounds.min = [0, 0];
+            input.bounds.max = [14, 14];
+            input.rules.width_nm = 2;
+            input.rules.clearance_nm = 1;
+            input.rules.edge_clearance_nm = 0;
+            input.pads.truncate(2);
+            // Two staggered rectangular leads flank the source. The right
+            // lead is the only obstacle between the source and the target.
+            for (i, p) in input.pads.iter_mut().enumerate() {
+                p.net = if i == 1 && own { 1 } else { 3 };
+                p.at = if i == 0 { xy(2, 6) } else { xy(8, 7) };
+                p.shape = Shape::Rect {
+                    half_size_nm: xy(1, 3),
+                };
+                p.layers = vec!["B.Cu".into()];
+            }
+            for grid in [1, 2] {
+                input.rules.grid_nm = grid;
+                let engine = Engine::new(input.clone()).unwrap();
+                let source = xy(5, 7);
+                let target = xy(13, 9);
+                let mut bound = BarrierBound::for_join(
+                    &input,
+                    1,
+                    [],
+                    &input.layers,
+                    (source, source),
+                    (target, target),
+                    1,
+                    grid,
+                    2,
+                    3,
+                    &budget(),
+                )
+                .unwrap();
+                engine.pad_banks.include(&engine, 1, &mut bound).unwrap();
+                bound = bound.with_terminal_layers(2, 2);
+                assert_eq!(bound.is_active(), !own);
+                let legal = |layer: usize, a: Point, b: Point| {
+                    layer == 0
+                        || input.pads.iter().filter(|p| p.net != 1).all(|p| {
+                            let Shape::Rect { half_size_nm } = p.shape else {
+                                unreachable!()
+                            };
+                            let gaps: [i64; 2] = std::array::from_fn(|k| {
+                                (p.at[k] - half_size_nm[k] - a[k].max(b[k]))
+                                    .max(a[k].min(b[k]) - p.at[k] - half_size_nm[k])
+                                    .max(0)
+                            });
+                            gaps[0] * gaps[0] + gaps[1] * gaps[1] >= 4
+                        })
+                };
+                cuts += finite_distances(&bound, 2, &[(1, target)], 1, grid, 2, 3, false, legal);
+                cuts += finite_distances(&bound, 2, &[(1, source)], 0, grid, 2, 3, true, legal);
+            }
+        }
+    }
+    assert!(cuts > 20_000);
+}
+
+#[test]
 fn bank_uses_admitted_layer_width_for_tangency_and_charges_the_search() {
     use crate::model::{Shape, Status};
     use crate::rules::{DruConstraint, DruRule, DruSeverity, EffectiveRules};
