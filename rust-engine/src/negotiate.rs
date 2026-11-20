@@ -573,6 +573,59 @@ pub(crate) struct TrialBudget<'a> {
     pub(crate) batch_limit: u64,
     pub(crate) aborted: bool,
     on_trial_limit: Option<&'a mut dyn FnMut(&Engine, &BlockedFrontier) -> Result<bool, Failure>>,
+    crossing: Option<CrossingCheck<'a>>,
+}
+
+/// First inspect after one share of the batch per active net. Later samples
+/// require more generated-copper evidence and geometrically increasing effort.
+struct CrossingCheck<'a> {
+    origin: u64,
+    next_size: usize,
+    next_effort: u64,
+    observe: &'a mut dyn FnMut(&Engine, &BlockedFrontier, u64, usize) -> Result<bool, Failure>,
+}
+
+impl CrossingCheck<'_> {
+    fn ready(
+        &mut self,
+        engine: &Engine,
+        frontier: &BlockedFrontier,
+        expanded: u64,
+        occupied: impl FnOnce() -> usize,
+    ) -> Result<bool, Failure> {
+        let count = frontier.probes.len();
+        if count < self.next_size || expanded.saturating_sub(self.origin) < self.next_effort {
+            return Ok(false);
+        }
+        self.next_size = count.saturating_add(1);
+        self.next_effort = self.next_effort.saturating_mul(2);
+        let inner = crate::components::span_mask(1, engine.layer_count() - 2);
+        engine.charge_work(count as u64)?;
+        let mut edge_layers = 0;
+        let mut through_site = false;
+        for probe in &frontier.probes {
+            match *probe {
+                BlockedProbe::Edge { layer, .. } => edge_layers |= 1u32 << layer,
+                BlockedProbe::ViaSite {
+                    start_layer,
+                    end_layer,
+                    ..
+                } => {
+                    through_site |= start_layer.min(end_layer) == 0
+                        && usize::from(start_layer.max(end_layer)) + 1 == engine.layer_count();
+                }
+            }
+        }
+        if through_site && edge_layers & inner == inner {
+            let available = engine
+                .work
+                .limits
+                .max_search_entries
+                .saturating_sub(occupied());
+            return (self.observe)(engine, frontier, expanded - self.origin, available);
+        }
+        Ok(false)
+    }
 }
 
 impl<'a> TrialBudget<'a> {
@@ -581,6 +634,7 @@ impl<'a> TrialBudget<'a> {
             current_limit: limit,
             batch_limit: limit,
             aborted: false,
+            crossing: None,
             on_trial_limit: None,
         }
     }
@@ -594,8 +648,33 @@ impl<'a> TrialBudget<'a> {
             current_limit: trial_limit.min(batch_limit),
             batch_limit,
             aborted: false,
+            crossing: None,
             on_trial_limit: Some(on_trial_limit),
         }
+    }
+
+    // Only the main search can establish that it has no complete incumbent.
+    // Supplemental probes use the ordinary expansion budget exclusively.
+    pub(crate) fn check_interlayer_exchange(
+        &mut self,
+        engine: &Engine,
+        expanded: u64,
+        frontier: Option<&BlockedFrontier>,
+        incumbent: Option<u64>,
+        occupied: impl FnOnce() -> usize,
+    ) -> Result<(), Failure> {
+        if incumbent.is_none() && expanded < self.current_limit {
+            if let (Some(check), Some(f)) = (&mut self.crossing, frontier) {
+                if check.ready(engine, f, expanded, occupied)? {
+                    self.aborted = true;
+                    return Err(Failure::new(
+                        Status::BudgetExhausted,
+                        "interlayer conflict selected for a bounded trial",
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
     #[inline(always)]
@@ -637,7 +716,12 @@ pub trait RouteUnitAdapter {
     /// The built-in single-ended adapter can resume a net from validated branches.
     #[doc(hidden)]
     fn accepts_planar_branches(&self) -> bool {
-        false
+        self.as_single_ended().is_some()
+    }
+
+    #[doc(hidden)]
+    fn as_single_ended(&self) -> Option<&SingleEndedAdapter> {
+        None
     }
 
     fn route_unit(
@@ -893,8 +977,8 @@ pub(crate) fn prioritize_pad_escapes(engine: &Engine, nets: &mut [u32]) -> Resul
 }
 
 impl RouteUnitAdapter for SingleEndedAdapter {
-    fn accepts_planar_branches(&self) -> bool {
-        true
+    fn as_single_ended(&self) -> Option<&SingleEndedAdapter> {
+        Some(self)
     }
 
     fn units(&self, engine: &Engine) -> Result<Vec<UnitSpec>, Failure> {
@@ -1024,6 +1108,8 @@ impl RouteUnitAdapter for SingleEndedAdapter {
 struct BlockerScore {
     unit: RouteUnitId,
     blocked_probes: u64,
+    edge_layers: u32,
+    blocks_via: bool,
     gen_copper_count: usize,
     contested_cells: BTreeSet<(u8, i64, i64)>,
 }
@@ -1224,12 +1310,25 @@ fn analyze_blockers_with_lookup(
                 BlockerScore {
                     unit: victim_id,
                     blocked_probes: 0,
+                    edge_layers: 0,
+                    blocks_via: false,
                     gen_copper_count: gen_count,
                     contested_cells: BTreeSet::new(),
                 }
             });
             if probe_victims.insert(victim_id) {
                 entry.blocked_probes = entry.blocked_probes.saturating_add(1);
+                match probe {
+                    BlockedProbe::Edge { layer, .. } => entry.edge_layers |= 1u32 << layer,
+                    BlockedProbe::ViaSite {
+                        start_layer,
+                        end_layer,
+                        ..
+                    } => {
+                        entry.blocks_via |= start_layer.min(end_layer) == 0
+                            && usize::from(start_layer.max(end_layer)) + 1 == l_count;
+                    }
+                }
             }
             entry.contested_cells.insert(cell);
         };
@@ -1562,6 +1661,7 @@ fn try_unit_with_cap(
     trial_cap: Option<u64>,
     rip_counts: &BTreeMap<RouteUnitId, u32>,
     rip_filter: Option<TrialRipFilter<'_>>,
+    early_allowance: Option<&mut Option<u64>>,
 ) -> Result<(), TryUnitErr> {
     let remaining = batch_limit.saturating_sub(*expanded);
     if remaining == 0 {
@@ -1582,18 +1682,22 @@ fn try_unit_with_cap(
         };
         let mut trial_triggered = false;
         let mut trial_blockers: Option<Vec<BlockerScore>> = None;
+        let mut interlayer_blockers = None;
+        let rank = |eng: &Engine, frontier: &BlockedFrontier| {
+            analyze_blockers_with_lookup(
+                eng,
+                unit,
+                frontier,
+                &|n| net_to_unit.get(&n).copied(),
+                spec_by_id,
+                rip_counts,
+            )
+        };
         let result = {
             let mut on_trial_limit =
                 |eng: &Engine, frontier: &BlockedFrontier| -> Result<bool, Failure> {
                     trial_triggered = true;
-                    let blockers = analyze_blockers_with_lookup(
-                        eng,
-                        unit,
-                        frontier,
-                        &|n| net_to_unit.get(&n).copied(),
-                        spec_by_id,
-                        rip_counts,
-                    )?;
+                    let blockers = rank(eng, frontier)?;
                     if blockers.iter().any(&is_blocker_eligible) {
                         trial_blockers = Some(blockers);
                         Ok(true)
@@ -1601,20 +1705,68 @@ fn try_unit_with_cap(
                         Ok(false)
                     }
                 };
-            adapter.route_unit_with_trial(
-                engine,
-                unit.id,
-                history,
-                trial_limit,
-                batch_limit,
-                expanded,
-                &mut on_trial_limit,
-            )
+            if let (Some(allowance), RouteUnitId::SingleNet(net)) = (early_allowance, unit.id) {
+                let inner = crate::components::span_mask(1, engine.layer_count() - 2);
+                let start = *expanded;
+                let mut observe =
+                    |eng: &Engine, frontier: &BlockedFrontier, spent: u64, available| {
+                        // Keep the live frontier when there is no room for both the
+                        // changed-copper proof and an ordinary fallback trial.
+                        if start.saturating_add(spent.saturating_mul(2))
+                            > batch_limit.saturating_sub(cap)
+                            || eng.copper.has_generated_for_net(net)
+                        {
+                            return Ok(false);
+                        }
+                        let items = eng.copper.generated_item_count();
+                        let probes = frontier.probes.len();
+                        // Bound temporary per-owner, per-layer conflict cells and
+                        // pay even for copper comparisons rejected by their boxes.
+                        let layers = eng.layer_count();
+                        let slots = probes
+                            .saturating_mul(net_to_unit.len().min(items))
+                            .saturating_add(items)
+                            .saturating_mul(layers);
+                        let comparisons = probes.saturating_mul(items) as u64;
+                        if slots > available || comparisons > eng.work.remaining() {
+                            return Ok(false);
+                        }
+                        eng.charge_work(comparisons)?;
+                        let blockers = rank(eng, frontier)?;
+                        let Some(blocker) = blockers.into_iter().find(|b| {
+                            is_blocker_eligible(b) && b.blocks_via && b.edge_layers & inner == inner
+                        }) else {
+                            return Ok(false);
+                        };
+                        *allowance = Some(spent);
+                        interlayer_blockers = Some(vec![blocker]);
+                        Ok(true)
+                    };
+                let mut budget =
+                    TrialBudget::with_trial(trial_limit, batch_limit, &mut on_trial_limit);
+                budget.crossing = Some(CrossingCheck {
+                    origin: *expanded,
+                    next_size: 1,
+                    next_effort: (batch_limit / (net_to_unit.len().max(1) as u64)).max(1),
+                    observe: &mut observe,
+                });
+                engine.route_net_negotiated_with_budget(net, &mut budget, expanded, history)
+            } else {
+                adapter.route_unit_with_trial(
+                    engine,
+                    unit.id,
+                    history,
+                    trial_limit,
+                    batch_limit,
+                    expanded,
+                    &mut on_trial_limit,
+                )
+            }
         };
         return match result {
             Ok(()) => Ok(()),
             Err(UnitRouteError::Blocked(frontier)) => {
-                if let Some(blockers) = trial_blockers {
+                if let Some(blockers) = interlayer_blockers.or(trial_blockers) {
                     Err(TryUnitErr::Blocked {
                         frontier,
                         blockers: Some(blockers),
@@ -1713,6 +1865,7 @@ fn try_local_ripup_round(
     expanded: &mut u64,
     trial_cap: Option<u64>,
     is_trial_attempt: bool,
+    first_exchange_allowance: Option<u64>,
     no_trial_cap: &mut BTreeSet<RouteUnitId>,
     max_ok_unit_exp: &mut u64,
 ) -> Result<(bool, Option<BlockerScore>), Failure> {
@@ -1797,6 +1950,11 @@ fn try_local_ripup_round(
                     && !local_no_trial_cap.contains(&unit.id))
                 .then_some(trial_cap)
                 .flatten();
+                // The checkpoint proposes one owner. On the changed copper the
+                // requester has to complete within the effort it already spent.
+                let proof_limit = first_exchange_allowance
+                    .map(|n| (*expanded).saturating_add(n).min(batch_limit));
+                let request_limit = proof_limit.unwrap_or(batch_limit);
                 match try_unit_with_cap(
                     round_tx.engine,
                     adapter,
@@ -1804,18 +1962,29 @@ fn try_local_ripup_round(
                     spec_by_id,
                     unit,
                     history,
-                    batch_limit,
+                    request_limit,
                     expanded,
-                    u_cap,
+                    u_cap.filter(|_| proof_limit.is_none()),
                     rip_counts,
                     Some(TrialRipFilter {
                         ripped_in_round: &ripped_in_round,
                         local_rip_deltas: &local_rip_deltas,
                     }),
+                    None,
                 ) {
                     Ok(()) => {
                         local_max_exp = local_max_exp.max(expanded.saturating_sub(unit_exp_before));
                         break;
+                    }
+                    Err(TryUnitErr::Fatal(e))
+                        if request_limit < batch_limit
+                            && *expanded >= request_limit
+                            && e.status == Status::BudgetExhausted =>
+                    {
+                        return Err(RoundOutcome::Unroutable)
+                    }
+                    Err(TryUnitErr::Blocked { .. }) if proof_limit.is_some() => {
+                        return Err(RoundOutcome::Unroutable)
                     }
                     Err(TryUnitErr::Fatal(e)) => return Err(RoundOutcome::Fatal(e)),
                     Err(TryUnitErr::Blocked {
@@ -1906,6 +2075,7 @@ fn try_local_ripup_round(
                                 None,
                                 rip_counts,
                                 None,
+                                None,
                             ) {
                                 Ok(()) => {
                                     local_no_trial_cap.push(unit.id);
@@ -1962,6 +2132,7 @@ fn try_local_ripup_round(
                         ripped_in_round: &ripped_in_round,
                         local_rip_deltas: &local_rip_deltas,
                     }),
+                    None,
                 ) {
                     Ok(()) => {
                         local_max_exp = local_max_exp.max(expanded.saturating_sub(v_exp_before));
@@ -2060,6 +2231,7 @@ fn try_local_ripup_round(
                                 expanded,
                                 None,
                                 rip_counts,
+                                None,
                                 None,
                             ) {
                                 Ok(()) => {
@@ -2171,6 +2343,7 @@ fn solve_with_adapter_units(
     let mut stats = NegotiationStats::default();
     let mut routed_rippable_count = 0usize;
     let mut routed_any_count = 0usize;
+    let mut pad_counts = BTreeMap::new();
     if units.len() > 1
         && tx.engine.layer_count() > 1
         && tx.engine.input.rules.same_net_hole_clearance_nm == 0
@@ -2187,7 +2360,6 @@ fn solve_with_adapter_units(
         // This estimate allocates search effort only. Connectivity is checked
         // against every copper component by the regular routing transaction.
         tx.engine.work.search_storage(net_to_unit.len())?;
-        let mut pad_counts = BTreeMap::new();
         let mut distributed = 0;
         let mut joins = 0;
         tx.engine.charge_work(tx.engine.input.pads.len() as u64)?;
@@ -2220,7 +2392,9 @@ fn solve_with_adapter_units(
     let mut saw_any_blockers = false;
     let mut saw_truncated_frontier = false;
 
-    for u in &units {
+    let mut remaining_units = units.iter().peekable();
+    let mut checked_exchange = false;
+    while let Some(&u) = remaining_units.peek() {
         tx.engine.charge_work(1).map_err(|mut e| {
             e.expanded_states = *expanded;
             e
@@ -2233,6 +2407,13 @@ fn solve_with_adapter_units(
         } else {
             None
         };
+        let mut proof_allowance = None;
+        let can_check = !checked_exchange
+            && t_cap.is_some()
+            && tx.engine.layer_count() > 2
+            && history.is_empty()
+            && adapter.as_single_ended().is_some()
+            && matches!(u.id, RouteUnitId::SingleNet(n) if pad_counts.get(&n) == Some(&2) && !tx.engine.copper.has_generated_for_net(n));
         match try_unit_with_cap(
             tx.engine,
             adapter,
@@ -2245,6 +2426,7 @@ fn solve_with_adapter_units(
             t_cap,
             &rip_counts,
             None,
+            can_check.then_some(&mut proof_allowance),
         ) {
             Ok(()) => {
                 max_ok_unit_exp = max_ok_unit_exp.max(expanded.saturating_sub(unit_exp_before));
@@ -2290,6 +2472,7 @@ fn solve_with_adapter_units(
                     expanded,
                     round_cap,
                     hit_trial_cap,
+                    proof_allowance,
                     &mut no_trial_cap,
                     &mut max_ok_unit_exp,
                 )
@@ -2306,6 +2489,11 @@ fn solve_with_adapter_units(
                     if u.rippable_by_single {
                         routed_rippable_count += 1;
                     }
+                } else if proof_allowance.is_some() {
+                    // The trial transaction restored both copper and prices.
+                    // Resume ordinary negotiation with its original trial policy.
+                    checked_exchange = true;
+                    continue;
                 } else if hit_trial_cap {
                     adapter.rip_unit(tx.engine, u.id).map_err(|mut e| {
                         e.expanded_states = *expanded;
@@ -2327,6 +2515,7 @@ fn solve_with_adapter_units(
                         expanded,
                         None,
                         &rip_counts,
+                        None,
                         None,
                     ) {
                         Ok(()) => {
@@ -2387,7 +2576,10 @@ fn solve_with_adapter_units(
                 }
             }
         }
+        remaining_units.next();
+        checked_exchange = false;
     }
+    drop(pad_counts);
 
     if failed_units.is_empty() {
         stats.history_cells_peak = history.peak_len();
@@ -2464,6 +2656,7 @@ fn solve_with_adapter_units(
                     t_cap,
                     &pass_rip_counts,
                     None,
+                    None,
                 ) {
                     Ok(()) => {
                         max_ok_unit_exp =
@@ -2497,6 +2690,7 @@ fn solve_with_adapter_units(
                             expanded,
                             round_cap,
                             hit_trial_cap,
+                            None,
                             &mut no_trial_cap,
                             &mut max_ok_unit_exp,
                         ) {
@@ -2526,6 +2720,7 @@ fn solve_with_adapter_units(
                                         expanded,
                                         None,
                                         &pass_rip_counts,
+                                        None,
                                         None,
                                     ) {
                                         Ok(()) => {
@@ -2658,7 +2853,7 @@ mod tests {
     use super::*;
     use crate::model::*;
 
-    fn test_input() -> Input {
+    pub(super) fn test_input() -> Input {
         Input {
             version: 1,
             source_id: "a".repeat(64),
@@ -3298,3 +3493,7 @@ mod tests {
         assert!(path.points.iter().any(|p| p[1] != 50));
     }
 }
+
+#[cfg(test)]
+#[path = "negotiate_crossing_tests.rs"]
+mod crossing_tests;

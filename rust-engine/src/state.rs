@@ -181,6 +181,10 @@ impl CopperStore {
         self.input.iter().chain(self.generated())
     }
 
+    pub(crate) fn generated_item_count(&self) -> usize {
+        self.by_seq.len() + self.via_by_seq.len()
+    }
+
     pub(crate) fn has_generated_tracks(&self) -> bool {
         !self.by_seq.is_empty()
     }

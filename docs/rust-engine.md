@@ -37,8 +37,12 @@ a deterministic net order, and can rip up generated copper to reroute competing
 nets. When two single-ended nets with at least four pads use the same footprint
 and copper layer, the controller can lay clear branches on both nets before
 routing either whole net. Those branches use the board's search budget and
-remain available for rip-up. The controller stages the resulting edits and
-publishes the board after native checks.
+remain available for rip-up. During an initial two-pad search, a generated net
+that blocks through-via sites and track moves on every inner layer can be
+tried for early rip-up. The trial charges the board's budget and restores the
+previous copper and congestion costs if either net cannot reconnect. The
+controller stages the resulting edits and publishes the board after native
+checks.
 
 ## Native compatibility interface
 

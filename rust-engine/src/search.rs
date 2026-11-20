@@ -4347,6 +4347,24 @@ fn walk_multilayer_bidirectional(
         && engine.input.rule_areas.iter().any(|area| area.no_vias);
 
     while !q_fwd.is_empty() || (reverse_sources.is_some() && !q_bwd.is_empty()) {
+        budget.check_interlayer_exchange(
+            engine,
+            *expanded,
+            frontier.as_deref(),
+            best_mu.as_ref().map(|b| b.0),
+            || {
+                q_fwd.len()
+                    + best_fwd.len()
+                    + parent_fwd.len()
+                    + settled_fwd.len()
+                    + q_bwd.len()
+                    + best_bwd.len()
+                    + parent_bwd.len()
+                    + settled_bwd.len()
+                    + best_fwd_meet.len()
+                    + via_cache.len()
+            },
+        )?;
         // The expansion cap limits further search. A complete path already
         // found on the current copper needs no further expansion.
         if *expanded >= budget.current_limit {
