@@ -3,6 +3,7 @@
 
 use crate::budget::WorkBudget;
 use crate::model::{Failure, Input, Point, RuleArea, Track};
+use std::collections::BTreeMap;
 
 type Envelope = (Point, Point);
 
@@ -87,6 +88,7 @@ pub(crate) struct BarrierBound {
     source: Envelope,
     target: Envelope,
     layers: Vec<[Option<Barrier>; 2]>,
+    through_stack: [Option<Barrier>; 2],
     grid: u64,
     step: u64,
     layer_change: Option<u64>,
@@ -119,50 +121,79 @@ impl BarrierBound {
         work.search_storage(layers.len() * 2)?;
         let mut retained = vec![[None; 2]; layers.len()];
         let mut scores = vec![[0; 2]; layers.len()];
+        let mut through_stack = [None; 2];
+        let mut through_scores = [0; 2];
         let mut active = false;
-        let mut consider = |layer_name: &str, b: Barrier| -> Result<(), Failure> {
+        let mut consider = |slots: &mut [Option<Barrier>; 2], scores: &mut [u64; 2], b: Barrier| {
             let j = 1 - b.axis;
             let base = interval_gap(source.0[j], source.1[j], target.0[j], target.1[j]);
             let extra = b.detour(source, target).saturating_sub(base);
-            if extra == 0 {
-                return Ok(());
+            if extra > scores[b.axis] {
+                scores[b.axis] = extra;
+                slots[b.axis] = Some(b);
+                active = true;
             }
-            for (k, name) in layers.iter().enumerate() {
+        };
+        let layer_index = |name: &str| {
+            for (k, layer) in layers.iter().enumerate() {
                 work.charge(1)?;
-                if name == layer_name {
-                    if extra > scores[k][b.axis] {
-                        scores[k][b.axis] = extra;
-                        retained[k][b.axis] = Some(b);
-                        active = true;
-                    }
-                    break;
+                if layer == name {
+                    return Ok::<_, Failure>(Some(k));
                 }
             }
-            Ok(())
+            Ok(None)
         };
         for t in tracks {
             work.charge(1)?;
             if t.net != net {
                 if let Some(b) = Barrier::from_track(t) {
-                    consider(&t.layer, b)?;
+                    if let Some(k) = layer_index(&t.layer)? {
+                        consider(&mut retained[k], &mut scores[k], b);
+                    }
                 }
             }
         }
+        // Identical solid rectangles may be expressed as one multilayer area
+        // or as separate per-layer areas. Only their exact shared footprint
+        // can close the planar divider for *every* layer transition.
+        let mut rectangles = BTreeMap::<Envelope, u64>::new();
         for area in &input.rule_areas {
             work.charge(1)?;
-            if let Some((lo, hi)) = solid_rectangle(area) {
-                for layer in &area.layers {
+            if let Some(rect) = solid_rectangle(area) {
+                let mut mask = 0;
+                for name in &area.layers {
+                    if let Some(k) = layer_index(name)? {
+                        mask |= 1u64 << k;
+                    }
+                }
+                if mask != 0 {
                     work.charge(1)?;
-                    for k in 0..2 {
-                        consider(
-                            layer,
-                            Barrier {
-                                axis: k,
-                                cut: lo[k].midpoint(hi[k]),
-                                lo: lo[1 - k],
-                                hi: hi[1 - k],
-                            },
-                        )?;
+                    if !rectangles.contains_key(&rect) {
+                        work.search_storage(rectangles.len() + 1)?;
+                    }
+                    *rectangles.entry(rect).or_default() |= mask;
+                }
+            }
+        }
+        // Validated physical stacks have at most 32 named copper layers.
+        let all = (1u64 << layers.len()) - 1;
+        for ((lo, hi), mask) in rectangles {
+            work.charge(1)?;
+            for axis in 0..2 {
+                let b = Barrier {
+                    axis,
+                    cut: lo[axis].midpoint(hi[axis]),
+                    lo: lo[1 - axis],
+                    hi: hi[1 - axis],
+                };
+                if mask == all {
+                    consider(&mut through_stack, &mut through_scores, b);
+                } else {
+                    for k in 0..layers.len() {
+                        work.charge(1)?;
+                        if mask & (1u64 << k) != 0 {
+                            consider(&mut retained[k], &mut scores[k], b);
+                        }
                     }
                 }
             }
@@ -171,6 +202,7 @@ impl BarrierBound {
             source,
             target,
             layers: retained,
+            through_stack,
             grid: grid_nm as u64,
             step: minimum_step,
             layer_change: (layers.len() > 1).then_some(via_cost),
@@ -212,22 +244,29 @@ impl BarrierBound {
             interval_gap(p[k], p[k], target.0[k], target.1[k]).div_ceil(self.grid)
         });
         let base = steps[0].saturating_add(steps[1]).saturating_mul(self.step);
-        let mut h = base;
-        for b in self.layers[layer].iter().flatten() {
-            work.charge(1)?;
-            // Round once per axis over the entire relaxed path. Rounding each
-            // leg independently could overcharge a terminal clipped mid-step.
-            let turns = b.detour((p, p), target).div_ceil(self.grid);
-            let planar = steps[b.axis]
-                .saturating_add(turns)
-                .saturating_mul(self.step);
-            h = h.max(planar);
-        }
-        // A via may bypass every planar barrier. The relaxed baseline is the
-        // same on every layer, so this cap also ensures consistency across it.
-        Ok(self
+        let planar_bound = |barriers: &[Option<Barrier>; 2]| {
+            let mut h = base;
+            for b in barriers.iter().flatten() {
+                work.charge(1)?;
+                // Round once per axis over the entire relaxed path. Rounding
+                // each leg separately could overcharge a clipped final edge.
+                let turns = b.detour((p, p), target).div_ceil(self.grid);
+                h = h.max(
+                    steps[b.axis]
+                        .saturating_add(turns)
+                        .saturating_mul(self.step),
+                );
+            }
+            Ok::<_, Failure>(h)
+        };
+        let local = planar_bound(&self.layers[layer])?;
+        // A via may bypass all layer-local barriers in one transition, but
+        // its center never moves. Any through-stack divider must still be
+        // passed before reaching the (via-radius-expanded) goal envelope.
+        let escaped = self
             .layer_change
-            .map_or(h, |cost| h.min(base.saturating_add(cost))))
+            .map_or(local, |cost| local.min(base.saturating_add(cost)));
+        Ok(escaped.max(planar_bound(&self.through_stack)?))
     }
 }
 

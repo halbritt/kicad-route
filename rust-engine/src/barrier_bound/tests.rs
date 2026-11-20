@@ -334,3 +334,54 @@ fn finite_world_oracle_all_states_edges_layers_phases_and_partial_final_edges() 
     }
     assert!(total > 60_000);
 }
+
+#[test]
+fn same_solid_on_every_physical_layer_survives_even_free_layer_changes() {
+    let layers: Vec<String> = ["F.Cu", "In1.Cu", "B.Cu"].map(str::to_owned).into();
+    let mut input = article();
+    let mut r = rectangle("F.Cu");
+    r.layers = layers.clone(); // via prohibition intentionally false
+    let a = [1, 5];
+    let b = [12, 5];
+    let w = budget();
+    let build = |inp: &Input| {
+        BarrierBound::for_join(inp, 1, &inp.tracks, &layers, (a, a), (b, b), 1, 2, 3, 1, &w)
+            .unwrap()
+    };
+    let solids: Vec<_> = (0..layers.len())
+        .map(|layer| Solid {
+            layer,
+            lo: [4, 1],
+            hi: [6, 9],
+        })
+        .collect();
+    for areas in [vec![r], layers.iter().map(|l| rectangle(l)).collect()] {
+        input.rule_areas = areas;
+        let bound = build(&input);
+        for layer in 0..layers.len() {
+            assert_eq!(bound.estimate(a, layer, &w).unwrap(), 27);
+            assert_eq!(bound.estimate_reverse(b, layer, &w).unwrap(), 30);
+            assert_eq!(bound.estimate([11, 5], layer, &w).unwrap(), 0);
+        }
+        compare_oracle(&bound, 3, &solids, &[(0, b)], 1, 2, 3, 1, false);
+        compare_oracle(&bound, 3, &solids, &[(0, a)], 0, 2, 3, 1, true);
+    }
+    // One layer differs, so the common cut is not established, even if
+    // the affected area on the other layers is geometrically identical.
+    input.rule_areas[1].outer[0] = [3, 0];
+    let bound = build(&input);
+    assert_eq!(bound.estimate(a, 0, &w).unwrap(), 16);
+    assert_eq!(bound.estimate(a, 1, &w).unwrap(), 15);
+    assert_eq!(bound.estimate(a, 2, &w).unwrap(), 16);
+    compare_oracle(
+        &bound,
+        3,
+        &[solids[0], solids[2]],
+        &[(0, b)],
+        1,
+        2,
+        3,
+        1,
+        false,
+    );
+}
