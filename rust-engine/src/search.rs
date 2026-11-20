@@ -8,6 +8,7 @@ mod octilinear_exit;
 mod octilinear_terminal;
 mod pad_field;
 mod pad_forest;
+pub(crate) use pad_forest::route_shared_footprint_branches;
 mod reverse_sources;
 mod routing_mesh;
 mod three_pad_branch;

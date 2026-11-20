@@ -562,6 +562,12 @@ impl<'a> TrialBudget<'a> {
 pub trait RouteUnitAdapter {
     fn units(&self, engine: &Engine) -> Result<Vec<UnitSpec>, Failure>;
     fn unit_for_net(&self, net: u32) -> Option<RouteUnitId>;
+    /// The built-in single-ended adapter can resume a net from validated branches.
+    #[doc(hidden)]
+    fn accepts_planar_branches(&self) -> bool {
+        false
+    }
+
     fn route_unit(
         &mut self,
         engine: &mut Engine,
@@ -815,6 +821,10 @@ pub(crate) fn prioritize_pad_escapes(engine: &Engine, nets: &mut [u32]) -> Resul
 }
 
 impl RouteUnitAdapter for SingleEndedAdapter {
+    fn accepts_planar_branches(&self) -> bool {
+        true
+    }
+
     fn units(&self, engine: &Engine) -> Result<Vec<UnitSpec>, Failure> {
         engine.charge_work(engine.input().nets.len() as u64)?;
         let mut net_bounds: BTreeMap<u32, ([i64; 2], [i64; 2], usize)> = BTreeMap::new();
@@ -2105,16 +2115,33 @@ fn solve_with_adapter_units(
         // This estimate allocates search effort only. Connectivity is checked
         // against every copper component by the regular routing transaction.
         tx.engine.work.search_storage(net_to_unit.len())?;
-        let mut seen = BTreeSet::new();
+        let mut pad_counts = BTreeMap::new();
+        let mut distributed = 0;
         let mut joins = 0;
         tx.engine.charge_work(tx.engine.input.pads.len() as u64)?;
         for pad in &tx.engine.input.pads {
-            if net_to_unit.contains_key(&pad.net) && !seen.insert(pad.net) {
-                joins += 1;
+            if net_to_unit.contains_key(&pad.net) {
+                let count = pad_counts.entry(pad.net).or_insert(0usize);
+                joins += usize::from(*count > 0);
+                *count += 1;
+                distributed += usize::from(*count == 4);
             }
         }
         tx.engine.surface_search_share =
             Some(batch_limit.saturating_sub(*expanded) / joins.max(units.len()) as u64);
+        if distributed > 1 && adapter.accepts_planar_branches() {
+            crate::search::route_shared_footprint_branches(
+                tx.engine,
+                &units,
+                &pad_counts,
+                batch_limit,
+                expanded,
+            )
+            .map_err(|mut error| {
+                error.expanded_states = *expanded;
+                error
+            })?;
+        }
     }
     let mut max_ok_unit_exp: u64 = 0;
     let mut no_trial_cap: BTreeSet<RouteUnitId> = BTreeSet::new();

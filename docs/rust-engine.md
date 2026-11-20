@@ -34,7 +34,11 @@ work-budget exhaustion, unsupported input and invalid input remain distinct.
 
 The Rust board-level controller joins connected components on each net, chooses
 a deterministic net order, and can rip up generated copper to reroute competing
-nets. It stages the resulting edits and publishes the board after native checks.
+nets. When two single-ended nets with at least four pads use the same footprint
+and copper layer, the controller can lay clear branches on both nets before
+routing either whole net. Those branches use the board's search budget and
+remain available for rip-up. The controller stages the resulting edits and
+publishes the board after native checks.
 
 ## Native compatibility interface
 

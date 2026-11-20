@@ -265,6 +265,74 @@ pub(super) fn between(
     Ok(Some(edges.into_iter().map(|(_, edge)| edge).collect()))
 }
 
+/// Give competing distribution nets a turn at their shared footprints before
+/// an unrelated whole-net search can use the pad exits. Only existing legal
+/// forest edges are inserted. The regular transaction connects every island.
+pub(crate) fn route_shared_footprint_branches(
+    engine: &mut Engine,
+    units: &[crate::negotiate::UnitSpec],
+    pad_counts: &std::collections::BTreeMap<u32, usize>,
+    batch_limit: u64,
+    expanded: &mut u64,
+) -> Result<(), Failure> {
+    let mut competing = std::collections::BTreeSet::new();
+    {
+        let mut first = std::collections::BTreeMap::new();
+        engine.work.charge(engine.input.pads.len() as u64)?;
+        for pad in &engine.input.pads {
+            // A forest needs four separate terminals for two independent joins.
+            if pad_counts.get(&pad.net).copied().unwrap_or(0) < 4
+                || engine.copper.has_generated_for_net(pad.net)
+            {
+                continue;
+            }
+            let Some(reference) = pad.footprint_ref.as_deref().filter(|r| !r.is_empty()) else {
+                continue;
+            };
+            let layers = if pad.layers.is_empty() {
+                std::slice::from_ref(&engine.input.layer)
+            } else {
+                &pad.layers
+            };
+            engine.work.charge(layers.len() as u64)?;
+            for layer in layers {
+                // A new footprint and its two nets can add three entries.
+                if first.len() + competing.len() + 3 > engine.input.limits.max_search_entries {
+                    return Ok(());
+                }
+                let other = *first.entry((reference, layer.as_str())).or_insert(pad.net);
+                if other != pad.net {
+                    competing.insert(other);
+                    competing.insert(pad.net);
+                }
+            }
+        }
+    }
+    if competing.is_empty() {
+        return Ok(());
+    }
+    let mut budget = TrialBudget::fixed(batch_limit);
+    for unit in units {
+        engine.work.charge(1)?;
+        let crate::negotiate::RouteUnitId::SingleNet(net) = unit.id else {
+            continue;
+        };
+        if competing.contains(&net) {
+            let groups = engine.components(net)?;
+            if let Some(edges) = between(engine, net, &groups, &mut budget, expanded, None)? {
+                // insert_edges checks continuous clearance before inserting any
+                // copper. A geometric miss leaves the ordinary route available.
+                if let Err(error) = engine.insert_edges(net, edges) {
+                    if error.status != crate::model::Status::Unroutable {
+                        return Err(error);
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -279,6 +347,62 @@ mod tests {
         let p = projections([20, 20], [10, 10], [12, 16]).collect::<Vec<_>>();
         assert!(p.contains(&[14, 14]));
         assert!(p.iter().all(|v| v[0] == v[1] && (10..=20).contains(&v[0])));
+    }
+
+    #[test]
+    fn competing_pad_forests_share_a_footprint_and_face() {
+        use crate::negotiate::{RouteUnitAdapter, SingleEndedAdapter};
+        let mut template: Input = serde_json::from_str(include_str!(
+            "../../tests/fixtures/multiterminal-native-two-nets.json"
+        ))
+        .unwrap();
+        template.tracks.clear();
+        template.layers = vec!["F.Cu".into(), "B.Cu".into()];
+        let sample = template.pads[0].clone();
+        template.pads = (0..8)
+            .map(|i| {
+                let mut pad = sample.clone();
+                pad.id = format!("00000000-0000-4000-8000-{i:012x}");
+                pad.net = 1 + i / 4;
+                pad.at = [
+                    4_000_000 + i64::from(i % 4) * 5_000_000,
+                    5_000_000 * i64::from(pad.net),
+                ];
+                pad.layers = vec!["F.Cu".into()];
+                pad.footprint_ref = Some(format!("J{}", i % 4));
+                pad
+            })
+            .collect();
+        for (shared, same_face, remaining) in [(true, true, 1), (false, true, 4), (true, false, 4)]
+        {
+            let mut input = template.clone();
+            for pad in input.pads.iter_mut().filter(|p| p.net == 2) {
+                if !shared {
+                    pad.footprint_ref = Some("J5".into());
+                }
+                if !same_face {
+                    pad.layers = vec!["B.Cu".into()];
+                }
+            }
+            let mut engine = Engine::new(input).unwrap();
+            engine
+                .transaction(|tx| -> Result<(), Failure> {
+                    tx.engine.surface_search_share = Some(100);
+                    let units = SingleEndedAdapter::all().units(tx.engine)?;
+                    route_shared_footprint_branches(
+                        tx.engine,
+                        &units,
+                        &[(1, 4), (2, 4)].into(),
+                        100,
+                        &mut 0,
+                    )?;
+                    for net in [1, 2] {
+                        assert_eq!(tx.engine.components(net)?.len(), remaining);
+                    }
+                    Ok(())
+                })
+                .unwrap();
+        }
     }
 
     #[test]
