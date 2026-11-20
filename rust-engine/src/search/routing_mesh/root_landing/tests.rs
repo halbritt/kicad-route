@@ -144,3 +144,109 @@ fn closed_drill_window_excluded_layers_and_a_spent_trial_leave_search_available(
         }
     }
 }
+
+#[test]
+fn a_segmented_tree_can_use_its_far_side_barrel_to_reach_one_surface_pad() {
+    const MM: i64 = 1_000_000;
+    for (second_barrel, share, should_join) in
+        [(true, 24, true), (false, 24, false), (true, 200, false)]
+    {
+        let mut input: Input = serde_json::from_str(include_str!(
+            "../../../../tests/fixtures/multiterminal-native-two-nets.json"
+        ))
+        .unwrap();
+        input.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+            .map(str::to_owned)
+            .to_vec();
+        input.pads.retain(|p| p.net == 1 && p.at[1] == 10 * MM);
+        input.pads[0].layers = input.layers.clone();
+        input.pads[0].drill = Some(crate::model::DrillShape::Circle {
+            diameter_nm: 400_000,
+        });
+        input.pads[1].layers = vec!["F.Cu".into()];
+        if second_barrel {
+            let mut far = input.pads[0].clone();
+            far.id = "15000000-0000-4000-8000-000000000002".into();
+            far.at = [12 * MM, 10 * MM];
+            input.pads.push(far);
+        }
+        let sample = input.tracks.pop().unwrap();
+        for i in 0..36 {
+            let mut t = sample.clone();
+            t.id = format!("16000000-0000-4000-8000-{i:012x}");
+            t.layer = "F.Cu".into();
+            t.net = 1;
+            t.start = [3 * MM + i * 250_000, 10 * MM];
+            t.end = [t.start[0] + 250_000, 10 * MM];
+            input.tracks.push(t);
+        }
+        for (i, layer, x) in [(1, "In1.Cu", 10 * MM), (2, "F.Cu", 14 * MM)] {
+            input.rule_areas.push(
+                serde_json::from_value(serde_json::json!({
+                    "id":format!("17000000-0000-4000-8000-{i:012x}"),"layers":[layer],
+                    "outer":[[x,0],[x+250000,0],[x+250000,20000000],[x,20000000]],
+                    "no_tracks":true,"no_vias":false
+                }))
+                .unwrap(),
+            );
+        }
+        let mut engine = Engine::new(input).unwrap();
+        engine.surface_search_share = Some(share);
+        let _scope = engine.work.scope();
+        let groups = engine.components(1).unwrap();
+        assert_eq!(groups.len(), 2);
+        let tree = groups.iter().max_by_key(|g| g.len()).unwrap();
+        let mut starts = Vec::new();
+        for &item in tree {
+            let mask = item.layer_mask(engine.all_layers_slice());
+            for (layer, _) in engine.all_layers_slice().iter().enumerate() {
+                if mask & (1 << layer) != 0 {
+                    starts.extend(
+                        item.anchors(engine.input.bounds.min, engine.input.rules.grid_nm)
+                            .into_iter()
+                            .map(|at| (at, layer as u8, false)),
+                    );
+                }
+            }
+        }
+        starts.sort_unstable();
+        starts.dedup();
+        let pad = &engine.input.pads[1];
+        assert!(
+            super::super::super::layer_crossing::has_axial_drill(&engine, 1, 0, pad.at).unwrap()
+        );
+        let target =
+            TargetBounds::new(Copper::Pad(pad), engine.all_layers_slice(), &engine.work).unwrap();
+        let mut used = 0;
+        let found = connect(
+            &engine,
+            1,
+            tree,
+            &starts,
+            &[target],
+            &[true, true, false, false],
+            0,
+            40,
+            None,
+            &mut TrialBudget::fixed(2_000),
+            &mut used,
+            None,
+        )
+        .unwrap();
+        assert_eq!(found.is_some(), should_join);
+        if let Some(path) = found {
+            assert!(used <= share);
+            assert_eq!(
+                path.edges
+                    .iter()
+                    .filter(|e| matches!(e, PathEdge::Via(_)))
+                    .count(),
+                1
+            );
+            assert!(path
+                .edges
+                .iter()
+                .any(|e| matches!(e,PathEdge::Track{layer:1,start,..} if *start==[12*MM,10*MM])));
+        }
+    }
+}
