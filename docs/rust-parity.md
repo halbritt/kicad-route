@@ -76,33 +76,41 @@ the candidate. The shared-host runs used Rust 1.99.1 and KiCad 10.0.8.
 They establish a reproducible board outcome. More repetitions under
 controlled load would be needed to attribute the timing difference.
 
-### Matched native runs at `ef10867`
+### Matched native runs at `231c59a`
 
 KiCad 10.0.8 regraded each saved board with its input project, custom rules
 and zone refill. Each release build (Rust 1.99.1, locked dependencies) ran
 three times per input, alternating revisions. The three published boards
-were byte-identical for every completed case at each revision. Wall time,
-process CPU time and GNU time's maximum process RSS are medians.
+were byte-identical for each completed case at a given revision. Wall time,
+process CPU time and GNU time's maximum process RSS are medians on a shared host.
 
 | Input | Revision | Opens | Native errors | Vias | Track length (mm) | Expansions | Work units | Wall (s) | CPU (s) | RSS (KiB) |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| route_demo | 9ac137a | 0 | 0 | 3 | 163.553 | 3,325 | 668,516 | 1.85 | 1.31 | 280,040 |
-| route_demo | ef10867 | 0 | 0 | 3 | 163.353 | 3,717 | 783,812 | 1.86 | 1.29 | 280,844 |
-| T4-04 | 9ac137a | 0 | 0 | 64 | 2,741.775 | 718,513 | 135,756,020 | 5.36 | 5.19 | 238,708 |
-| T4-04 | ef10867 | 0 | 0 | 54 | 2,749.975 | 296,494 | 85,264,053 | 3.54 | 3.37 | 236,464 |
-| complex_hierarchy | 9ac137a | 0 | 0 | 3 | 1,125.903 | 78,412 | 40,830,733 | 6.16 | 5.96 | 292,636 |
-| complex_hierarchy | ef10867 | 0 | 0 | 3 | 1,104.436 | 18,723 | 25,539,117 | 9.61 | 7.31 | 294,908 |
-| tigard_fab | 9ac137a | — | — | — | — | 100,000 | 44,890,302 | 1.18 | 1.18 | 169,692 |
-| tigard_fab | ef10867 | — | — | — | — | 100,000 | 69,504,420 | 1.58 | 1.55 | 170,356 |
+| route_demo | 9ac137a | 0 | 0 | 3 | 163.553 | 3,325 | 668,516 | 3.50 | 1.81 | 279,848 |
+| route_demo | 231c59a | 0 | 0 | 3 | 159.984 | 1,758 | 334,323 | 5.22 | 2.30 | 280,720 |
+| T4-04 | 9ac137a | 0 | 0 | 64 | 2,741.775 | 718,513 | 135,756,020 | 6.02 | 5.86 | 236,688 |
+| T4-04 | 231c59a | 0 | 0 | 53 | 2,770.569 | 303,872 | 81,672,200 | 4.32 | 4.14 | 238,972 |
+| complex_hierarchy | 9ac137a | 0 | 0 | 3 | 1,125.903 | 78,412 | 40,830,733 | 7.14 | 6.92 | 291,540 |
+| complex_hierarchy | 231c59a | 0 | 0 | 0 | 1,085.161 | 10,316 | 7,707,908 | 3.41 | 3.25 | 294,028 |
+| tigard_fab | 9ac137a | — | — | — | — | 100,000 | 44,890,302 | 1.54 | 1.51 | 169,264 |
+| tigard_fab | 231c59a | — | — | — | — | 100,000 | 60,336,168 | 1.73 | 1.70 | 170,312 |
 
 T4-04 closed all 48 opens across 24 three-pad nets under its original
 1,000,000-expansion and 250,000,000-work-unit limits. Both saved boards had
-zero DRC findings. At ef10867 the board used ten fewer vias and 8.200 mm more
-track. The external two-layer project closed all 87 opens with three vias,
-zero errors and its original 68 library warnings. Its tracks were 21.468 mm
-shorter. The demo saved 0.200 mm of track and used more search work.
+zero native DRC findings. The newer revision used 11 fewer vias and
+28.794 mm more track. The two-layer `complex_hierarchy` project closed all
+87 opens with no vias, zero errors and its original 68 library warnings.
+Its saved tracks totalled 1,085.161 mm. The demo closed six opens with three
+vias and zero DRC findings.
 Both releases exhausted the 100,000-expansion limit on Tigard and left the
 destination absent. Its input had 290 opens, six native errors and 94 warnings.
+
+The four-layer perpendicular connector test also runs under the 100,000-expansion
+production limit. With obstructions at both twelve-pad banks, `f64719d`
+exhausted the limit. At `395e0d6` all three runs saved a board with zero opens,
+zero DRC findings, 13 vias and 745.389 mm of track in 98,214 expansions. On
+the variant with open connector exits, `f64719d` already closed all twelve
+opens in 70,482 expansions with 16 vias and 674.101 mm of track.
 
 ### External corpus boards
 
