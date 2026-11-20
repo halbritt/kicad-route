@@ -300,7 +300,10 @@ centers up to the first edge the ray exits.
 Every resulting via and the entire surface track to it must be legal.
 A pair of contacts on
 different faces can share one through-via. A blocked face can use a pair
-of legal through-vias and an intermediate layer. The ordinary frontier can
+of legal through-vias and an intermediate layer. A trunk on an inner layer
+can reach the center of a plated pad directly if its padstack includes that
+layer. A surface source can use one checked through-via to enter the trunk.
+The ordinary frontier can
 improve on that path. The initial expansion budget divided among the
 active nets' possible pad joins determines how long the search spends
 improving an available connection. For a bidirectional search that has found

@@ -142,13 +142,37 @@ pub(super) fn from_launch(
     expanded: &mut u64,
     frontier: Option<&BlockedFrontier>,
 ) -> Result<Option<Path>, Failure> {
+    let mut ends = Vec::new();
+    for target in targets {
+        if let Some((at, mask)) = target.plated_contact(&engine.work)? {
+            // A plated barrel can receive an inner-layer trunk directly.
+            // Surface landings already participate in the ordinary frontier.
+            for layer in 1..track_ok.len().saturating_sub(1) {
+                let allowed = track_ok[layer];
+                engine.work.charge(1)?;
+                if allowed
+                    && mask & (1 << layer) != 0
+                    && engine.legal_edge_on(net, layer, at, at)?
+                {
+                    engine
+                        .work
+                        .search_storage(frontier_entries + ends.len() + 1)?;
+                    ends.push((at, layer, true));
+                }
+            }
+        } else if let Some((at, layer)) = target.surface_contact(track_ok, &engine.work)? {
+            engine
+                .work
+                .search_storage(frontier_entries + ends.len() + 1)?;
+            ends.push((at, layer, false));
+        }
+    }
+    let frontier_entries = frontier_entries + ends.len();
     from_contacts(
         engine,
         net,
         starts,
-        targets
-            .iter()
-            .map(|target| target.surface_contact(track_ok, &engine.work)),
+        ends,
         track_ok,
         frontier_entries,
         via_cost,
@@ -164,7 +188,7 @@ fn from_contacts(
     engine: &Engine,
     net: u32,
     starts: &[(Point, u8, bool)],
-    ends: impl IntoIterator<Item = Result<Option<(Point, usize)>, Failure>>,
+    ends: impl IntoIterator<Item = (Point, usize, bool)>,
     track_ok: &[bool],
     frontier_entries: usize,
     via_cost: u64,
@@ -175,10 +199,7 @@ fn from_contacts(
 ) -> Result<Option<Path>, Failure> {
     let mut choices = Vec::new();
     let via_step = engine.layer_policy.scale(via_cost);
-    for target in ends {
-        let Some((end, dest)) = target? else {
-            continue;
-        };
+    for (end, dest, plated) in ends {
         for &(at, face, via_only) in starts {
             engine.work.charge(1)?;
             if via_only || !track_ok[face as usize] {
@@ -196,7 +217,7 @@ fn from_contacts(
             engine
                 .work
                 .search_storage(frontier_entries + choices.len() + 1)?;
-            choices.push((lower, at, face, end, dest));
+            choices.push((lower, at, face, end, dest, plated));
         }
     }
     engine
@@ -220,7 +241,7 @@ fn from_contacts(
         std::collections::BTreeMap::<(Point, usize), Vec<PlacedViaKey>>::new();
     let mut cached_entries = 0usize;
     let mut best: Option<Path> = None;
-    for (lower, at, face, end, dest) in choices {
+    for (lower, at, face, end, dest, plated) in choices {
         if best.as_ref().is_some_and(|p| p.steps <= lower) {
             break;
         }
@@ -276,7 +297,9 @@ fn from_contacts(
             Ok(found)
         };
         let left = sites(source)?;
-        let right = sites(target)?;
+        // Each allowed plated face is already a destination. The existing
+        // barrel needs neither a new drill nor a surface stub at this end.
+        let right = if plated { Vec::new() } else { sites(target)? };
         if source.layer != dest {
             for &v in &left {
                 join.connect(dest, Some(v), None, &mut best, &mut expand)?;
@@ -387,7 +410,7 @@ pub(super) fn through_pad_channels(
                 engine,
                 net,
                 &[(p, face as u8, false)],
-                [Ok(Some((q, dest)))],
+                [(q, dest, false)],
                 &allowed,
                 left.len() + right.len(),
                 engine.effective_rules.via_cost.max(1),
@@ -413,4 +436,89 @@ pub(super) fn through_pad_channels(
         }
     }
     Ok(best)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::Copper;
+    use crate::model::{DrillShape, Input};
+
+    #[test]
+    fn inner_trace_terminates_on_the_actual_plated_stack_without_redrilling() {
+        let mut board: Input = serde_json::from_str(include_str!(
+            "../../tests/fixtures/multiterminal-native-two-nets.json"
+        ))
+        .unwrap();
+        board.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+            .map(str::to_owned)
+            .to_vec();
+        board.tracks.clear();
+        board.pads.truncate(1);
+        let pad = &mut board.pads[0];
+        pad.layers = vec!["F.Cu".into(), "In2.Cu".into(), "B.Cu".into()];
+        pad.drill = Some(DrillShape::Circle {
+            diameter_nm: 400_000,
+        });
+        let engine = Engine::new(board).unwrap();
+        let target = TargetBounds::new(
+            Copper::Pad(&engine.input.pads[0]),
+            engine.all_layers_slice(),
+            &engine.work,
+        )
+        .unwrap();
+        let contact = engine.input.pads[0].copper_center();
+        let start = [15_000_000, 10_000_000];
+        for (source, allowed, expected) in [
+            (1, [false, true, false, false], None), // the pad omits In1
+            (2, [false, false, true, false], Some(0)),
+            (0, [true, false, true, false], Some(1)),
+        ] {
+            let mut used = 0;
+            let path = from_launch(
+                &engine,
+                1,
+                &[(start, source, false)],
+                std::slice::from_ref(&target),
+                &allowed,
+                0,
+                engine.effective_rules.via_cost.max(1),
+                None,
+                &mut TrialBudget::fixed(1_000),
+                &mut used,
+                None,
+            )
+            .unwrap();
+            assert_eq!(path.is_some(), expected.is_some());
+            if let (Some(path), Some(vias)) = (path, expected) {
+                assert!(used > 0 && used <= 1_000);
+                assert_eq!(path.points.first(), Some(&start));
+                assert_eq!(path.points.last(), Some(&contact));
+                assert_eq!(
+                    path.edges
+                        .iter()
+                        .filter(|e| matches!(e, PathEdge::Via(_)))
+                        .count(),
+                    vias
+                );
+                assert!(
+                    matches!(path.edges.last(),Some(PathEdge::Track{end,layer:2,..}) if *end==contact)
+                );
+                for e in path.edges {
+                    match e {
+                        PathEdge::Track { start, end, layer } => assert!(engine
+                            .legal_edge_on(1, usize::from(layer), start, end)
+                            .unwrap()),
+                        PathEdge::Via(v) => {
+                            assert_ne!(v.at, contact);
+                            assert!(engine
+                                .legal_via(1, v.at, 0, 3, ViaKind::Through, &[])
+                                .unwrap()
+                                .is_some());
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
