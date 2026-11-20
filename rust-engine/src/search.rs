@@ -3488,6 +3488,28 @@ fn seed_backward_a_star(
     Ok(())
 }
 
+/// With a consistent opposite heuristic h, an unexpanded prefix ending at x
+/// costs at least min_open_f - h(x). Its first unexpanded vertex v has
+/// g(v) + h(v) <= cost(prefix) + h(x), also for a shortened final grid edge.
+/// An already expanded compatible prefix was considered by the meeting check.
+/// Either way this label can be dropped if it cannot improve the incumbent.
+/// Keep the label available to meet. A later, cheaper arrival may still expand.
+fn cannot_improve_incumbent(
+    cost: u64,
+    opposite_min: u64,
+    incumbent: u64,
+    opposite_heuristic: impl FnOnce() -> Result<Option<u64>, Failure>,
+) -> Result<bool, Failure> {
+    if cost.saturating_add(opposite_min) < incumbent {
+        return Ok(false);
+    }
+    let Some(estimate) = opposite_heuristic()? else {
+        return Ok(false);
+    };
+    let remaining = opposite_min.saturating_sub(estimate);
+    Ok(cost.saturating_add(remaining) >= incumbent)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn walk_multilayer_bidirectional(
     engine: &Engine,
@@ -3536,7 +3558,7 @@ fn walk_multilayer_bidirectional(
     }
     let min_step = engine.layer_policy.minimum_step(net);
     let via_bound = engine.layer_policy.scale(via_cost);
-    let mut reverse_sources = None;
+    let mut reverse_sources: Option<ReverseSources> = None;
 
     let mut q_fwd: BinaryHeap<Reverse<(u64, TieG, State)>> = BinaryHeap::new();
     let mut best_fwd: HashMap<State, u64> = HashMap::new();
@@ -3635,6 +3657,29 @@ fn walk_multilayer_bidirectional(
             engine.work.charge(1)?;
             let Reverse((_f, tie_g, state)) = q_fwd.pop().unwrap();
             let cost = tie_g.g;
+            // A via-only source participates in meetings after its first via.
+            if via_only_unpopped == 0 && !state.is_via_goal {
+                if let (Some((mu, _)), Some(sources), Some(Reverse((f, _, _)))) =
+                    (&best_mu, &reverse_sources, q_bwd.peek())
+                {
+                    if cannot_improve_incumbent(cost, *f, *mu, || {
+                        // A clipped contact can leave its original lattice.
+                        // Reverse distances exist only on seeded phases.
+                        engine.work.charge(1)?;
+                        if !sources
+                            .phases
+                            .contains_key(&state.at.map(|x| x.rem_euclid(grid)))
+                        {
+                            return Ok(None);
+                        }
+                        sources
+                            .estimate(state.at, state.layer, min_step, via_bound, &engine.work)
+                            .map(Some)
+                    })? {
+                        continue;
+                    }
+                }
+            }
             if best_fwd.get(&state) != Some(&cost) || !settled_fwd.insert(state) {
                 continue;
             }
@@ -3991,6 +4036,15 @@ fn walk_multilayer_bidirectional(
             engine.work.charge(1)?;
             let Reverse((_f, tie_g, bkey)) = q_bwd.pop().unwrap();
             let cost = tie_g.g;
+            if via_only_unpopped == 0 {
+                if let (Some((mu, _)), Some(Reverse((f, _, _)))) = (&best_mu, q_fwd.peek()) {
+                    if cannot_improve_incumbent(cost, *f, *mu, || {
+                        heuristic(bkey.at, bkey.layer as usize).map(Some)
+                    })? {
+                        continue;
+                    }
+                }
+            }
             if best_bwd.get(&bkey) != Some(&cost) || !settled_bwd.insert(bkey) {
                 continue;
             }

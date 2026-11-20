@@ -5191,3 +5191,51 @@ fn reverse_bound_uses_only_reachable_lattice_phases_and_charges_evaluations() {
         Status::WorkExhausted
     );
 }
+
+#[test]
+fn staggered_barriers_certify_the_cheaper_path_for_off_grid_pads() {
+    let layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"];
+    let grid = 250_000;
+    let point = |x: i64, y: i64| [x * grid, y * grid];
+    let wall = |n, x, bottom, top| {
+        serde_json::json!({
+            "id": id(n), "name": "barrier", "layers": layers,
+            "outer": [point(x, bottom), point(x+2, bottom), point(x+2, top), point(x, top)],
+            "no_tracks": true, "no_vias": true
+        })
+    };
+    let round_pad = |n, x, y| {
+        serde_json::json!({
+            "id": id(n), "net": 1, "at": [x, y], "layers": ["F.Cu"],
+            "shape": {"kind": "circle", "radius_nm": 100_000}
+        })
+    };
+    let input: Input = serde_json::from_value(serde_json::json!({
+        "version": 1, "source_id": "a".repeat(64), "layer": "F.Cu", "layers": layers,
+        "bounds": {"min": [0, 0], "max": point(96, 87)},
+        "rules": {"width_nm": 100_000, "clearance_nm": 100_000, "grid_nm": grid,
+                  "edge_clearance_nm": 100_000},
+        "nets": [{"id": 1, "name": "signal"}], "tracks": [],
+        "pads": [round_pad(3, 2_032_500, 9_017_500), round_pad(4, 22_092_500, 9_065_000)],
+        "rule_areas": [wall(50, 32, 0, 60), wall(51, 64, 27, 87)], "max_expansions": 75_000
+    }))
+    .unwrap();
+    let engine = Engine::new(input).unwrap();
+    let mut expanded = 0;
+    let path = join_components(
+        &engine,
+        1,
+        &[Copper::Pad(&engine.input.pads[0])],
+        &[vec![Copper::Pad(&engine.input.pads[1])]],
+        75_000,
+        &mut expanded,
+    )
+    .unwrap();
+    // The first legal meeting on these staggered walls costs 150.
+    assert_eq!(path.steps, 149);
+    assert!(
+        engine.work.used() < 1_250_000,
+        "work {}",
+        engine.work.used()
+    );
+}
