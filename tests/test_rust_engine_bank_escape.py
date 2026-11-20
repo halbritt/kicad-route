@@ -58,3 +58,40 @@ def test_interleaved_surface_bank_routes_every_contact(tmp_path, guarded_cli):
     failure = json.loads(denied.read_bytes())
     assert result.returncode == 4 and failure["routing"]["expanded_states"] == 1
     assert failure["status"] == "budget_exhausted" and not limited.exists()
+
+
+def test_offset_gap_connects_two_surfaces_on_the_internal_layers(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=1399)
+    board.set_rect_outline(0, 0, 48_000_000, 32_000_000)
+    def point(x, y):
+        return pcbnew.FromMM(x), pcbnew.FromMM(y)
+
+    for ref, net, xy, face in [("J1", "SIGNAL", (4.48, 12.3), pcbnew.F_Cu),
+                               ("J2", "SIGNAL", (43.2, 13.65), pcbnew.F_Cu),
+                               ("R1", "AUX", (2, 3.2), pcbnew.B_Cu),
+                               ("R2", "AUX", (8.4, 3.2), pcbnew.B_Cu)]:
+        at = point(*xy)
+        fp = board.add_footprint(ref, at, side="F" if face == pcbnew.F_Cu else "B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", net, at, size_nm=point(.75, .65),
+                      shape=pcbnew.PAD_SHAPE_ROUNDRECT, layers=[face])
+    for layers, bounds in [([pcbnew.F_Cu, pcbnew.B_Cu], (10, -1, 38, 33)),
+                           ([pcbnew.In1_Cu, pcbnew.In2_Cu], (23, -1, 24, 20))]:
+        x, y, u, v = bounds
+        board.add_keepout(layers, [point(x, y), point(u, y), point(u, v), point(x, v)],
+                          no_tracks=True, no_vias=False)
+    source = board.save(tmp_path / "input").pcb_path
+    original = run_native_drc(source).raw
+    assert len(original["unconnected_items"]) == 2 and not original["violations"]
+    saved, op = tmp_path / "routed.kicad_pcb", tmp_path / "op.json"
+    run, _ = guarded_cli
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved),
+         "--operation-result", str(op)])
+    assert json.loads(op.read_bytes())["routing"]["added_via_count"] == 2
+    drc = run_native_drc(saved, sidecar_source=source).raw
+    assert not drc["unconnected_items"] and not drc["violations"]
+    reopened = pcbnew.LoadBoard(str(saved))
+    inner = [p for p in reopened.GetTracks() if p.GetNetname() == "SIGNAL"
+             and p.GetLayer() in (pcbnew.In1_Cu, pcbnew.In2_Cu)]
+    assert inner and any(max(t.GetStartY(), t.GetEndY()) > pcbnew.FromMM(20) for t in inner)

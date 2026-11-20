@@ -273,6 +273,13 @@ improving an available connection. Every prospective connection and track
 sweep consumes the normal expansion or work allowance. The board transaction
 still requires full connectivity.
 
+If simple departures cannot connect the terminals, the router can search
+on a lattice with spacing derived from via diameter and clearance. The spacing
+is a whole number of ordinary grid steps. Short segments connect the existing
+copper to nearby lattice points. Every segment and layer change must clear
+native geometry, including hole spacing between new vias on the same path.
+The ordinary search can still use passages between lattice points.
+
 For an oblique imported track separating the terminals, the planar bound
 uses the shorter detour past either end. When the existing same-net tree
 surrounds the target, reverse search can bound the distance to each section

@@ -1,8 +1,8 @@
 //! Once competing routing units are waiting, try to connect this join with
 //! short, fully checked pad escapes before expanding more unit grid edges.
 use super::{
-    layer_crossing, unpenalized_terminal, Copper, Engine, Failure, Path, PathEdge, PlacedViaKey,
-    Point, TargetBounds, ViaKind,
+    layer_crossing, unpenalized_terminal, Engine, Failure, Path, PathEdge, PlacedViaKey, Point,
+    TargetBounds, ViaKind,
 };
 use crate::diff_pair::octilinear_elbow_paths;
 use crate::negotiate::{BlockedFrontier, CongestionHistory, TrialBudget};
@@ -174,23 +174,9 @@ pub(super) fn from_launch(
     let mut choices = Vec::new();
     let via_step = engine.layer_policy.scale(via_cost);
     for target in targets {
-        let Copper::Pad(pad) = target.copper else {
+        let Some((end, dest)) = target.surface_contact(track_ok, &engine.work)? else {
             continue;
         };
-        if pad.drill.is_some() || target.mask.count_ones() != 1 {
-            continue;
-        }
-        let dest = target.mask.trailing_zeros() as usize;
-        engine.work.charge(pad.shape.parts().len() as u64)?;
-        for shape in pad.shape.parts() {
-            if let crate::model::Shape::ConvexPolygon { vertices, .. } = shape {
-                engine.work.charge(2 * vertices.len() as u64)?;
-            }
-        }
-        let end = pad.copper_center();
-        if !track_ok[dest] || !crate::geometry::point_in_pad(end, pad) {
-            continue;
-        }
         for &(at, face, via_only) in starts {
             engine.work.charge(1)?;
             if via_only || !track_ok[face as usize] {
