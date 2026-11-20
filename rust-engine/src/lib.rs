@@ -5,6 +5,7 @@ mod bus;
 mod components;
 pub mod diff_pair;
 pub mod geometry;
+mod layer_policy;
 pub mod model;
 pub mod negotiate;
 pub mod orchestration;
@@ -33,6 +34,7 @@ enum StaticMaskOccupancy {
 pub struct Engine {
     input: Input,
     layer_names: Vec<String>,
+    layer_policy: layer_policy::ResolvedLayerPolicy,
     effective_rules: EffectiveRules,
     max_pad_local_clearance_nm: i64,
     max_zone_local_clearance_nm: i64,
@@ -408,8 +410,9 @@ impl Engine {
         {
             input.rules.grid_nm = grid;
         }
-        work.carry_setup_into_first_scope();
         let layer_names = input.active_layers();
+        let layer_policy = layer_policy::ResolvedLayerPolicy::resolve(&input, &layer_names, &work)?;
+        work.carry_setup_into_first_scope();
         let layer_count = layer_names.len();
         let base_items = input.item_count();
         let reserved = input
@@ -928,6 +931,7 @@ impl Engine {
         Ok(Self {
             input,
             layer_names,
+            layer_policy,
             effective_rules,
             max_pad_local_clearance_nm,
             max_zone_local_clearance_nm,
@@ -1138,7 +1142,8 @@ impl Engine {
         let _scope = self.work.scope();
         self.work.charge(1)?;
         let layer_name = &self.layer_names[layer_idx];
-        if self.effective_rules.disallow_track_on(net, layer_name)
+        if !self.layer_policy.track_allowed(net, layer_idx)
+            || self.effective_rules.disallow_track_on(net, layer_name)
             || self
                 .delay_profile_layers
                 .get(&net)
@@ -2023,7 +2028,11 @@ impl Engine {
         let _scope = self.work.scope();
         self.work.charge(1)?;
         let l_count = self.layer_names.len();
-        if l_count < 2 || start_idx >= end_idx || end_idx >= l_count {
+        if l_count < 2
+            || start_idx >= end_idx
+            || end_idx >= l_count
+            || !self.layer_policy.via_allowed(net, start_idx, end_idx)
+        {
             return Ok(None);
         }
         match kind {
@@ -2935,6 +2944,20 @@ impl Engine {
             let before = groups.len();
             if before <= 1 {
                 return Ok(());
+            }
+            if let Some(mask) = self.layer_policy.net_mask(net) {
+                for group in &groups {
+                    self.work
+                        .charge(group.len() as u64)
+                        .map_err(negotiate::UnitRouteError::Fatal)?;
+                    if !group
+                        .iter()
+                        .any(|c| c.layer_mask(&self.layer_names) & mask != 0)
+                    {
+                        return Err(negotiate::UnitRouteError::Fatal(Failure::new(Status::Unroutable,
+                            "a disconnected copper component lies entirely outside its net's permitted layers")));
+                    }
+                }
             }
             let mut frontier = negotiate::BlockedFrontier::new();
             match search::join_components_negotiated_with_budget(

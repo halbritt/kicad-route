@@ -2830,7 +2830,7 @@ fn execute_staged_phases(
     Ok(())
 }
 
-const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--grid-step <MM>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--ac-couple-chain-json <JSON>] [--ac-match-tolerance <MM>] [--ac-meander-amplitude <MM>] [--bus] [--bus-detection-radius <MM>] [--bus-attraction-radius <MM>] [--bus-attraction-bonus <N>] [--bus-min-nets <N>] [--protect <none|existing|human|locked>] [--nets <NET...>]";
+const USAGE_MSG: &str = "usage: kicad-route-engine route-native <SOURCE.kicad_pcb> <OUTPUT.kicad_pcb> [--rules <RULES.json>] [--project <PROJECT.kicad_pro>] [--limits <LIMITS.json>] [--max-expansions <N>] [--grid-step <MM>] [--layer-policy-json <JSON>] [--operation-result <OP_RESULT.json>] [--save-request <REQUEST.json>] [--native-bridge <RUST_ENGINE_KICAD.py>] [--python <PYTHON_BIN>] [--timeout-ms <MS>] [--max-child-output-bytes <BYTES>] [--pour-area-loss <PCT>] [--pour-min-spokes <N>] [--diff-pairs <auto|P,N>] [--pair-layers <LAYER...>] [--no-short-pair-deferral] [--diff-pair-intra-match] [--length-match-tolerance <MM>] [--meander-amplitude <MM>] [--length-match-group <SPEC...>] [--length-match-group-json <JSON>] [--group-match-tolerance <MM>] [--group-delay-tolerance <PS>] [--group-meander-amplitude <MM>] [--group-meander-spacing <WIDTHS>] [--pair-impedance <OHM>] [--impedance-tolerance <PCT>] [--impedance-reference <NET>] [--impedance-uncoupled <MM>] [--ac-couple-chain-json <JSON>] [--ac-match-tolerance <MM>] [--ac-meander-amplitude <MM>] [--bus] [--bus-detection-radius <MM>] [--bus-attraction-radius <MM>] [--bus-attraction-bonus <N>] [--bus-min-nets <N>] [--protect <none|existing|human|locked>] [--nets <NET...>]";
 
 fn take_flag_value(
     args: &[OsString],
@@ -3493,6 +3493,16 @@ pub fn parse_cli_args(args: &[OsString]) -> Result<OperationConfig, String> {
                             }
                             routing_options.ac_meander_amplitude_nm = Some(nm);
                             last_variadic_target = None;
+                        }
+                        "--layer-policy-json" => {
+                            if routing_options.layer_policy.is_some() {
+                                return Err("duplicate --layer-policy-json".into());
+                            }
+                            let val = take_flag_str(args, &mut i, inline, flag)?;
+                            let policy: crate::model::LayerPolicy = serde_json::from_str(&val)
+                                .map_err(|e| format!("invalid --layer-policy-json: {e}"))?;
+                            policy.validate().map_err(|e| e.reason)?;
+                            routing_options.layer_policy = Some(policy);
                         }
                         "--grid-step" => {
                             if routing_options.grid_step_nm.is_some() {
@@ -4299,6 +4309,7 @@ elif cmd == "apply":
             "--ac-match-tolerance",
             "--ac-meander-amplitude",
             "--bus",
+            "--layer-policy-json",
             "--bus-detection-radius",
             "--bus-attraction-radius",
             "--bus-attraction-bonus",
@@ -4307,6 +4318,21 @@ elif cmd == "apply":
             "--nets",
         ] {
             assert!(USAGE_MSG.contains(flag), "missing CLI flag {flag}");
+        }
+    }
+
+    #[test]
+    fn invalid_layer_policy_is_rejected_before_loading_a_board() {
+        for raw in [
+            r#"{"signal_layers":[]}"#,
+            r#"{"signal_layers":["F.Cu","F.Cu"]}"#,
+            r#"{"signal_layers":["F.Cu"],"per_net_signal_layers":{"N":["B.Cu"]}}"#,
+            r#"{"signal_layers":["F.Cu"],"layer_costs":[0.5]}"#,
+            r#"{"signal_layers":["F.Cu","B.Cu"],"layer_costs":[1]}"#,
+        ] {
+            let args =
+                ["x.kicad_pcb", "out.kicad_pcb", "--layer-policy-json", raw].map(OsString::from);
+            assert!(parse_cli_args(&args).is_err(), "{raw}");
         }
     }
 

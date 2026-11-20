@@ -5169,22 +5169,25 @@ fn reverse_bound_uses_only_reachable_lattice_phases_and_charges_evaluations() {
     ];
     let work = crate::budget::WorkBudget::new(Limits::default());
     let sources = super::ReverseSources::new(&starts, 10, &work).unwrap();
-    assert_eq!(sources.estimate([1, 1], 0, 8, &work).unwrap(), 10);
-    assert_eq!(sources.estimate([0, 0], 0, 8, &work).unwrap(), 8);
+    assert_eq!(sources.estimate([1, 1], 0, 1, 8, &work).unwrap(), 10);
+    assert_eq!(sources.estimate([0, 0], 0, 1, 8, &work).unwrap(), 8);
 
     // The larger per-layer envelope remains confined to its own lattice.
     let mut many: Vec<_> = (0..24).map(|i| ([100 + i * 10, 0], 1, false)).collect();
     many.push(([1, 1], 0, false));
     let sources = super::ReverseSources::new(&many, 10, &work).unwrap();
-    assert_eq!(sources.estimate([0, 0], 0, 8, &work).unwrap(), 18);
-    assert_eq!(sources.estimate([1, 1], 1, 8, &work).unwrap(), 8);
+    assert_eq!(sources.estimate([0, 0], 0, 1, 8, &work).unwrap(), 18);
+    assert_eq!(sources.estimate([1, 1], 1, 1, 8, &work).unwrap(), 8);
     let limited = crate::budget::WorkBudget::new(Limits {
         max_work: 1,
         ..Limits::default()
     });
-    assert_eq!(sources.estimate([1, 1], 0, 8, &limited).unwrap(), 0);
+    assert_eq!(sources.estimate([1, 1], 0, 1, 8, &limited).unwrap(), 0);
     assert_eq!(
-        sources.estimate([1, 1], 0, 8, &limited).unwrap_err().status,
+        sources
+            .estimate([1, 1], 0, 1, 8, &limited)
+            .unwrap_err()
+            .status,
         Status::WorkExhausted
     );
 }

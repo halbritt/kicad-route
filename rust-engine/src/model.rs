@@ -803,9 +803,60 @@ impl BusOptions {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct LayerPolicy {
+    pub signal_layers: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub layer_costs: Vec<f64>,
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub per_net_signal_layers: std::collections::BTreeMap<String, Vec<String>>,
+}
+impl LayerPolicy {
+    pub(crate) fn validate(&self) -> Result<(), Failure> {
+        let unique = |names: &[String]| {
+            !names.is_empty()
+                && names.len() <= 32
+                && names.iter().all(|s| !s.is_empty())
+                && names.iter().collect::<BTreeSet<_>>().len() == names.len()
+        };
+        if !unique(&self.signal_layers) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "layer policy needs distinct signal layers",
+            ));
+        }
+        if !self.layer_costs.is_empty()
+            && (self.layer_costs.len() != self.signal_layers.len()
+                || !self
+                    .layer_costs
+                    .iter()
+                    .all(|w| w.is_finite() && (1.0..=1000.0).contains(w)))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "layer policy needs one cost from 1 through 1000 per signal layer",
+            ));
+        }
+        if self.per_net_signal_layers.iter().any(|(name, allowed)| {
+            name.is_empty()
+                || !unique(allowed)
+                || !allowed.iter().all(|l| self.signal_layers.contains(l))
+        }) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "per-net signal layers must be distinct, nonempty subsets of signal_layers",
+            ));
+        }
+        Ok(())
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RoutingOptions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layer_policy: Option<LayerPolicy>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub grid_step_nm: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

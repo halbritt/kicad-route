@@ -5184,3 +5184,160 @@ fn m5_2_1_static_pad_mask_expansion_and_min_width_bridge_to_apertures() {
         }
     }
 }
+
+fn layer_policy_fixture(through: bool, costs: [f64; 2], net_layers: &[&str]) -> Input {
+    let mut i = base();
+    i.bounds.max = [8_000_000, 6_000_000];
+    i.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+        .map(str::to_owned)
+        .to_vec();
+    i.rules.width_nm = 100_000;
+    i.rules.clearance_nm = 100_000;
+    i.rules.grid_nm = 250_000;
+    i.rules.edge_clearance_nm = 100_000;
+    i.pads = vec![
+        pad(1, 1, [1_500_000, 3_000_000]),
+        pad(2, 1, [6_500_000, 3_000_000]),
+    ];
+    for (idx, p) in i.pads.iter_mut().enumerate() {
+        p.shape = Shape::Circle {
+            radius_nm: if through { 350_000 } else { 200_000 },
+        };
+        p.layers = if through {
+            i.layers.clone()
+        } else {
+            vec![i.layers[if idx == 0 { 0 } else { 3 }].clone()]
+        };
+        if through {
+            p.drill = Some(DrillShape::Circle {
+                diameter_nm: 200_000,
+            })
+        }
+    }
+    let mut by_net = std::collections::BTreeMap::new();
+    if !net_layers.is_empty() {
+        by_net.insert(
+            "A".into(),
+            net_layers.iter().copied().map(str::to_owned).collect(),
+        );
+    }
+    i.routing_options = Some(RoutingOptions {
+        layer_policy: Some(LayerPolicy {
+            signal_layers: vec!["F.Cu".into(), "B.Cu".into()],
+            layer_costs: costs.to_vec(),
+            per_net_signal_layers: by_net,
+        }),
+        ..Default::default()
+    });
+    i
+}
+
+#[test]
+fn weighted_layer_detour_respects_hard_net_limit_and_rejects_missing_names() {
+    let mut i = layer_policy_fixture(true, [1.25, 1.0], &[]);
+    i.bounds.max = [24_000_000, 20_000_000];
+    for (p, x) in i.pads.iter_mut().zip([2_000_000, 22_000_000]) {
+        p.at = [x, 10_000_000];
+        p.shape = Shape::Circle { radius_nm: 120_000 };
+        p.drill = Some(DrillShape::Circle {
+            diameter_nm: 80_000,
+        });
+    }
+    i.rule_areas.push(RuleArea {
+        id: id(10),
+        name: None,
+        layers: vec!["B.Cu".into()],
+        outer: vec![
+            [10_500_000, 8_875_000],
+            [11_750_000, 8_875_000],
+            [11_750_000, 11_125_000],
+            [10_500_000, 11_125_000],
+        ],
+        holes: vec![],
+        extra_polygons: vec![],
+        no_tracks: true,
+        no_vias: true,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    });
+    // Vias are unavailable. The straight front route costs 80 * 1.25 ticks.
+    // The back obstacle requires five extra grid steps out and five back,
+    // giving a cheaper path of 90 ticks through the reverse A* frontier.
+    let mut no_vias = i.rule_areas[0].clone();
+    no_vias.id = id(11);
+    no_vias.layers = vec!["F.Cu".into()];
+    no_vias.no_tracks = false;
+    no_vias.outer = vec![
+        [0, 0],
+        [i.bounds.max[0], 0],
+        i.bounds.max,
+        [0, i.bounds.max[1]],
+    ];
+    i.rule_areas.push(no_vias);
+    let costly = run(i.clone());
+    assert!(costly.expanded_states > 256);
+    assert!(costly.added_vias.is_empty());
+    let length: u64 = costly
+        .added_tracks
+        .iter()
+        .map(|t| t.start[0].abs_diff(t.end[0]) + t.start[1].abs_diff(t.end[1]))
+        .sum();
+    assert_eq!(length, 22_500_000);
+    assert_eq!(costly.status, Status::Complete, "{:?}", costly.reason);
+    assert!(costly.added_tracks.len() > 1 && costly.added_tracks.iter().all(|t| t.layer == "B.Cu"));
+    let policy = i
+        .routing_options
+        .as_mut()
+        .unwrap()
+        .layer_policy
+        .as_mut()
+        .unwrap();
+    policy.layer_costs = vec![1.0, 1.0];
+    let equal = run(i);
+    assert_eq!(equal.status, Status::Complete);
+    assert!(equal
+        .added_tracks
+        .iter()
+        .all(|t| t.layer == "F.Cu" || t.layer.is_empty()));
+    let mut constrained = layer_policy_fixture(true, [1000.0, 1.0], &["F.Cu"]);
+    constrained.max_expansions = 100;
+    let front = run(constrained.clone());
+    assert_eq!(front.status, Status::Complete, "{:?}", front.reason);
+    assert!(front
+        .added_tracks
+        .iter()
+        .all(|t| t.layer == "F.Cu" || t.layer.is_empty()));
+    assert!(front.added_vias.is_empty());
+    let policy = constrained
+        .routing_options
+        .as_mut()
+        .unwrap()
+        .layer_policy
+        .as_mut()
+        .unwrap();
+    policy
+        .per_net_signal_layers
+        .insert("absent".into(), vec!["F.Cu".into()]);
+    let invalid = run(constrained);
+    assert_eq!(invalid.status, Status::Invalid);
+    assert!(invalid.reason.unwrap().contains("absent"));
+}
+
+#[test]
+fn declared_net_layers_cover_the_whole_physical_via_span() {
+    let global = run(layer_policy_fixture(false, [1.0, 1.0], &[]));
+    assert_eq!(global.status, Status::Complete, "{:?}", global.reason);
+    assert!(!global.added_vias.is_empty());
+    for via in global.added_vias {
+        assert_eq!(
+            (via.start_layer.as_str(), via.end_layer.as_str()),
+            ("F.Cu", "B.Cu")
+        );
+    }
+    for allowed in [vec!["F.Cu", "B.Cu"], vec!["F.Cu"]] {
+        let denied = run(layer_policy_fixture(false, [1.0, 1.0], &allowed));
+        assert_eq!(denied.status, Status::Unroutable, "{:?}", denied.reason);
+        assert!(denied.added_tracks.is_empty() && denied.added_vias.is_empty());
+    }
+}
