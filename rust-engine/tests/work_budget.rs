@@ -754,7 +754,8 @@ fn route_insertion_charges_spatial_index_mutation_work() {
     // Exact 1-step route(1, 1000) work on this 2-pad fixture (includes 8 units
     // for generated_spatial[0].mutation_work() at empty tree before insert, under
     // PathEdge-based walk_multilayer/insert_path with target-AABB prefilter).
-    const EXACT_1STEP_WORK: u64 = 126;
+    // The final three-item connectivity check costs 24 units and runs once.
+    const EXACT_1STEP_WORK: u64 = 102;
 
     i.limits.max_work = EXACT_1STEP_WORK - 1;
     let mut cutoff = Engine::new(i.clone()).unwrap();
@@ -1015,12 +1016,16 @@ fn generated_uniform_net_and_net0_work_accounting() {
         pad_number: None,
         fromto_id: None,
     });
-    const MULTI_GEN_ROUTE_WORK: u64 = 1636;
+    // Each post-insert partition supplies the next join. The seven- and
+    // eight-item partitions cost 99 and 123 units respectively.
+    const MULTI_GEN_ROUTE_WORK: u64 = 1414;
     let mut probe = Engine::new(multi.clone()).unwrap();
     probe.route(1, 1000).unwrap();
     assert_eq!(probe.work_used(), MULTI_GEN_ROUTE_WORK);
     assert_eq!(probe.copper().generated().count(), 5);
-    for limit in [1416u64, 1417, 1429, 1430, 1437, 1438] {
+    // Each query bulk-charges the three remaining nodes of the four-track
+    // generated subtree. Stop after its first or second node.
+    for limit in [951u64, 952, 964, 965, 972, 973] {
         multi.limits.max_work = limit;
         let mut em = Engine::new(multi.clone()).unwrap();
         let err = em.route(1, 1000).unwrap_err();

@@ -2900,8 +2900,8 @@ impl Engine {
         Ok(groups)
     }
     fn route_net(&mut self, net: u32, limit: u64, expanded: &mut u64) -> Result<(), Failure> {
+        let mut groups = self.components(net)?;
         loop {
-            let groups = self.components(net)?;
             let before = groups.len();
             if before <= 1 {
                 return Ok(());
@@ -2909,7 +2909,8 @@ impl Engine {
             let path =
                 search::join_components(self, net, &groups[0], &groups[1..], limit, expanded)?;
             self.insert_path(net, path)?;
-            if self.components(net)?.len() >= before {
+            groups = self.components(net)?;
+            if groups.len() >= before {
                 return Err(Failure::new(
                     Status::Unroutable,
                     "proposed route did not reduce conservative copper components",
@@ -2937,10 +2938,10 @@ impl Engine {
     ) -> Result<(), negotiate::UnitRouteError> {
         let had_generated_before = self.copper.has_generated_for_net(net);
         let mut joins_done = 0usize;
+        let mut groups = self
+            .components(net)
+            .map_err(negotiate::UnitRouteError::Fatal)?;
         loop {
-            let groups = self
-                .components(net)
-                .map_err(negotiate::UnitRouteError::Fatal)?;
             let before = groups.len();
             if before <= 1 {
                 return Ok(());
@@ -2973,12 +2974,11 @@ impl Engine {
                 Ok(path) => match self.insert_path(net, path) {
                     Ok(()) => {
                         joins_done += 1;
-                        let after = self
+                        groups = self
                             .components(net)
-                            .map_err(negotiate::UnitRouteError::Fatal)?
-                            .len();
-                        if after >= before {
-                            if joins_done > 0 && !had_generated_before {
+                            .map_err(negotiate::UnitRouteError::Fatal)?;
+                        if groups.len() >= before {
+                            if !had_generated_before {
                                 self.copper
                                     .remove_net(net, &self.work)
                                     .map_err(negotiate::UnitRouteError::Fatal)?;
