@@ -123,7 +123,7 @@ fn route(engine: &Engine, reverse: bool, budget: u64, inner_steps: u64) -> (Opti
     };
     let mut used = 0;
     let path = mesh
-        .visible_entries(&roots, &costs, &goals, 0, &mut || {
+        .visible_entries(&roots, &costs, &goals, 0, 0, &mut || {
             if used == budget {
                 return Ok(false);
             }
@@ -320,5 +320,60 @@ fn a_recessed_plane_channel_needs_the_last_clear_point_beyond_the_first_mesh_ste
     for reverse in [false, true] {
         let (path, _) = route(&engine, reverse, 25, 96);
         assert!(path.unwrap().points.iter().any(|p| p[0] == 2 * MM));
+    }
+}
+
+#[test]
+fn buried_copper_can_reach_a_distant_plated_pad_without_another_drill() {
+    use crate::{components::Copper, negotiate::TrialBudget, search::TargetBounds};
+
+    for closed in [false, true] {
+        let mut input = board(false, closed, true).input;
+        input.bounds.max[1] = 100 * MM;
+        let mut pad = input.pads[0].clone();
+        pad.at = [10 * MM, 97 * MM];
+        pad.id = input.pads[1].id.clone();
+        input.pads[1] = pad;
+        let engine = Engine::new(input).unwrap();
+        let mesh = Mesh {
+            engine: &engine,
+            net: 1,
+            grid: engine.input.rules.grid_nm as u64,
+            pitch: MM,
+            via_step: 5,
+            history: None,
+            occupied_entries: 0,
+            pricing: MeshPricing::Unpenalized,
+        };
+        for (from, to) in [(0, 1), (1, 0)] {
+            let origin = engine.input.pads[from].at;
+            let dest = &engine.input.pads[to];
+            let target =
+                TargetBounds::new(Copper::Pad(dest), engine.all_layers_slice(), &engine.work)
+                    .unwrap();
+            let mut expanded = 0;
+            let path = mesh
+                .search(
+                    &[(origin, 1, false)],
+                    &[target],
+                    &[false, true, false, false],
+                    &mut TrialBudget::fixed(64),
+                    &mut expanded,
+                    None,
+                    64,
+                )
+                .unwrap();
+            if closed {
+                assert!(path.is_none());
+            } else {
+                let path = path.expect(
+                    "the existing inner copper reaches the other barrel beyond the first guard",
+                );
+                assert_eq!(path.points.first(), Some(&origin));
+                assert_eq!(path.points.last(), Some(&dest.at));
+                assert!(path.edges.iter().all(|edge|matches!(edge, PathEdge::Track{start,end,layer:1} if engine.legal_edge_on(1,1,*start,*end).unwrap())));
+            }
+            assert!(expanded <= 64);
+        }
     }
 }

@@ -379,6 +379,7 @@ impl Mesh<'_> {
             },
             ..*self
         };
+        let mut plated_layers = 0;
         for target in targets {
             let mut attach = |center, layer, plated| -> Result<(), Failure> {
                 let layer = layer as u8;
@@ -406,6 +407,9 @@ impl Mesh<'_> {
                 Ok(())
             };
             if let Some((center, mask)) = target.plated_contact(&engine.work)? {
+                if targets.len() == 1 {
+                    plated_layers = mask;
+                }
                 for (layer, &allowed) in track_ok.iter().enumerate() {
                     engine.work.charge(1)?;
                     if allowed
@@ -446,11 +450,13 @@ impl Mesh<'_> {
         let mut costs = HashMap::new();
         let mut roots = HashMap::new();
         let mut parents = HashMap::new();
+        let mut source_layers = 0u32;
         for &(p, layer, via_only) in starts {
             engine.work.charge(1)?;
             if via_only || !track_ok[layer as usize] {
                 continue;
             }
+            source_layers |= 1u32 << layer;
             for (node, cost, edges) in self.contact_portals(
                 p,
                 layer,
@@ -481,11 +487,17 @@ impl Mesh<'_> {
         // Share the remaining mesh allowance between complete visible
         // connections and exploration through the ordinary graph.
         let visibility_stop = *expanded + stop.saturating_sub(*expanded) / 2;
+        let outer_faces = 1 | (1 << (engine.layer_count() - 1));
         let proposal = if *expanded < visibility_stop {
             self.visible_entries(
                 &roots,
                 &costs,
                 &goals,
+                if source_layers & !outer_faces != 0 {
+                    plated_layers & source_layers
+                } else {
+                    0
+                },
                 costs.len() + open.len() + roots.len() + goals.len() + parents.len(),
                 &mut || {
                     if *expanded >= visibility_stop {

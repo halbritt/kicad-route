@@ -10,11 +10,13 @@ impl Mesh<'_> {
         roots: &HashMap<Node, Vec<PathEdge>>,
         costs: &HashMap<Node, u64>,
         goals: &HashMap<Node, Tail>,
+        direct_layers: u32,
         occupied: usize,
     ) -> Result<Vec<(u64, Node, Node)>, Failure> {
         let layers = self.engine.layer_count();
-        self.storage(occupied + 3 * layers + goals.len())?;
-        let mut best = vec![None; layers];
+        let kinds = if direct_layers == 0 { 1 } else { 2 };
+        self.storage(occupied + (2 + kinds) * layers + goals.len())?;
+        let mut best = vec![None; layers * kinds];
         let mut by_layer: Vec<[Vec<(Node, u64)>; 2]> =
             (0..layers).map(|_| Default::default()).collect();
         let drilled =
@@ -23,21 +25,30 @@ impl Mesh<'_> {
             self.engine.work.charge(1 + tail.len() as u64)?;
             by_layer[usize::from(target.1)][usize::from(drilled(tail))].push((target, *tail_cost));
         }
-        // Only pair terminals which can use existing copper at one end
-        // and a registered drill at the other, on this same plane.
+        // Keep the usual one-drill proposal. A connected multilayer source and
+        // a plated destination can also reach each other on existing copper.
+        // Keep both lower bounds: a shorter blocked route cannot evict a
+        // feasible proposal with a different terminal attachment.
         for (&source, prefix) in roots {
             let (at, layer) = source;
+            let face = usize::from(layer);
             self.engine.work.charge(1 + prefix.len() as u64)?;
-            for &(target, tail_cost) in &by_layer[usize::from(layer)][usize::from(!drilled(prefix))]
-            {
-                self.engine.work.charge(1)?;
-                let estimate = costs[&source]
-                    .saturating_add(tail_cost)
-                    .saturating_add(self.steps(at, target.0, layer));
-                let key = (estimate, source, target);
-                let slot = &mut best[usize::from(layer)];
-                if slot.is_none_or(|other| key < other) {
-                    *slot = Some(key);
+            let from_drill = drilled(prefix);
+            for kind in 0..kinds {
+                if kind == 1 && (from_drill || direct_layers & (1 << layer) == 0) {
+                    continue;
+                }
+                let need_drill = kind == 0 && !from_drill;
+                for &(target, tail_cost) in &by_layer[face][usize::from(need_drill)] {
+                    self.engine.work.charge(1)?;
+                    let estimate = costs[&source]
+                        .saturating_add(tail_cost)
+                        .saturating_add(self.steps(at, target.0, layer));
+                    let key = (estimate, source, target);
+                    let slot = &mut best[face * kinds + kind];
+                    if slot.is_none_or(|other| key < other) {
+                        *slot = Some(key);
+                    }
                 }
             }
         }
@@ -103,10 +114,11 @@ impl Mesh<'_> {
         roots: &HashMap<Node, Vec<PathEdge>>,
         costs: &HashMap<Node, u64>,
         goals: &HashMap<Node, Tail>,
+        direct_layers: u32,
         occupied: usize,
         expand: &mut impl FnMut() -> Result<bool, Failure>,
     ) -> Result<Option<Path>, Failure> {
-        let pairs = self.entry_pairs(roots, costs, goals, occupied)?;
+        let pairs = self.entry_pairs(roots, costs, goals, direct_layers, occupied)?;
         let retained = occupied + pairs.len();
         let paid = Mesh {
             pricing: MeshPricing::Forward,
