@@ -185,6 +185,10 @@ more of the route already traversed.
 In bidirectional search, the reverse frontier estimates distance to source
 anchors on its own grid phase. A full grid step preserves both coordinate
 residues, and a via preserves the position.
+On fixed copper, an empty reverse frontier prompts a check for full-grid
+track endpoints on those phases. When neither a clipped track, a full
+track nor a via can land, the source search can finish immediately and
+leave its remaining budget for a different launch phase.
 For a join between two isolated pads, their anchor coordinates may generate
 different grid phases. If the first search exhausts its frontier and the other
 pad offers another phase, the router searches from that pad with the remaining

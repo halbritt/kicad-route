@@ -3805,6 +3805,65 @@ fn seed_backward_a_star(
     Ok(())
 }
 
+/// Check the full-grid edge fallback independently of prefix clipping. In
+/// particular, compound copper can have more than one contact interval
+/// on a single edge. Every such endpoint lies inside its target's bounds
+/// expanded by the track cap and on the predecessor's grid phase.
+fn has_full_track_landing(
+    engine: &Engine,
+    net: u32,
+    sources: &ReverseSources<'_>,
+    targets: &[TargetBounds<'_>],
+    finished: &impl Fn(Point, usize, Option<PathEdge>) -> Result<bool, Failure>,
+) -> Result<bool, Failure> {
+    let grid = sources.grid;
+    let bounds = engine.input.bounds;
+    for target in targets {
+        for (layer, name) in engine.all_layers_slice().iter().enumerate() {
+            engine.work.charge(1)?;
+            if target.mask & (1 << layer) == 0 {
+                continue;
+            }
+            let width = match engine.effective_rules.track_width_for(net, name) {
+                Ok(value) => value,
+                Err(e) if e.status == Status::Unroutable => continue,
+                Err(e) => return Err(e),
+            };
+            let r = (width + 1) / 2;
+            let lo: Point = std::array::from_fn(|k| (target.lo[k] - r).max(bounds.min[k]));
+            let hi: Point = std::array::from_fn(|k| (target.hi[k] + r).min(bounds.max[k]));
+            for phase in sources.phases.keys() {
+                engine.work.charge(1)?;
+                let start: Point =
+                    std::array::from_fn(|k| lo[k] + (phase[k] - lo[k]).rem_euclid(grid));
+                if start[1] > hi[1] {
+                    continue;
+                }
+                for x in (start[0]..=hi[0]).step_by(grid as usize) {
+                    for y in (start[1]..=hi[1]).step_by(grid as usize) {
+                        engine.work.charge(1)?;
+                        let end = [x, y];
+                        let cap = PathEdge::Track {
+                            start: end,
+                            end,
+                            layer: layer as u8,
+                        };
+                        if finished(end, layer, Some(cap))? {
+                            for prev in [[x - grid, y], [x + grid, y], [x, y - grid], [x, y + grid]]
+                            {
+                                if engine.legal_edge_on(net, layer, prev, end)? {
+                                    return Ok(true);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
 /// A legal straight path costing exactly the minimum forward A* priority
 /// certifies its own optimality. Check the ordinary final unit cell. A
 /// whole-ray interior landing can reach a later cell in the same pad.
@@ -4139,6 +4198,25 @@ fn walk_multilayer_bidirectional(
                     &best_fwd_meet,
                     &mut best_mu,
                 )?;
+                if best_bwd.is_empty()
+                    && best_mu.is_none()
+                    && via_only_unpopped == 0
+                    && engine.copper.generated().next().is_none()
+                    && engine.copper.generated_vias().next().is_none()
+                {
+                    // All clipped track contacts and via landings on each source
+                    // phase were tried above. The other forward terminal is a
+                    // legal full grid edge whose endpoint cap touches the target.
+                    // With fixed copper there is no victim for negotiation to
+                    // find. Return the exhausted phase to the caller, which may
+                    // still try an alternative launch.
+                    if !has_full_track_landing(engine, net, sources, targets, &finished)? {
+                        return Err(Failure::new(
+                            Status::Unroutable,
+                            "no terminal track or via is reachable on these source grid phases",
+                        ));
+                    }
+                }
             }
             if local_exp == 2048 {
                 if let (Some(probe), Some(f)) = (escape_probe.take(), frontier.as_deref_mut()) {
