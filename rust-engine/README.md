@@ -247,9 +247,12 @@ while preserving the weighted distance. The original single-layer search used un
 and no rip-up. Current multilayer negotiation can change the routing order
 and rip up generated copper. When several single-ended nets still require
 routing, a surface pad with only one or two clear axial departures and no
-legal via at its center gets priority. These probes use the board's track
-and via rules. Pair priority and the relative order of equally constrained
-nets are preserved. A later net can fail even
+legal via at its center gets priority. An existing pad exit can supply another
+start, as can a same-net zone or graphic on that face. The router retains the
+combined zone and artwork bounds for each net and layer, including refillable
+zone outlines. Pads outside those bounds still compete for their own exits.
+These probes use the board's track and via rules. Pair priority and the
+relative order of equally constrained nets are preserved. A later net can fail even
 when a different earlier route would permit a solution; this is reported as
 unroutable, not proof of global routing impossibility. Success/failure is
 deterministic. Each completed join must strictly reduce the net's conservative
