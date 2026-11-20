@@ -268,6 +268,7 @@ face, the router queries the current copper index for an earlier net’s track
 that makes a same-face detour more expensive than two through-vias. It uses
 this bound at a launch site only when it finds a legal path of that cost.
 Each component join sees the copper left by the most recent negotiation.
+
 When a rectangular via keepout covers a surface join, a shortest planar
 route may need several successive turns. The search follows clear axial runs
 toward a clipped pad contact and validates every segment after chamfering
@@ -277,6 +278,17 @@ A net with many isolated terminals can use the forward-only queue. At a
 source on existing copper, this queue also checks whether a legal straight
 or octilinear connection attains its smallest remaining cost. The candidate
 must reach an actual target on the same layer.
+
+When an ordinary board-wide search starts probing from both ends of a join,
+it can retain a checked surface route as its best known path. It samples
+short pad departures in each axial direction. A pair of contacts on
+different faces can share one through-via. A blocked face can use a pair
+of legal through-vias and an intermediate layer. The ordinary frontier can
+improve on that path. The initial expansion budget divided among the
+active nets' possible pad joins determines how long the search spends
+improving an available connection. Every prospective connection and track
+sweep consumes the normal expansion or work allowance. The board transaction
+still requires full connectivity.
 
 For an oblique imported track separating the terminals, the planar bound
 uses the shorter detour past either end. When the existing same-net tree
