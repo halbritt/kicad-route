@@ -272,7 +272,11 @@ Each component join sees the copper left by the most recent negotiation.
 When a rectangular via keepout covers a surface join, a shortest planar
 route may need several successive turns. The search follows clear axial runs
 toward a clipped pad contact and validates every segment after chamfering
-the bends. A blocked run leaves the ordinary search available.
+the bends. When a mechanical keepout or copper obstructs that route inside a
+rectangular through-via exclusion, the mesh can also try bends beyond the
+obstacle corners. Those corners are candidates. The router sweeps the full
+track width and clearance along every segment and charges each expanded
+position to the existing mesh allowance.
 
 If two isolated surface pads cannot leave the ordinary grid, the router can
 use the gap between four adjacent pad centers. A diagonal departure reaches

@@ -11,6 +11,7 @@ use crate::negotiate::{BlockedFrontier, CongestionHistory, TrialBudget};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 
+mod corner_guides;
 mod drill_access;
 
 type Node = (Point, u8);
@@ -206,6 +207,19 @@ pub(super) fn connect(
     let share =
         budget.current_limit.saturating_sub(*expanded) / engine.input.nets.len().max(1) as u64;
     let stop = expanded.saturating_add(share);
+    let guide_stop = expanded
+        .saturating_add(engine.surface_search_share.unwrap_or(0))
+        .min(stop);
+    if let Some(path) = mesh.around_corners(starts, targets, track_ok, &mut || {
+        if *expanded >= guide_stop {
+            return Ok(false);
+        }
+        budget.check_before_expand(engine, *expanded, frontier)?;
+        *expanded += 1;
+        Ok(true)
+    })? {
+        return Ok(Some(path));
+    }
     loop {
         let path = mesh.search(starts, targets, track_ok, budget, expanded, frontier, stop)?;
         if path.is_some() || *expanded >= stop || mesh.pitch == grid {

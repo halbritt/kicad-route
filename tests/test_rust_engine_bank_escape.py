@@ -61,6 +61,45 @@ def test_interleaved_surface_bank_routes_every_contact(tmp_path, guarded_cli):
     assert failure["status"] == "budget_exhausted" and not limited.exists()
 
 
+def test_signal_tracks_detour_around_keyways_inside_a_local_drill_keepout(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=3589)
+
+    def point(x, y):
+        return pcbnew.FromMM(x), pcbnew.FromMM(y)
+
+    def rectangle(left, top, right, bottom):
+        return [point(left, top), point(right, top), point(right, bottom), point(left, bottom)]
+
+    board.set_rect_outline(*point(0, 0), *point(46, 29))
+    outer = [pcbnew.F_Cu, pcbnew.B_Cu]
+    board.add_keepout([pcbnew.In1_Cu], rectangle(1, 2, 45, 27), no_tracks=False, no_vias=True)
+    for channel, y in enumerate([6.2, 14.4, 22.1]):
+        face = outer[channel % 2]
+        net = f"IO{channel}"
+        for ref, xy in [("J", point(3.25, y)), ("P", point(42.75, y + .7))]:
+            fp = board.add_footprint(f"{ref}{channel + 1}", xy, side="F" if face == pcbnew.F_Cu else "B")
+            fp.Reference().SetVisible(False)
+            fp.Value().SetVisible(False)
+            board.add_pad(fp, "1", net, xy, size_nm=point(.8, .7),
+                          shape=pcbnew.PAD_SHAPE_RECT, layers=[face])
+        for x, offset in [(12.4, -.6), (23.1, .65), (33.8, -.55)]:
+            middle = y + offset
+            board.add_keepout([face], rectangle(x, middle - 1.2, x + 1.5, middle + 1.2),
+                              no_tracks=True, no_vias=False)
+    board.set_project_rules()
+    source = board.save(tmp_path / "input").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 3 and not before["violations"]
+    run, _ = guarded_cli
+    saved = tmp_path / "signals.kicad_pcb"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved)])
+    grade = run_native_drc(saved, sidecar_source=source).raw
+    assert not grade["unconnected_items"] and not grade["violations"]
+    reopened = pcbnew.LoadBoard(str(saved))
+    pieces = list(reopened.GetTracks())
+    assert pieces and not any(isinstance(piece, pcbnew.PCB_VIA) for piece in pieces)
+
+
 def test_offset_gap_connects_two_surfaces_on_the_internal_layers(tmp_path, guarded_cli):
     board = BoardBuilder(copper_layers=4, seed=1399)
     board.set_rect_outline(0, 0, 48_000_000, 32_000_000)
