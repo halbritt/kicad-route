@@ -2713,6 +2713,51 @@ mod tests {
     }
 
     #[test]
+    fn publishing_a_straight_run_preserves_its_copper_at_every_inclination() {
+        for dx in [-3, 3] {
+            for dy in [-2, 2] {
+                let first = [40, 40];
+                let joint = [40 + dx, 40 + dy];
+                let end = [40 + 3 * dx, 40 + 3 * dy];
+                for (last, expected) in [
+                    (end, vec![(first, end)]),
+                    (
+                        [end[0], end[1] + 1],
+                        vec![(first, joint), (joint, [end[0], end[1] + 1])],
+                    ),
+                ] {
+                    let mut engine = Engine::new(test_input()).unwrap();
+                    let points = vec![first, joint, last];
+                    let edges = points
+                        .windows(2)
+                        .map(|w| crate::search::PathEdge::Track {
+                            start: w[0],
+                            end: w[1],
+                            layer: 0,
+                        })
+                        .collect();
+                    engine
+                        .insert_path(
+                            1,
+                            crate::search::Path {
+                                points,
+                                edges,
+                                steps: 2,
+                            },
+                        )
+                        .unwrap();
+                    let saved: Vec<_> = engine
+                        .copper
+                        .generated()
+                        .map(|t| (t.start, t.end))
+                        .collect();
+                    assert_eq!(saved, expected);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn c_m3_03_collinear_uturn_does_not_coalesce_to_zero_length() {
         let mut engine = Engine::new(test_input()).unwrap();
         let uturn = crate::search::Path {

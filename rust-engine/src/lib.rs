@@ -3059,16 +3059,9 @@ impl Engine {
                         if let Some(last) = raw_tracks.last_mut() {
                             if last.layer == *l_name
                                 && last.end == start
-                                && ((last.start[0] == last.end[0]
-                                    && last.end[0] == end[0]
-                                    && last.end[1] != last.start[1]
-                                    && (last.end[1] - last.start[1]).signum()
-                                        == (end[1] - start[1]).signum())
-                                    || (last.start[1] == last.end[1]
-                                        && last.end[1] == end[1]
-                                        && last.end[0] != last.start[0]
-                                        && (last.end[0] - last.start[0]).signum()
-                                            == (end[0] - start[0]).signum()))
+                                && start != end
+                                && last.start.cmp(&start) == start.cmp(&end)
+                                && geometry::orientation(last.start, start, end) == 0
                             {
                                 last.end = end;
                                 continue;

@@ -375,7 +375,8 @@ equally; a net succeeds only when all required copper is connected. This can
 produce branches but does not optimize a Steiner tree or promise invariance
 under input permutation. Identical inputs remain deterministic. Work and expansions are shared
 across all joins (and nets for route_all); failure rolls back the whole operation.
-Proposal segments coalesce collinearly and subtract any collinear overlap against
+Consecutive proposal segments with the same heading coalesce at any angle.
+The router subtracts collinear overlap against
 existing or earlier same-net tracks of equal or greater width before clearance
 validation and insertion.
 
