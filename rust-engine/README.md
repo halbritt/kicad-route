@@ -183,8 +183,11 @@ nearest legal contact is selected independently of target order. A full grid
 step past the target is not published as a dangling spur.
 A shortened goal edge is checked for clearance before the full grid step is
 rejected: an obstacle or board boundary beyond the attachment cannot invalidate
-the shorter route. It is queued at the same one-step cost and must be settled
-within the expansion budget before success. The original single-layer search used unit step costs, a fixed net-ID order
+the shorter route. A shortened final edge costs one grid step. During the initial
+multilayer forward search, a settled state can finish a straight connection when
+the remaining grid-step cost exactly equals its A* lower bound. The engine uses
+the ordinary terminal landing in the final grid cell and checks the full
+conductor for clearance. Other goal edges are settled within the expansion budget. The original single-layer search used unit step costs, a fixed net-ID order
 and no rip-up. Current multilayer negotiation can change the routing order
 and rip up generated copper. When several single-ended nets still require
 routing, a surface pad with only one or two clear axial departures and no

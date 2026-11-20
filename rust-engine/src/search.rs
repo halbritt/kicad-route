@@ -1198,6 +1198,7 @@ fn search_component_path(
                 &start_vec,
                 targets,
                 max_eff_width,
+                &layer_target_union,
                 via_cost,
                 budget,
                 expanded,
@@ -3488,6 +3489,105 @@ fn seed_backward_a_star(
     Ok(())
 }
 
+/// A legal straight path costing exactly the minimum forward A* priority
+/// certifies its own optimality. Check the ordinary final unit cell. A
+/// whole-ray interior landing can reach a later cell in the same pad.
+#[allow(clippy::too_many_arguments)]
+fn certified_straight_terminal(
+    engine: &Engine,
+    net: u32,
+    state: State,
+    remaining: u64,
+    bounds: (Point, Point),
+    max_width: i64,
+    layer_bounds: &[Option<(Point, Point)>],
+    min_step: u64,
+    via_bound: u64,
+    previous: Option<PathEdge>,
+    attachment: &impl Fn(usize, Point, Point, &[PlacedViaKey]) -> Result<Option<Point>, Failure>,
+) -> Result<Option<Point>, Failure> {
+    let layer = usize::from(state.layer);
+    let rate = engine.layer_policy.step(layer, 0);
+    let steps = remaining / rate;
+    if steps < 2 || remaining % rate != 0 {
+        return Ok(None);
+    }
+    let grid = engine.input.rules.grid_nm;
+    let radius = (max_width + 1) / 2;
+    let (lo, hi) = bounds;
+    let toward: Point = std::array::from_fn(|k| {
+        if state.at[k] < lo[k] - radius {
+            1
+        } else if state.at[k] > hi[k] + radius {
+            -1
+        } else {
+            0
+        }
+    });
+    let axis = match toward {
+        [0, -1 | 1] => 1,
+        [-1 | 1, 0] => 0,
+        _ => return Ok(None),
+    };
+    if matches!(previous,Some(PathEdge::Track{start,end,..}) if start[axis]!=end[axis]) {
+        return Ok(None);
+    }
+    let Some(distance) = i64::try_from(steps).ok().and_then(|n| n.checked_mul(grid)) else {
+        return Ok(None);
+    };
+    let Some(candidate) = state.at[axis].checked_add(toward[axis] * distance) else {
+        return Ok(None);
+    };
+    let mut end = state.at;
+    end[axis] = candidate;
+    let mut cell = end;
+    cell[axis] -= toward[axis] * grid;
+    if cell[axis].min(end[axis]) > hi[axis] + radius
+        || cell[axis].max(end[axis]) < lo[axis] - radius
+    {
+        return Ok(None);
+    }
+    // Preserve the ordinary choice of copper among equal-cost paths.
+    // Every planar step must advance along this axis, and a path using a
+    // via must cost strictly more even with the widest possible contact.
+    let width = engine
+        .effective_rules
+        .track_width_for(net, engine.layer_name(layer))?;
+    let gap = |value: i64, low: i64, high: i64, radius: i64| {
+        value
+            .abs_diff(value.clamp(low - radius, high + radius))
+            .div_ceil(grid as u64)
+    };
+    if gap(state.at[axis], lo[axis], hi[axis], (width + 1) / 2) != steps {
+        return Ok(None);
+    }
+    if via_bound <= remaining {
+        engine.work.charge(layer_bounds.len() as u64)?;
+        let moves = layer_bounds
+            .iter()
+            .flatten()
+            .map(|(lo, hi)| {
+                (0..2)
+                    .map(|k| gap(state.at[k], lo[k], hi[k], radius))
+                    .sum::<u64>()
+            })
+            .min()
+            .unwrap_or(0);
+        if moves.saturating_mul(min_step).saturating_add(via_bound) <= remaining {
+            return Ok(None);
+        }
+    }
+    engine.work.charge(1)?;
+    let Some(end) = attachment(layer, cell, end, &[])? else {
+        return Ok(None);
+    };
+    // All intermediate swept unit segments are subsets of the same checked
+    // conductor. This search has no same-net hole or via-history exceptions.
+    Ok(engine
+        .legal_edge_on(net, layer, state.at, end)?
+        .then_some(end))
+}
+
 /// With a consistent opposite heuristic h, an unexpanded prefix ending at x
 /// costs at least min_open_f - h(x). Its first unexpanded vertex v has
 /// g(v) + h(v) <= cost(prefix) + h(x), also for a shortened final grid edge.
@@ -3517,6 +3617,7 @@ fn walk_multilayer_bidirectional(
     starts: &[(Point, u8, bool)],
     targets: &[Vec<Copper<'_>>],
     max_eff_width: i64,
+    layer_target_bounds: &[Option<(Point, Point)>],
     via_cost: u64,
     budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
@@ -3619,6 +3720,13 @@ fn walk_multilayer_bidirectional(
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     let mut local_exp = 0u64;
+    let try_straight = prefer_higher_g
+        && history.is_none_or(|h| h.is_empty())
+        && engine
+            .input
+            .routing_options
+            .as_ref()
+            .is_none_or(|o| o.bus.is_none());
 
     while !q_fwd.is_empty() || (reverse_sources.is_some() && !q_bwd.is_empty()) {
         if reverse_sources.is_some() {
@@ -3655,7 +3763,7 @@ fn walk_multilayer_bidirectional(
             || (!q_fwd.is_empty() && q_fwd.len() <= q_bwd.len());
         if expand_fwd {
             engine.work.charge(1)?;
-            let Reverse((_f, tie_g, state)) = q_fwd.pop().unwrap();
+            let Reverse((priority, tie_g, state)) = q_fwd.pop().unwrap();
             let cost = tie_g.g;
             // A via-only source participates in meetings after its first via.
             if via_only_unpopped == 0 && !state.is_via_goal {
@@ -3749,6 +3857,39 @@ fn walk_multilayer_bidirectional(
             let mut any_track_blocked = false;
             if !state.via_only && track_ok_on_layer[state.layer as usize] {
                 let l_idx = state.layer as usize;
+                if try_straight && reverse_sources.is_none() {
+                    if let Some(bounds) = layer_target_bounds[l_idx] {
+                        if let Some(end) = certified_straight_terminal(
+                            engine,
+                            net,
+                            state,
+                            priority - cost,
+                            bounds,
+                            max_eff_width,
+                            layer_target_bounds,
+                            min_step,
+                            via_bound,
+                            parent_fwd.get(&state).map(|(_, e)| *e),
+                            attachment,
+                        )? {
+                            let mut path = reconstruct_bi_path(
+                                &parent_fwd,
+                                &parent_bwd,
+                                &engine.work,
+                                &MeetRecord::DirectFwd(state),
+                                priority,
+                            )?;
+                            engine.work.charge(2)?;
+                            path.points.push(end);
+                            path.edges.push(PathEdge::Track {
+                                start: state.at,
+                                end,
+                                layer: state.layer,
+                            });
+                            return Ok(path);
+                        }
+                    }
+                }
                 for delta in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]] {
                     engine.work.charge(1)?;
                     let Some(x) = state.at[0].checked_add(delta[0]) else {
