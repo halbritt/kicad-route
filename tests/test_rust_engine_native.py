@@ -5,6 +5,8 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
+import signal
 import subprocess
 import sys
 from unittest.mock import patch
@@ -1817,6 +1819,55 @@ def _built_rust_engine(run):
     run(['cargo', 'build', '--locked', '--offline', '--manifest-path',
          str(ROOT / 'rust-engine/Cargo.toml')])
     return ROOT / 'rust-engine/target/debug/kicad-route-engine'
+
+
+def test_sigkill_after_board_publication_preserves_board_and_original_rules(
+        tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    source_dir = tmp_path / 'source'
+    shutil.copytree(ROOT / 'fixtures/route_demo', source_dir)
+    source = source_dir / 'route_demo.kicad_pcb'
+    originals = {path: path.read_bytes() for path in
+                 (source, source.with_suffix('.kicad_pro'), source.with_suffix('.kicad_dru'))}
+    assert len(run_native_drc(source, refill_zones=True).unconnected_items) == 6
+
+    control = tmp_path / 'control.kicad_pcb'
+    control_report = tmp_path / 'control.json'
+    run([str(engine), 'route-native', str(source), str(control),
+         '--operation-result', str(control_report)])
+    completed = json.loads(control_report.read_bytes())
+    assert completed['status'] == 'complete'
+    expected_hash = completed['publication']['output_sha256']
+    assert hashlib.sha256(control.read_bytes()).hexdigest() == expected_hash
+
+    board_dir = tmp_path / 'published'
+    board_dir.mkdir()
+    output = board_dir / control.name
+    report = tmp_path / 'interrupted.json'
+    trace = tmp_path / 'publish-syscalls.log'
+    # Trace only the router parent. Its successful directory fsync follows the
+    # board hard link. SIGKILL at the subsequent report link prevents return
+    # to user space and cannot race a poll for the destination.
+    stopped = run(['strace', '-o', str(trace), '-y',
+                   '-P', str(board_dir), '-P', str(report),
+                   '-e', 'trace=fsync,link,linkat', '-e', 'inject=link,linkat:signal=SIGKILL',
+                   str(engine), 'route-native', str(source), str(output),
+                   '--operation-result', str(report)], check=False)
+    assert stopped.returncode == -signal.SIGKILL, stopped.stderr
+    records = trace.read_text().splitlines()
+    sync = next(i for i, line in enumerate(records)
+                if line.startswith('fsync(') and f'<{board_dir}>' in line and line.endswith('= 0'))
+    assert any(line.startswith(('link(', 'linkat(')) and f'"{report}"' in line
+               for line in records[sync + 1:]), records
+    assert not stopped.stdout.strip()
+    assert not report.exists()
+    assert hashlib.sha256(output.read_bytes()).hexdigest() == expected_hash
+    assert all(path.read_bytes() == data for path, data in originals.items())
+    reopened = run_native_drc(output, sidecar_source=source, refill_zones=True)
+    assert reopened.unconnected_items == []
+    assert reopened.violations == []
+    assert all(path.read_bytes() == data for path, data in originals.items())
 
 
 def test_native_route_preserves_stencil_only_smd_apertures(native_board, guarded_cli):
