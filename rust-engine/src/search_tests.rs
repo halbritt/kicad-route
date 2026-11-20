@@ -5367,6 +5367,45 @@ fn staggered_barriers_certify_the_cheaper_path_for_off_grid_pads() {
         "work {}",
         engine.work.used()
     );
+    // A trial between the first complete 150-step meeting and the 149-step
+    // improvement must use the available path before requesting a rip-up.
+    // A trial before either meeting still has to report its exhaustion.
+    for (cap, feasible) in [(1_000, false), (5_600, true)] {
+        let mut asked_to_rip = false;
+        let mut on_cap = |_: &Engine, _: &crate::negotiate::BlockedFrontier| {
+            asked_to_rip = true;
+            Ok(true)
+        };
+        let mut trial = crate::negotiate::TrialBudget::with_trial(cap, 75_000, &mut on_cap);
+        let mut used = 0;
+        let result = join_components_inner(
+            &engine,
+            1,
+            &[Copper::Pad(&engine.input.pads[0])],
+            &[vec![Copper::Pad(&engine.input.pads[1])]],
+            &mut trial,
+            &mut used,
+            None,
+            None,
+            false,
+        );
+        assert_eq!(used, cap);
+        assert_eq!(asked_to_rip, !feasible);
+        if feasible {
+            let path = result.unwrap();
+            assert_eq!(path.steps, 150);
+            assert!(!path.edges.is_empty());
+            for edge in path.edges {
+                if let PathEdge::Track { start, end, layer } = edge {
+                    assert!(engine
+                        .legal_edge_on(1, usize::from(layer), start, end)
+                        .unwrap());
+                }
+            }
+        } else {
+            assert_eq!(result.unwrap_err().status, Status::BudgetExhausted);
+        }
+    }
 }
 
 #[test]

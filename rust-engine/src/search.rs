@@ -4323,7 +4323,16 @@ fn walk_multilayer_bidirectional(
             if let Some((mu, ref rec)) = best_mu {
                 let min_f_fwd = q_fwd.peek().map_or(u64::MAX, |Reverse((f, _, _))| *f);
                 let min_f_bwd = q_bwd.peek().map_or(u64::MAX, |Reverse((f, _, _))| *f);
-                if mu <= min_f_fwd
+                // A complete connection already exists on the current copper.
+                // At the negotiated trial boundary, keep it before another
+                // expansion could trigger rip-up of an unrelated routed net.
+                let trial_finished = budget.current_limit < budget.batch_limit
+                    && (*expanded >= budget.current_limit
+                        || engine
+                            .surface_search_share
+                            .is_some_and(|share| expanded.saturating_sub(join_start) >= share));
+                if trial_finished
+                    || mu <= min_f_fwd
                     || (via_only_unpopped == 0 && mu <= min_f_bwd)
                     || surface_deadline.is_some_and(|stop| *expanded >= stop)
                 {
