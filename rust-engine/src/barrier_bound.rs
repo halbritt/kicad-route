@@ -1,6 +1,9 @@
 //! Rectilinear lower bounds from fixed layer-specific barriers. Other geometry is
 //! removed in this relaxation. No choice of barrier can exclude a physical route.
 
+mod pad_banks;
+pub(crate) use pad_banks::PadBanks;
+
 use crate::budget::WorkBudget;
 use crate::model::{Failure, Input, Point, RuleArea, Track};
 use std::collections::BTreeMap;

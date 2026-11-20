@@ -187,9 +187,14 @@ fills use the outward-rounded route radius.
 These outward-rounded boxes contain every endpoint-cap contact; each cardinal
 edge, including a shortened final edge, moves at most one grid step in one axis.
 The estimate therefore underestimates remaining unit-step cost, is consistent
-across edges, and is zero at every accepted goal. Obstacles do not enter the
-estimate. Each join computes target bounds once. Its work budget covers ring
-and compound-pad geometry, each target evaluation and each grid point examined
+across edges, and is zero at every accepted goal. Reversible multilayer search
+also bounds the cost around fixed obstacles. On a shared centerline, a bank of
+foreign surface pads can leave too little room for a track under the actual
+layer width and pair clearance. Strictly overlapping clearance intervals
+constrain the planar detour on that layer. Tangent intervals still admit a
+crossing, and each layer change remains available in the relaxation. Each join
+computes target bounds once. Its work budget covers ring and compound-pad
+geometry, each target evaluation and each grid point examined
 when building reverse seeds. Each seed retains its own grid phase, so off-grid
 incumbent endpoints are supported. For two isolated pads without a same-net
 hole-clearance constraint, equal estimated total costs favor the state with
@@ -536,8 +541,11 @@ Admission checks bound combined queue/maps before insertion, total copper before
 insertion, undo history before mutation, and frame depth before push. Collection
 capacity growth and spatial/heap comparisons are included in their
 bounded abstract action, not charged per allocator byte or comparison. `Engine::new`
-builds `pad_spatial` and `input_spatial` after `max_items` admission. Search
-maps/queue can hold stale entries only within the admitted sum. Seed and path
+builds `pad_spatial`, `input_spatial` and the fixed surface-pad rows after
+`max_items` admission. Each supported pad contributes at most two row entries.
+Each join charges the applicable rule and row visits, interval sorting and
+merging. The search maps and queue can hold stale entries only within the
+admitted sum. Seed and path
 scratch storage is additionally bounded by admitted item/search cardinalities;
 these limits are entry counts, not an exact process RSS cap.
 

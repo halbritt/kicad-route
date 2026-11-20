@@ -165,6 +165,28 @@ fn compare_oracle(
     via: u64,
     backward: bool,
 ) -> usize {
+    let legal = |k: usize, a: Point, b: Point| {
+        !solids.iter().any(|s| {
+            k == s.layer && (0..2).all(|v| a[v].min(b[v]) <= s.hi[v] && s.lo[v] <= a[v].max(b[v]))
+        })
+    };
+    finite_distances(
+        bound, stack, terminals, reach, grid, step, via, backward, legal,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn finite_distances(
+    bound: &BarrierBound,
+    stack: usize,
+    terminals: &[(usize, Point)],
+    reach: i64,
+    grid: i64,
+    step: u64,
+    via: u64,
+    backward: bool,
+    legal: impl Fn(usize, Point, Point) -> bool,
+) -> usize {
     const SIZE: usize = 15;
     let sink = stack * SIZE * SIZE;
     let mut reverse = vec![Vec::new(); sink + 1];
@@ -177,11 +199,6 @@ fn compare_oracle(
         terminals
             .iter()
             .any(|&(l, c)| l == k && (p[0] - c[0]).abs() <= reach && (p[1] - c[1]).abs() <= reach)
-    };
-    let legal = |k: usize, a: Point, b: Point| {
-        !solids.iter().any(|s| {
-            k == s.layer && (0..2).all(|v| a[v].min(b[v]) <= s.hi[v] && s.lo[v] <= a[v].max(b[v]))
-        })
     };
     let mut add = |a: usize, b: usize, c: u64| {
         reverse[b].push((a, c));
@@ -560,4 +577,246 @@ fn ordered_preparation_and_queries_stop_at_their_shared_limits() {
     assert!(many.is_active());
     assert!(many.ordered[0].is_none());
     assert!(many.estimate([0, 5], 0, &budget()).unwrap() > 50);
+}
+
+#[test]
+fn circular_pad_banks_respect_tangent_gaps_layers_and_own_net_with_exact_distances() {
+    use crate::{model::Shape, Engine};
+    let mut edges = 0;
+    for layer_count in [2, 4] {
+        let mut sample = article();
+        sample.layers = if layer_count == 2 {
+            vec!["F.Cu".into(), "B.Cu".into()]
+        } else {
+            ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+                .map(str::to_owned)
+                .to_vec()
+        };
+        let layer = layer_count - 1;
+        sample.bounds.min = [0, 0];
+        sample.bounds.max = [14, 14];
+        sample.rules.width_nm = 2;
+        sample.rules.clearance_nm = 1;
+        sample.rules.edge_clearance_nm = 0;
+        sample.pads.truncate(3);
+        let source = [1, 7];
+        let target = [13, 7];
+        for (ys, own, local, active) in [
+            ([3, 7, 11], false, 0, true),  // solid bank
+            ([2, 8, 14], false, 0, false), // exact tangency at 5 and 11
+            ([2, 8, 14], false, 1, false), // pad local field equal to current pair clearance
+            ([2, 8, 14], false, 2, true),  // tighter local pad clearance closes the slit
+            ([3, 7, 11], true, 0, false),  // own-net middle pad is a possible landing
+        ] {
+            for (i, p) in sample.pads.iter_mut().enumerate() {
+                p.net = if i == 1 && own { 1 } else { 3 };
+                p.shape = Shape::Circle { radius_nm: 1 };
+                p.at = [7, ys[i]];
+                p.layers = vec![sample.layers[layer].clone()];
+                p.local_clearance_nm = (local != 0).then_some(local);
+            }
+            for grid in [1, 2] {
+                sample.rules.grid_nm = grid;
+                let engine = Engine::new(sample.clone()).unwrap();
+                let work = budget();
+                let mut bound = BarrierBound::for_join(
+                    &sample,
+                    1,
+                    [],
+                    &sample.layers,
+                    (source, source),
+                    (target, target),
+                    1,
+                    grid,
+                    2,
+                    7,
+                    &work,
+                )
+                .unwrap();
+                engine.pad_banks.include(&engine, 1, &mut bound).unwrap();
+                assert_eq!(bound.layers[layer][0].is_some(), active);
+                assert!(bound.layers[..layer]
+                    .iter()
+                    .all(|slots| slots.iter().all(Option::is_none)));
+                // Test every integer point and shortened axial edge against
+                // disk-to-segment squared distance, with unconstrained vias.
+                let legal = |k: usize, a: Point, b: Point| {
+                    if k != layer {
+                        return true;
+                    }
+                    sample.pads.iter().filter(|p| p.net != 1).all(|p| {
+                        let dx = p.at[0] - p.at[0].clamp(a[0].min(b[0]), a[0].max(b[0]));
+                        let dy = p.at[1] - p.at[1].clamp(a[1].min(b[1]), a[1].max(b[1]));
+                        4 * (dx * dx + dy * dy) >= (2 + 2 + 2 * local.max(1)).pow(2)
+                    })
+                };
+                edges += finite_distances(
+                    &bound,
+                    layer_count,
+                    &[(layer, target)],
+                    1,
+                    grid,
+                    2,
+                    7,
+                    false,
+                    legal,
+                );
+                edges += finite_distances(
+                    &bound,
+                    layer_count,
+                    &[(layer, source)],
+                    0,
+                    grid,
+                    2,
+                    7,
+                    true,
+                    legal,
+                );
+            }
+        }
+    }
+    assert!(edges > 60_000);
+}
+
+#[test]
+fn bank_uses_admitted_layer_width_for_tangency_and_charges_the_search() {
+    use crate::model::{Shape, Status};
+    use crate::rules::{DruConstraint, DruRule, DruSeverity, EffectiveRules};
+    use crate::Engine;
+    let mut input = article();
+    input.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    input.rules.width_nm = 2;
+    input.rules.clearance_nm = 1;
+    input.pads.truncate(4);
+    for (i, pad) in input.pads.iter_mut().enumerate() {
+        pad.at = [7, if i % 2 == 0 { 3 } else { 9 }];
+        pad.net = 3;
+        pad.layers = vec![input.layers[i / 2].clone()];
+        pad.shape = Shape::Circle { radius_nm: 1 };
+    }
+    let mut rules = EffectiveRules::from_uniform_rules(input.rules, &input.nets);
+    rules.max_track_width_nm = 3;
+    rules.dru_rules.push(DruRule {
+        name: "back width".into(),
+        layer: Some("B.Cu".into()),
+        condition: None,
+        constraint: DruConstraint::TrackWidth {
+            min_nm: 3,
+            max_nm: None,
+        },
+        severity: DruSeverity::Error,
+    });
+    input.effective_rules = Some(rules);
+    let mut engine = Engine::new(input.clone()).unwrap();
+    let run = |engine: &Engine, y| {
+        let mut bound = BarrierBound::for_join(
+            &input,
+            1,
+            [],
+            &input.layers,
+            ([1, y], [1, y]),
+            ([13, y], [13, y]),
+            0,
+            1,
+            1,
+            10,
+            &budget(),
+        )?;
+        engine.pad_banks.include(engine, 1, &mut bound)?;
+        Ok::<_, Failure>(bound)
+    };
+    engine.work = budget();
+    let bound = run(&engine, 6).unwrap();
+    let used = engine.work.used();
+    // One line lookup. Each of two layer rows charges the visit, one width
+    // rule, two pad visits, two pair rules, two sort units and two union visits.
+    assert_eq!(used, 1 + 2 * (1 + 1 + 2 + 2 + 2 + 2));
+    assert!(bound.layers[0][0].is_none());
+    let back = bound.layers[1][0].unwrap();
+    assert_eq!((back.cut, back.lo, back.hi), (7, 0, 12));
+    for limit in 0..used {
+        engine.work = WorkBudget::new(Limits {
+            max_work: limit,
+            ..Limits::default()
+        });
+        assert!(matches!(run(&engine, 6),Err(e) if e.status==Status::WorkExhausted));
+    }
+    engine.work = WorkBudget::new(Limits {
+        max_search_entries: 1,
+        ..Limits::default()
+    });
+    assert!(matches!(run(&engine, 6),Err(e) if e.status==Status::AdmissionExceeded));
+
+    // An unrelated route outside the transverse envelope only visits the rows.
+    engine.work = WorkBudget::new(Limits {
+        max_work: 3,
+        max_search_entries: 0,
+        ..Limits::default()
+    });
+    assert!(!run(&engine, 15).unwrap().is_active());
+    assert_eq!(engine.work.used(), 3);
+}
+
+#[test]
+fn doubled_centerline_sections_match_swept_native_shape_predicates() {
+    use crate::model::Shape;
+    let mut pad = article().pads.remove(0);
+    pad.at = [-5, 3];
+    let shapes = [
+        Shape::Circle { radius_nm: 3 },
+        Shape::Rect {
+            half_size_nm: [2, 5],
+        },
+        Shape::RoundRect {
+            half_size_nm: [3, 5],
+            radius_nm: 2,
+        },
+        Shape::BoxExact {
+            center_2x: [-7, 2],
+            half_size_2x: [5, 3],
+            radius_2x: 2,
+        },
+        Shape::Capsule {
+            start_nm: [-8, 6],
+            end_nm: [2, 6],
+            width_nm: 5,
+        },
+        Shape::Capsule {
+            start_nm: [-3, -4],
+            end_nm: [-3, 7],
+            width_nm: 3,
+        },
+    ];
+    for shape in shapes {
+        pad.shape = shape;
+        let (center, half) = super::pad_banks::axial_extents(&pad).unwrap();
+        for axis in 0..2 {
+            if center[axis] % 2 != 0 {
+                continue;
+            }
+            let j = 1 - axis;
+            for width in 1..=4 {
+                for clearance in 0..=2 {
+                    for y in -18..=18 {
+                        let mut p = [0; 2];
+                        p[axis] = center[axis] / 2;
+                        p[j] = y;
+                        let expected = (2 * y - center[j]).abs() < half[j] + width + 2 * clearance;
+                        assert_eq!(
+                            crate::geometry::track_near_pad(p, p, width, clearance, &pad, false),
+                            expected,
+                            "{:?} cut={axis} at {p:?} width={width} clearance={clearance}",
+                            pad.shape
+                        );
+                    }
+                }
+            }
+        }
+    }
+    pad.shape = Shape::Capsule {
+        start_nm: [-3, 3],
+        end_nm: [5, 8],
+        width_nm: 3,
+    };
+    assert!(super::pad_banks::axial_extents(&pad).is_none());
 }
