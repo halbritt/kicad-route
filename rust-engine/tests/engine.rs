@@ -5234,16 +5234,24 @@ fn layer_policy_fixture(through: bool, costs: [f64; 2], net_layers: &[&str]) -> 
 
 #[test]
 fn weighted_layer_detour_respects_hard_net_limit_and_rejects_missing_names() {
-    let mut i = layer_policy_fixture(true, [1.6, 1.0], &[]);
+    let mut i = layer_policy_fixture(true, [1.25, 1.0], &[]);
+    i.bounds.max = [24_000_000, 20_000_000];
+    for (p, x) in i.pads.iter_mut().zip([2_000_000, 22_000_000]) {
+        p.at = [x, 10_000_000];
+        p.shape = Shape::Circle { radius_nm: 120_000 };
+        p.drill = Some(DrillShape::Circle {
+            diameter_nm: 80_000,
+        });
+    }
     i.rule_areas.push(RuleArea {
         id: id(10),
         name: None,
         layers: vec!["B.Cu".into()],
         outer: vec![
-            [3_900_000, 2_600_000],
-            [4_100_000, 2_600_000],
-            [4_100_000, 3_400_000],
-            [3_900_000, 3_400_000],
+            [10_500_000, 8_875_000],
+            [11_750_000, 8_875_000],
+            [11_750_000, 11_125_000],
+            [10_500_000, 11_125_000],
         ],
         holes: vec![],
         extra_polygons: vec![],
@@ -5253,7 +5261,29 @@ fn weighted_layer_detour_respects_hard_net_limit_and_rejects_missing_names() {
         no_footprints: false,
         no_zone_fills: false,
     });
+    // Vias are unavailable. The straight front route costs 80 * 1.25 ticks.
+    // The back obstacle requires five extra grid steps out and five back,
+    // giving a cheaper path of 90 ticks through the reverse A* frontier.
+    let mut no_vias = i.rule_areas[0].clone();
+    no_vias.id = id(11);
+    no_vias.layers = vec!["F.Cu".into()];
+    no_vias.no_tracks = false;
+    no_vias.outer = vec![
+        [0, 0],
+        [i.bounds.max[0], 0],
+        i.bounds.max,
+        [0, i.bounds.max[1]],
+    ];
+    i.rule_areas.push(no_vias);
     let costly = run(i.clone());
+    assert!(costly.expanded_states > 256);
+    assert!(costly.added_vias.is_empty());
+    let length: u64 = costly
+        .added_tracks
+        .iter()
+        .map(|t| t.start[0].abs_diff(t.end[0]) + t.start[1].abs_diff(t.end[1]))
+        .sum();
+    assert_eq!(length, 22_500_000);
     assert_eq!(costly.status, Status::Complete, "{:?}", costly.reason);
     assert!(costly.added_tracks.len() > 1 && costly.added_tracks.iter().all(|t| t.layer == "B.Cu"));
     let policy = i
