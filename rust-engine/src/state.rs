@@ -14,6 +14,7 @@ use std::{
 enum Undo {
     InsertedTrack(u64),
     RemovedTrack(u64, Track),
+    SplitTrack(u64, Track),
     InsertedVia(u64),
     RemovedVia(u64, Via),
 }
@@ -702,6 +703,70 @@ impl CopperStore {
         Ok(())
     }
 
+    /// An ordinary branch can leave its first short bend wholly attached to
+    /// an axial trunk's copper. KiCad needs an endpoint at that T junction.
+    pub(crate) fn split_short_branch_taps(
+        &mut self,
+        arm: &Track,
+        work: &WorkBudget,
+    ) -> Result<(), Failure> {
+        let short_offset = |axis: usize| {
+            let distance = arm.start[axis].abs_diff(arm.end[axis]);
+            distance > 0 && distance < arm.width_nm as u64
+        };
+        if !(short_offset(0) || short_offset(1)) || !self.has_generated_for_net(arm.net) {
+            return Ok(());
+        }
+        let layer = self.layer_idx(&arm.layer);
+        for (tap, far) in [(arm.start, arm.end), (arm.end, arm.start)] {
+            let mut hosts = Vec::new();
+            let _ = self.generated_spatial[layer].visit_matching(
+                SweptAabb::swept(tap, tap, 0, 0),
+                None,
+                work,
+                |&seq, &slot| {
+                    work.charge(1)?;
+                    let host = self.slots[slot as usize].as_ref().unwrap();
+                    if host.net == arm.net
+                        && host.width_nm == arm.width_nm
+                        && (0..2).any(|axis| {
+                            let along = 1 - axis;
+                            host.start[axis] == tap[axis]
+                                && host.end[axis] == tap[axis]
+                                && short_offset(axis)
+                                && host.start[along].min(host.end[along]) < tap[along]
+                                && tap[along] < host.start[along].max(host.end[along])
+                        })
+                        && crate::geometry::point_near_segment(
+                            far,
+                            host.start,
+                            host.end,
+                            2 * i128::from(host.width_nm),
+                            false,
+                        )
+                    {
+                        work.search_storage(hosts.len() + 1)?;
+                        hosts.push(seq);
+                    }
+                    Ok(ControlFlow::Continue(()))
+                },
+            )?;
+            for seq in hosts {
+                self.admit_journal(1, work)?;
+                work.charge(2 * self.generated_spatial[layer].mutation_work())?;
+                let host = self.remove_raw(seq);
+                let mut first = host.clone();
+                let mut second = host.clone();
+                first.end = tap;
+                second.start = tap;
+                self.journal.push(Undo::SplitTrack(seq, host));
+                self.add_raw(seq, first);
+                self.insert(second, work)?;
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn insert_via(&mut self, mut v: Via, work: &WorkBudget) -> Result<(), Failure> {
         self.admit_journal(1, work)?;
         if self.base_items + self.by_seq.len() + self.via_by_seq.len() >= work.limits.max_items {
@@ -778,6 +843,10 @@ impl CopperStore {
                     self.remove_raw(seq);
                 }
                 Undo::RemovedTrack(seq, t) => self.add_raw(seq, t),
+                Undo::SplitTrack(seq, original) => {
+                    self.remove_raw(seq);
+                    self.add_raw(seq, original);
+                }
                 Undo::InsertedVia(seq) => {
                     self.remove_via_raw(seq);
                 }
@@ -812,6 +881,105 @@ mod tests {
             locked: false,
             layer: "F.Cu".into(),
         }
+    }
+
+    #[test]
+    fn short_branch_splits_only_a_matching_generated_trunk_and_rolls_back_its_id() {
+        let mut trunk = dummy_track(1, 0);
+        trunk.start = [40, 100];
+        trunk.end = [40, 0];
+        trunk.width_nm = 10;
+        let mut authored = trunk.clone();
+        authored.id = "protected".into();
+        authored.locked = true;
+        authored.start[0] = 10;
+        authored.end[0] = 10;
+        let mut store = CopperStore::new_multilayer(
+            vec![authored.clone()],
+            Vec::new(),
+            vec!["F.Cu".into(), "B.Cu".into()],
+            BTreeSet::from([authored.id.clone()]),
+            &"d".repeat(64),
+            1,
+        );
+        let work = WorkBudget::new(Limits::default());
+        store.begin(&work).unwrap();
+        store.insert(trunk.clone(), &work).unwrap();
+        store.commit();
+        let original = store.generated().next().unwrap().clone();
+        let arm = Track {
+            start: [46, 56],
+            end: [40, 50],
+            ..trunk.clone()
+        };
+        for (start, end, net, layer, width_nm) in [
+            ([16, 56], [10, 50], 1, "F.Cu", 10), // authored trunk
+            ([48, 56], [42, 50], 1, "F.Cu", 10), // off centerline
+            ([50, 60], [40, 50], 1, "F.Cu", 10), // tangent end caps
+            ([40, 56], [40, 50], 1, "F.Cu", 10), // collinear
+            (arm.start, arm.end, 1, "F.Cu", 9),
+            (arm.start, arm.end, 1, "B.Cu", 10),
+            (arm.start, arm.end, 2, "F.Cu", 10),
+        ] {
+            let other = Track {
+                start,
+                end,
+                net,
+                layer: layer.into(),
+                width_nm,
+                ..arm.clone()
+            };
+            store.begin(&work).unwrap();
+            store.split_short_branch_taps(&other, &work).unwrap();
+            assert_eq!(store.generated().collect::<Vec<_>>(), [&original]);
+            assert_eq!(store.input(), [authored.clone()]);
+            store.commit();
+        }
+
+        // A rejected extra segment must leave no lasting shortening or ID gap.
+        let full = WorkBudget::new(Limits {
+            max_items: 2,
+            ..Limits::default()
+        });
+        store.begin(&full).unwrap();
+        assert_eq!(
+            store
+                .split_short_branch_taps(&arm, &full)
+                .unwrap_err()
+                .status,
+            Status::AdmissionExceeded
+        );
+        store.rollback();
+        assert_eq!(store.generated().collect::<Vec<_>>(), [&original]);
+        let mut restored_ids = Vec::new();
+        for _ in 0..2 {
+            store.begin(&work).unwrap();
+            store.split_short_branch_taps(&arm, &work).unwrap();
+            let pieces: Vec<_> = store.generated().collect();
+            assert_eq!(pieces.len(), 2);
+            assert_eq!(
+                pieces[0],
+                &Track {
+                    end: arm.end,
+                    ..original.clone()
+                }
+            );
+            assert_eq!(
+                pieces[1],
+                &Track {
+                    id: pieces[1].id.clone(),
+                    start: arm.end,
+                    ..original.clone()
+                }
+            );
+            assert_ne!(pieces[0].id, pieces[1].id);
+            restored_ids.push(pieces[1].id.clone());
+            assert!(store.removed_copper(0..store.journal_len()).is_empty());
+            store.rollback();
+            assert!(store.index_consistent());
+            assert_eq!(store.generated().collect::<Vec<_>>(), [&original]);
+        }
+        assert_eq!(restored_ids[0], restored_ids[1]);
     }
 
     #[test]
