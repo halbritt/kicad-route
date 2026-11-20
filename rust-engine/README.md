@@ -295,7 +295,10 @@ on a lattice with spacing derived from via diameter and clearance. The spacing
 is a whole number of ordinary grid steps. Short segments connect the existing
 copper to nearby lattice points. Every segment and layer change must clear
 native geometry, including hole spacing between new vias on the same path.
-The ordinary search can still use passages between lattice points.
+When a coarse frontier runs out of reachable points, the router can halve
+the number of grid steps between lattice lines, rounding up to a whole step.
+All resolutions draw from the same expansion allowance. The ordinary search
+can still use passages between lattice points.
 
 For an oblique imported track separating the terminals, the planar bound
 uses the shorter detour past either end. When the existing same-net tree

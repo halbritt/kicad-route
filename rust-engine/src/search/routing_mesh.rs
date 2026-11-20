@@ -188,7 +188,7 @@ pub(super) fn connect(
     if pitch <= grid {
         return Ok(None);
     }
-    let mesh = Mesh {
+    let mut mesh = Mesh {
         engine,
         net,
         grid: grid as u64,
@@ -197,139 +197,164 @@ pub(super) fn connect(
         history,
         occupied_entries,
     };
-    let mut goals = HashMap::<Node, (u64, Vec<PathEdge>)>::new();
-    let mut ends = Vec::new();
-    for target in targets {
-        let Some((center, layer)) = target.surface_contact(track_ok, &engine.work)? else {
-            continue;
-        };
-        let layer = layer as u8;
-        ends.push((center, layer));
-        for (node, cost, edges) in mesh.portals(center, layer)? {
-            if goals.get(&node).is_none_or(|(n, _)| cost < *n) {
-                mesh.storage(goals.len() + 1)?;
-                goals.insert(node, (cost, edges));
-            }
-        }
-    }
-    if goals.is_empty() {
-        return Ok(None);
-    }
-    let min_step = engine.layer_policy.minimum_step(net);
-    let estimate = |(p, layer): Node| -> Result<u64, Failure> {
-        engine.work.charge(ends.len() as u64)?;
-        Ok(ends
-            .iter()
-            .map(|&(q, face)| {
-                ((p[0].abs_diff(q[0]) + p[1].abs_diff(q[1])).div_ceil(grid as u64))
-                    .saturating_mul(min_step)
-                    .saturating_add(if layer == face { 0 } else { mesh.via_step })
-            })
-            .min()
-            .unwrap_or(0))
-    };
-    let mut open = BinaryHeap::new();
-    let mut costs = HashMap::new();
-    let mut roots = HashMap::new();
-    let mut parents = HashMap::new();
-    for &(p, layer, via_only) in starts {
-        engine.work.charge(1)?;
-        if via_only || !track_ok[layer as usize] {
-            continue;
-        }
-        for (node, cost, edges) in mesh.portals(p, layer)? {
-            if costs.get(&node).is_none_or(|&c| cost < c) {
-                mesh.storage(costs.len() + open.len() + roots.len() + goals.len() + 3)?;
-                open.push(Reverse((
-                    cost.saturating_add(estimate(node)?),
-                    Reverse(cost),
-                    node,
-                )));
-                costs.insert(node, cost);
-                roots.insert(node, edges);
-            }
-        }
-    }
-    // Give this search scale one net's share of the remaining trial. Closed
-    // mesh frontiers and missed off-mesh passages leave the fine search intact.
+    // A narrow channel can lie entirely between adjacent rows of the mesh.
+    // Refine only when the coarser search has finished without a connection.
+    // All pitches together get the same allowance as the original mesh search.
     let share =
         budget.current_limit.saturating_sub(*expanded) / engine.input.nets.len().max(1) as u64;
     let stop = expanded.saturating_add(share);
-    let mut best_path: Option<Path> = None;
-    while let Some(Reverse((priority, Reverse(cost), node))) = open.pop() {
-        engine.work.charge(1)?;
-        if *expanded >= stop || best_path.as_ref().is_some_and(|p| p.steps <= priority) {
-            break;
+    loop {
+        let path = mesh.search(starts, targets, track_ok, budget, expanded, frontier, stop)?;
+        if path.is_some() || *expanded >= stop || mesh.pitch == grid {
+            return Ok(path);
         }
-        if costs.get(&node) != Some(&cost) {
-            continue;
-        }
-        budget.check_before_expand(engine, *expanded, frontier)?;
-        *expanded += 1;
-        if let Some((tail_cost, tail)) = goals.get(&node) {
-            // Two neighboring mesh attachments can have different terminal
-            // lengths. Retain the complete cost before comparing open nodes.
-            if best_path
-                .as_ref()
-                .is_none_or(|p| cost.saturating_add(*tail_cost) < p.steps)
-            {
-                if let Some(path) = mesh.to_path(node, &parents, &roots, tail)? {
-                    best_path = Some(path);
-                }
-            }
-        }
-        let (at, layer) = node;
-        let mut push = |dest, edge, delta| -> Result<(), Failure> {
-            let g = cost.saturating_add(delta);
-            if costs.get(&dest).is_none_or(|&old| g < old) {
-                mesh.storage(
-                    costs.len() + open.len() + roots.len() + goals.len() + parents.len() + 3,
-                )?;
-                costs.insert(dest, g);
-                parents.insert(dest, (node, edge));
-                open.push(Reverse((
-                    g.saturating_add(estimate(dest)?),
-                    Reverse(g),
-                    dest,
-                )));
-            }
-            Ok(())
-        };
-        for (dx, dy) in [
-            (1, 0),
-            (0, 1),
-            (-1, 0),
-            (0, -1),
-            (1, 1),
-            (-1, 1),
-            (1, -1),
-            (-1, -1),
-        ] {
-            let q = [at[0] + dx * pitch, at[1] + dy * pitch];
-            if mesh.clear(at, q, layer)? {
-                push((q, layer), link(at, q, layer), mesh.steps(at, q, layer))?;
-            }
-        }
-        let last = engine.layer_count() - 1;
-        let via = PlacedViaKey {
-            at,
-            start_layer: 0,
-            end_layer: last as u8,
-            kind: 0,
-        };
-        if engine
-            .legal_via(net, at, 0, last, ViaKind::Through, &[])?
-            .is_some()
-            && unpenalized_terminal(engine, history, &[PathEdge::Via(via)])?
-        {
-            for (other, &allowed) in track_ok.iter().enumerate() {
-                if allowed && usize::from(layer) != other {
-                    push((at, other as u8), PathEdge::Via(via), mesh.via_step)?;
-                }
-            }
-        }
+        mesh.pitch = ((mesh.pitch / grid + 1) / 2) * grid;
     }
-    Ok(best_path)
+}
+
+impl Mesh<'_> {
+    #[allow(clippy::too_many_arguments)]
+    fn search(
+        &self,
+        starts: &[(Point, u8, bool)],
+        targets: &[TargetBounds<'_>],
+        track_ok: &[bool],
+        budget: &mut TrialBudget<'_>,
+        expanded: &mut u64,
+        frontier: Option<&BlockedFrontier>,
+        stop: u64,
+    ) -> Result<Option<Path>, Failure> {
+        let engine = self.engine;
+        let net = self.net;
+        let mut goals = HashMap::<Node, (u64, Vec<PathEdge>)>::new();
+        let mut ends = Vec::new();
+        for target in targets {
+            let Some((center, layer)) = target.surface_contact(track_ok, &engine.work)? else {
+                continue;
+            };
+            let layer = layer as u8;
+            ends.push((center, layer));
+            for (node, cost, edges) in self.portals(center, layer)? {
+                if goals.get(&node).is_none_or(|(n, _)| cost < *n) {
+                    self.storage(goals.len() + 1)?;
+                    goals.insert(node, (cost, edges));
+                }
+            }
+        }
+        if goals.is_empty() {
+            return Ok(None);
+        }
+        let min_step = engine.layer_policy.minimum_step(net);
+        let estimate = |(p, layer): Node| -> Result<u64, Failure> {
+            engine.work.charge(ends.len() as u64)?;
+            Ok(ends
+                .iter()
+                .map(|&(q, face)| {
+                    ((p[0].abs_diff(q[0]) + p[1].abs_diff(q[1])).div_ceil(self.grid))
+                        .saturating_mul(min_step)
+                        .saturating_add(if layer == face { 0 } else { self.via_step })
+                })
+                .min()
+                .unwrap_or(0))
+        };
+        let mut open = BinaryHeap::new();
+        let mut costs = HashMap::new();
+        let mut roots = HashMap::new();
+        let mut parents = HashMap::new();
+        for &(p, layer, via_only) in starts {
+            engine.work.charge(1)?;
+            if via_only || !track_ok[layer as usize] {
+                continue;
+            }
+            for (node, cost, edges) in self.portals(p, layer)? {
+                if costs.get(&node).is_none_or(|&c| cost < c) {
+                    self.storage(costs.len() + open.len() + roots.len() + goals.len() + 3)?;
+                    open.push(Reverse((
+                        cost.saturating_add(estimate(node)?),
+                        Reverse(cost),
+                        node,
+                    )));
+                    costs.insert(node, cost);
+                    roots.insert(node, edges);
+                }
+            }
+        }
+        let mut best_path: Option<Path> = None;
+        while let Some(Reverse((priority, Reverse(cost), node))) = open.pop() {
+            engine.work.charge(1)?;
+            if *expanded >= stop || best_path.as_ref().is_some_and(|p| p.steps <= priority) {
+                break;
+            }
+            if costs.get(&node) != Some(&cost) {
+                continue;
+            }
+            budget.check_before_expand(engine, *expanded, frontier)?;
+            *expanded += 1;
+            if let Some((tail_cost, tail)) = goals.get(&node) {
+                // Two neighboring mesh attachments can have different terminal
+                // lengths. Retain the complete cost before comparing open nodes.
+                if best_path
+                    .as_ref()
+                    .is_none_or(|p| cost.saturating_add(*tail_cost) < p.steps)
+                {
+                    if let Some(path) = self.to_path(node, &parents, &roots, tail)? {
+                        best_path = Some(path);
+                    }
+                }
+            }
+            let (at, layer) = node;
+            let mut push = |dest, edge, delta| -> Result<(), Failure> {
+                let g = cost.saturating_add(delta);
+                if costs.get(&dest).is_none_or(|&old| g < old) {
+                    self.storage(
+                        costs.len() + open.len() + roots.len() + goals.len() + parents.len() + 3,
+                    )?;
+                    costs.insert(dest, g);
+                    parents.insert(dest, (node, edge));
+                    open.push(Reverse((
+                        g.saturating_add(estimate(dest)?),
+                        Reverse(g),
+                        dest,
+                    )));
+                }
+                Ok(())
+            };
+            for (dx, dy) in [
+                (1, 0),
+                (0, 1),
+                (-1, 0),
+                (0, -1),
+                (1, 1),
+                (-1, 1),
+                (1, -1),
+                (-1, -1),
+            ] {
+                let q = [at[0] + dx * self.pitch, at[1] + dy * self.pitch];
+                if self.clear(at, q, layer)? {
+                    push((q, layer), link(at, q, layer), self.steps(at, q, layer))?;
+                }
+            }
+            let last = engine.layer_count() - 1;
+            let via = PlacedViaKey {
+                at,
+                start_layer: 0,
+                end_layer: last as u8,
+                kind: 0,
+            };
+            if engine
+                .legal_via(net, at, 0, last, ViaKind::Through, &[])?
+                .is_some()
+                && unpenalized_terminal(engine, self.history, &[PathEdge::Via(via)])?
+            {
+                for (other, &allowed) in track_ok.iter().enumerate() {
+                    if allowed && usize::from(layer) != other {
+                        push((at, other as u8), PathEdge::Via(via), self.via_step)?;
+                    }
+                }
+            }
+        }
+        Ok(best_path)
+    }
 }
 
 #[cfg(test)]
