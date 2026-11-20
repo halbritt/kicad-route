@@ -191,3 +191,48 @@ def test_opposite_surface_lands_with_a_remote_via(tmp_path, guarded_cli, reverse
     via_position = tuple(vias[0].GetPosition())
     assert sorted(t.GetLayer() for t in tracks) == sorted([launch, dest])
     assert all(via_position in (tuple(t.GetStart()), tuple(t.GetEnd())) for t in tracks)
+
+
+@pytest.mark.parametrize("transpose", [False, True])
+def test_staggered_surface_keepouts_admit_a_shortest_trunk(tmp_path, guarded_cli, transpose):
+    board = BoardBuilder(copper_layers=4, seed=805)
+    board.set_rect_outline(0, 0, 30_000_000, 30_000_000)
+    face = pcbnew.B_Cu if transpose else pcbnew.F_Cu
+    other = pcbnew.F_Cu if transpose else pcbnew.B_Cu
+
+    def pos(x, y):
+        return (y, x) if transpose else (x, y)
+
+    def pad(ref, net, x, y, layer):
+        xy = pos(x, y)
+        fp = board.add_footprint(ref, xy, side="F" if layer == pcbnew.F_Cu else "B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", net, xy, size_nm=(900_000, 900_000),
+                      shape=pcbnew.PAD_SHAPE_RECT, layers=[layer])
+
+    pad("J1", "SIG", 3_000_000, 3_000_000, face)
+    pad("J2", "SIG", 25_000_000, 15_000_000, face)
+    pad("T1", "AUX", 3_000_000, 25_000_000, other)
+    pad("T2", "AUX", 19_000_000, 25_000_000, other)
+    # Only the left-side gap connects both terminal runs.
+    for x0, y0, x1, y1 in [(0, 4_600_000, 7_400_000, 30_000_000),
+                           (8_800_000, 0, 30_000_000, 13_400_000)]:
+        ring = [pos(x0, y0), pos(x1, y0), pos(x1, y1), pos(x0, y1)]
+        board.add_keepout([face], ring, no_tracks=True, no_vias=False)
+    source = board.save(tmp_path / "input").pcb_path
+    output, op = tmp_path / "routed.kicad_pcb", tmp_path / "operation.json"
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    run([str(engine), "route-native", str(source), str(output),
+         "--operation-result", str(op), "--max-expansions", "2"])
+    routing = json.loads(op.read_bytes())["routing"]
+    assert (routing["status"], routing["expanded_states"], routing["added_via_count"]) == (
+        "complete", 2, 0)
+    drc = bridge.native_violations(output, tmp_path / "drc.json")
+    assert not drc["violations"] and not drc["unconnected_items"]
+    saved = pcbnew.LoadBoard(str(output))
+    segments = [t for t in saved.GetTracks() if t.GetNetname() == "SIG"]
+    assert segments and all(t.GetLayer() == face and t.GetWidth() == 200_000 for t in segments)
+    assert any(0 < abs(t.GetStartX() - t.GetEndX()) == abs(t.GetStartY() - t.GetEndY())
+               for t in segments)

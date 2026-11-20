@@ -5573,6 +5573,56 @@ fn octilinear_launch_matches_the_minimum_planar_cost_and_respects_blocked_elbows
         [PathEdge::Track { layer: 3, end, .. }, PathEdge::Via(via),
          PathEdge::Track { layer: 0, start, .. }] if end == start && *end == via.at
          && via.start_layer == 0 && via.end_layer == 3 && via.kind == 0));
+    // The two counter-facing track ends leave a legal trunk well to the
+    // left of the terminal midpoint. Check the transposed board as well.
+    for transpose in [false, true] {
+        let mut staggered = input.clone();
+        for (id, x, lo, hi) in [
+            (700, 7_000_000, 500_000, 8_900_000),
+            (701, 5_200_000, 5_300_000, 14_000_000),
+        ] {
+            let mut trace = track(id, 2, [x, lo], [x, hi], 300_000);
+            trace.layer = "B.Cu".into();
+            staggered.tracks.push(trace);
+        }
+        if transpose {
+            for pad in &mut staggered.pads {
+                pad.at.swap(0, 1);
+                if let Shape::Rect { half_size_nm } = &mut pad.shape {
+                    half_size_nm.swap(0, 1);
+                }
+            }
+            for track in &mut staggered.tracks {
+                track.start.swap(0, 1);
+                track.end.swap(0, 1);
+            }
+        }
+        let reference = join(staggered.clone(), false, 100_000).0.unwrap();
+        let (fast, expansions) = join(staggered.clone(), true, 1);
+        let path = fast.unwrap();
+        assert_eq!((path.steps, reference.steps, expansions), (76, 76, 1));
+        let engine = Engine::new(staggered).unwrap();
+        let mut diagonal = false;
+        let mut spans = 0;
+        for edge in &path.edges {
+            let PathEdge::Track {
+                start,
+                end,
+                layer: 3,
+            } = edge
+            else {
+                panic!("expected planar route on B.Cu");
+            };
+            assert!(engine.legal_edge_on(1, 3, *start, *end).unwrap());
+            let dx = (end[0] - start[0]).unsigned_abs();
+            let dy = (end[1] - start[1]).unsigned_abs();
+            assert!(dx == 0 || dy == 0 || dx == dy);
+            diagonal |= dx > 0 && dx == dy;
+            spans += dx.div_ceil(200_000) + dy.div_ceil(200_000);
+        }
+        assert_eq!(spans, path.steps);
+        assert!(diagonal);
+    }
     // Both final cells and pads stay clear, while this fixed trace cuts
     // both complete same-layer elbow proposals.
     let mut wall = track(
