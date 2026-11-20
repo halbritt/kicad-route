@@ -298,6 +298,94 @@ impl Join<'_> {
         }
         Ok(None)
     }
+
+    /// Try the neighboring drill centers of a legal surface escape, while its
+    /// entire source track remains clear. The opposite endpoint stays fixed.
+    fn along_drill_rays(
+        &self,
+        left: &[Access],
+        right: &[Access],
+        allowed: &[bool],
+        occupied: usize,
+        expand: &mut impl FnMut() -> Result<bool, Failure>,
+    ) -> Result<Option<Path>, Failure> {
+        #[derive(Clone, Copy)]
+        struct DrillRay {
+            terminal: super::Terminal,
+            from_left: bool,
+            hole: PlacedViaKey,
+            step: Point,
+        }
+        let engine = self.engine;
+        let storage = occupied + left.len() + right.len();
+        if storage.saturating_add(4) > engine.input.limits.max_search_entries {
+            return Ok(None);
+        }
+        engine.work.search_storage(storage)?;
+        let grid = engine.input.rules.grid_nm;
+        let mut rays = Vec::new();
+        for (start, from_left, ends) in [(self.source, true, left), (self.target, false, right)] {
+            for &end in ends {
+                if let Some(via) = end.via() {
+                    let step: Point =
+                        std::array::from_fn(|k| (via.at[k] - start.at[k]).signum() * grid);
+                    if step != [0, 0] {
+                        rays.push(DrillRay {
+                            terminal: start,
+                            from_left,
+                            hole: via,
+                            step,
+                        });
+                    }
+                }
+            }
+        }
+        while !rays.is_empty() {
+            let mut i = 0;
+            while i < rays.len() {
+                if !expand()? {
+                    return Ok(None);
+                }
+                let ray = rays[i];
+                let q = std::array::from_fn(|k| ray.hole.at[k] + ray.step[k]);
+                if !engine.legal_edge_on(self.net, ray.terminal.layer, ray.terminal.at, q)? {
+                    rays.remove(i);
+                    continue;
+                }
+                let via = PlacedViaKey { at: q, ..ray.hole };
+                rays[i].hole = via;
+                i += 1;
+                if engine
+                    .legal_via(
+                        self.net,
+                        q,
+                        0,
+                        engine.layer_count() - 1,
+                        ViaKind::Through,
+                        &[],
+                    )?
+                    .is_none()
+                {
+                    continue;
+                }
+                for &fixed in if ray.from_left { right } else { left } {
+                    if !expand()? {
+                        return Ok(None);
+                    }
+                    let shifted = Access::NewVia(via);
+                    let (a, b) = if ray.from_left {
+                        (shifted, fixed)
+                    } else {
+                        (fixed, shifted)
+                    };
+                    if let Some(p) = self.through_corridors(a, b, allowed, storage, expand)? {
+                        return Ok(Some(p));
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -340,13 +428,13 @@ pub(in crate::search) fn through_launch_corridors(
     }
     let mut share =
         budget.current_limit.saturating_sub(*expanded) / engine.input.nets.len().max(1) as u64;
-    let mut expand = || {
-        if share == 0 {
+    let mut expand = |share: &mut u64, keep: u64| {
+        if *share <= keep {
             return Ok(false);
         }
         budget.check_before_expand(engine, *expanded, frontier)?;
         *expanded += 1;
-        share -= 1;
+        *share -= 1;
         Ok(true)
     };
     // Plated pads provide a permanent contact on several layers. A seed
@@ -366,10 +454,11 @@ pub(in crate::search) fn through_launch_corridors(
             }
         }
     }
-    for &(at, face, via_only) in starts
+    for (index, &(at, face, via_only)) in starts
         .iter()
         .filter(|s| inner(s.1))
         .chain(starts.iter().filter(|s| !inner(s.1)))
+        .enumerate()
     {
         engine.work.charge(1)?;
         let layer = usize::from(face);
@@ -398,20 +487,29 @@ pub(in crate::search) fn through_launch_corridors(
             via_step: engine.layer_policy.scale(via_cost),
             history,
         };
+        let storage = occupied + faces.len() + left.len() + right.len();
         for &a in &left {
             for &b in &right {
-                if !expand()? {
+                if !expand(&mut share, 0)? {
                     return Ok(None);
                 }
-                if let Some(path) = join.through_corridors(
-                    a,
-                    b,
-                    allowed,
-                    occupied + faces.len() + left.len() + right.len(),
-                    &mut expand,
-                )? {
+                if let Some(path) =
+                    join.through_corridors(a, b, allowed, storage, &mut || expand(&mut share, 0))?
+                {
                     return Ok(Some(path));
                 }
+            }
+        }
+        // Keep the remaining starting phases eligible. Only expand a drill
+        // window when ordinary search has encountered previously laid copper.
+        if share > 0 && !left.is_empty() && frontier.is_some_and(|f| !f.probes().is_empty()) {
+            let keep = share - share.div_ceil((starts.len() - index) as u64);
+            if let Some(path) =
+                join.along_drill_rays(&left, &right, allowed, storage, &mut || {
+                    expand(&mut share, keep)
+                })?
+            {
+                return Ok(Some(path));
             }
         }
     }
@@ -420,3 +518,6 @@ pub(in crate::search) fn through_launch_corridors(
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod drill_ray_tests;

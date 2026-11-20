@@ -335,6 +335,11 @@ If the axial rays have no reachable drill, the same allowance can check the
 four 45-degree rays. A solid no-via rectangle can exclude a run of drill
 centers up to the first edge the ray exits.
 Every resulting via and the entire surface track to it must be legal.
+When previously routed copper blocks the ordinary search, a legal first
+drill may still lead into an obstructed inner-layer passage. The router can
+slide that drill farther along its clear surface track and try the passage
+again. It explores both terminals in turn and reserves search effort for
+the remaining starting positions.
 A pair of contacts on
 different faces can share one through-via. A blocked face can use a pair
 of legal through-vias and an intermediate layer. A trunk on an inner layer
