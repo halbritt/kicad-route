@@ -84,6 +84,9 @@ impl Join<'_> {
         let mut options = octilinear_elbow_paths(a, b);
         if a[0] != b[0] && a[1] != b[1] {
             options.extend([vec![a, [a[0], b[1]], b], vec![a, [b[0], a[1]], b]]);
+            if a[0].abs_diff(b[0]) != a[1].abs_diff(b[1]) {
+                options.push(vec![a, b]);
+            }
         }
         'path: for bends in options {
             expand()?;

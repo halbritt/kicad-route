@@ -1,5 +1,6 @@
 """An exact SMD diagonal can fit where a four-direction grid staircase cannot."""
 import json
+from math import hypot
 
 import pcbnew
 import pytest
@@ -334,3 +335,49 @@ def test_winding_surface_channel_without_via_access(tmp_path, guarded_cli):
     reopened = pcbnew.LoadBoard(str(saved))
     signal = [t for t in reopened.GetTracks() if t.GetNetname() == "SIG"]
     assert len(signal) >= 4 and all(t.GetLayer() == pcbnew.F_Cu for t in signal)
+
+
+@pytest.mark.parametrize("crossbar", [False, True])
+def test_oblique_surface_channel_checks_the_entire_segment(tmp_path, guarded_cli, crossbar):
+    board = BoardBuilder(copper_layers=4, seed=6253)
+    board.set_rect_outline(0, 0, 48_000_000, 36_000_000)
+    length = hypot(40, 9)
+    ux, uy = 40 / length, 9 / length
+
+    def point(along, across):
+        return (round((3.225 + along * ux - across * uy) * 1_000_000),
+                round((9.675 + along * uy + across * ux) * 1_000_000))
+
+    def block(start, end, low, high, *, via=False):
+        corners = [point(a, b) for a, b in [(start, low), (end, low), (end, high), (start, high)]]
+        board.add_keepout([pcbnew.F_Cu], corners, no_tracks=not via, no_vias=via)
+
+    for i, at in enumerate([point(0, 0), point(length, 0), (3_000_000, 32_000_000), (8_100_000, 32_000_000)]):
+        fp = board.add_footprint(f"J{i + 1}", at)
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        board.add_pad(fp, "1", "SIG" if i < 2 else "REF", at, layers=[pcbnew.F_Cu],
+                      shape=pcbnew.PAD_SHAPE_CIRCLE, size_nm=(800_000, 800_000))
+    for sign in (-1, 1):
+        block(1.15, length - 1.15, sign * .24, sign * 4)
+    block(-6, length + 6, -4, 4, via=True)
+    if crossbar:
+        block(length / 2, length / 2 + 1, -4, 4)
+    board.set_project_rules()
+    source = board.save(tmp_path / "input").pcb_path
+    initial = run_native_drc(source).raw
+    assert len(initial["unconnected_items"]) == 2 and not initial["violations"]
+    run, _ = guarded_cli
+    saved = tmp_path / "routed.kicad_pcb"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved)])
+    final = run_native_drc(saved, sidecar_source=source).raw
+    assert not final["unconnected_items"] and not final["violations"]
+    reopened = pcbnew.LoadBoard(str(saved))
+    tracks = [t for t in reopened.GetTracks() if t.GetNetname() == "SIG"]
+    assert all(not isinstance(t, pcbnew.PCB_VIA) and t.GetLayer() == pcbnew.F_Cu for t in tracks)
+    if crossbar:
+        assert len(tracks) > 1
+    else:
+        assert len(tracks) == 1
+        delta = tracks[0].GetEnd() - tracks[0].GetStart()
+        assert 0 < abs(delta.y) < abs(delta.x)
