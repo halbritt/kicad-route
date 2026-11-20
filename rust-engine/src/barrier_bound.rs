@@ -501,6 +501,16 @@ impl BarrierBound {
         Ok(lower)
     }
 
+    pub(crate) fn necessary_vias(
+        &self,
+        at: Point,
+        layer: usize,
+        terminals: u32,
+        work: &WorkBudget,
+    ) -> Result<u64, Failure> {
+        self.crossing_changes(at, layer, self.target, terminals, work)
+    }
+
     pub(crate) fn is_active(&self) -> bool {
         self.active
     }

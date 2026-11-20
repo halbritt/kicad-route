@@ -301,7 +301,12 @@ different faces can share one through-via. A blocked face can use a pair
 of legal through-vias and an intermediate layer. The ordinary frontier can
 improve on that path. The initial expansion budget divided among the
 active nets' possible pad joins determines how long the search spends
-improving an available connection. Once this allowance is spent, reverse
+improving an available connection. For a bidirectional search that has found
+a path using the minimum possible number of through-vias, refinement can
+also stop after one expansion per unit of unscaled route cost. Starting and
+target layers and complete cross-board keepouts give a lower bound on the
+number of vias. This leaves the other nets more of the shared budget.
+Once the search reaches its allowance, reverse
 terminal checks still look for cheaper connections to reached forward states
 and the current step's possible landings. Other reverse roots need no queue. Every prospective connection and track
 sweep consumes the normal expansion or work allowance. The board transaction

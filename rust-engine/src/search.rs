@@ -3970,6 +3970,39 @@ fn has_full_track_landing(
     Ok(false)
 }
 
+/// Fewest layer changes that could connect any starting contact to the target
+/// envelope, taking complete cross-board barriers in their geometric order.
+fn minimum_through_vias(
+    starts: &[(Point, u8, bool)],
+    targets: &[TargetBounds<'_>],
+    barriers: Option<&BarrierBound>,
+    work: &WorkBudget,
+) -> Result<u64, Failure> {
+    work.charge((starts.len() + targets.len()) as u64)?;
+    let target_layers = targets.iter().fold(0, |mask, t| mask | t.mask);
+    let mut minimum = u64::MAX;
+    for &(at, layer, via_only) in starts {
+        let mut lower = u64::from(via_only || target_layers & (1 << layer) == 0);
+        if let Some(bound) = barriers {
+            lower = lower.max(bound.necessary_vias(at, usize::from(layer), target_layers, work)?);
+        }
+        minimum = minimum.min(lower);
+        if minimum == 0 {
+            break;
+        }
+    }
+    Ok(minimum)
+}
+
+/// A complete connection can be improved while other nets are waiting, but
+/// the extra search should also reflect the length of this route. A short
+/// join need not spend an equal fraction of the entire board's budget.
+fn refinement_deadline(engine: &Engine, join_start: u64, cost: u64) -> Option<u64> {
+    engine
+        .surface_search_share
+        .map(|share| join_start.saturating_add(share.min(engine.layer_policy.unscale(cost).max(1))))
+}
+
 /// A legal straight path costing exactly the minimum forward A* priority
 /// certifies its own optimality. Check the ordinary final unit cell. A
 /// whole-ray interior landing can reach a later cell in the same pad.
@@ -4227,6 +4260,25 @@ fn walk_multilayer_bidirectional(
 
     let mut best_mu: Option<(u64, MeetRecord)> = None;
     let join_start = *expanded;
+    let mut minimum_vias = None;
+    let mut last_checked_cost = None;
+    let mut via_minimal = |path: &Path| -> Result<bool, Failure> {
+        let minimum = match minimum_vias {
+            Some(known) => known,
+            None => {
+                let lower = minimum_through_vias(starts, targets, barriers, &engine.work)?;
+                minimum_vias = Some(lower);
+                lower
+            }
+        };
+        engine.work.charge(path.edges.len() as u64)?;
+        let vias = path
+            .edges
+            .iter()
+            .filter(|edge| matches!(edge, PathEdge::Via(_)))
+            .count();
+        Ok(vias as u64 == minimum)
+    };
     let mut surface_deadline = None;
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
@@ -4255,11 +4307,24 @@ fn walk_multilayer_bidirectional(
             if let Some((mu, ref rec)) = best_mu {
                 let min_f_fwd = q_fwd.peek().map_or(u64::MAX, |Reverse((f, _, _))| *f);
                 let min_f_bwd = q_bwd.peek().map_or(u64::MAX, |Reverse((f, _, _))| *f);
-                if surface_deadline.is_some_and(|stop| *expanded >= stop)
-                    || mu <= min_f_fwd
+                if mu <= min_f_fwd
                     || (via_only_unpopped == 0 && mu <= min_f_bwd)
+                    || surface_deadline.is_some_and(|stop| *expanded >= stop)
                 {
                     return reconstruct_bi_path(&parent_fwd, &parent_bwd, &engine.work, rec, mu);
+                }
+                if only_through_vias
+                    && try_terminal_segments
+                    && last_checked_cost != Some(mu)
+                    && refinement_deadline(engine, join_start, mu)
+                        .is_some_and(|stop| *expanded >= stop)
+                {
+                    let path =
+                        reconstruct_bi_path(&parent_fwd, &parent_bwd, &engine.work, rec, mu)?;
+                    if via_minimal(&path)? {
+                        return Ok(path);
+                    }
+                    last_checked_cost = Some(mu);
                 }
             } else if q_fwd.is_empty()
                 || (!best_bwd.is_empty() && q_bwd.is_empty() && via_only_unpopped == 0)
@@ -4366,6 +4431,11 @@ fn walk_multilayer_bidirectional(
                         surface_deadline = engine
                             .surface_search_share
                             .map(|share| join_start.saturating_add(share));
+                        if let Some((cost, MeetRecord::Surface(path))) = &best_mu {
+                            if via_minimal(path)? {
+                                surface_deadline = refinement_deadline(engine, join_start, *cost);
+                            }
+                        }
                     }
                 }
                 engine.work.charge(targets.len() as u64)?;

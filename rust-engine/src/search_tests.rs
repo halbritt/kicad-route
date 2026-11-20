@@ -5757,3 +5757,40 @@ fn reverse_seeds_include_clipped_landings_and_in_place_layer_changes_on_the_last
         }
     }
 }
+
+#[test]
+fn necessary_vias_considers_every_start_and_every_target_layer() {
+    let mut input: Input = serde_json::from_str(include_str!(
+        "../tests/fixtures/multiterminal-native-two-nets.json"
+    ))
+    .unwrap();
+    input.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+        .map(str::to_owned)
+        .to_vec();
+    input.pads[0].layers = vec!["B.Cu".into()];
+    input.pads[1].layers = vec!["In2.Cu".into()];
+    input.tracks.clear();
+    let engine = Engine::new(input).unwrap();
+    let targets: Vec<_> = engine.input.pads[..2]
+        .iter()
+        .map(|pad| {
+            TargetBounds::new(Copper::Pad(pad), engine.all_layers_slice(), &engine.work).unwrap()
+        })
+        .collect();
+    let p = [10_000_000, 10_000_000];
+    let first = [(p, 0, false), (p, 2, false)];
+    for starts in [first, [first[1], first[0]]] {
+        assert_eq!(
+            minimum_through_vias(&starts, &targets[..1], None, &engine.work).unwrap(),
+            1
+        );
+        assert_eq!(
+            minimum_through_vias(&starts, &targets, None, &engine.work).unwrap(),
+            0
+        );
+    }
+    assert_eq!(
+        minimum_through_vias(&[(p, 3, true)], &targets, None, &engine.work).unwrap(),
+        1
+    );
+}

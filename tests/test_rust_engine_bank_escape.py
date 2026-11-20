@@ -286,3 +286,55 @@ def test_shielded_contacts_reach_drill_windows_between_geometric_samples(tmp_pat
         assert abs(vx - x) < pcbnew.FromMM(.55) and abs(vy - y) < pcbnew.FromMM(.65)
     verified = run_native_drc(saved, sidecar_source=source).raw
     assert not verified["unconnected_items"] and not verified["violations"]
+
+
+def test_eight_backplane_channels_share_the_board_search_budget(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=9831)
+
+    def point(x, y):
+        return round(x * 1_000_000), round(y * 1_000_000)
+
+    def barrier(layers, x, y, right, top):
+        ring = [point(x, y), point(right, y), point(right, top), point(x, top)]
+        board.add_keepout(layers, ring, no_tracks=True, no_vias=False)
+
+    board.set_rect_outline(0, 0, *point(68, 44))
+    channels = range(8)
+    for index in channels:
+        y = 4.5 + index * 5
+        for ref, at, side in [("A", point(3.35, y), "F"),
+                              ("B", point(64.65, y + .25), "B" if index % 2 else "F")]:
+            fp = board.add_footprint(f"{ref}{index + 1}", at, side=side)
+            fp.Reference().SetVisible(False)
+            fp.Value().SetVisible(False)
+            board.add_pad(fp, "1", f"BUS{index}", at, size_nm=point(.85, .65),
+                          shape=pcbnew.PAD_SHAPE_RECT,
+                          layers=[pcbnew.F_Cu if side == "F" else pcbnew.B_Cu])
+    barrier([pcbnew.F_Cu, pcbnew.B_Cu], 12, -1, 56, 45)
+    inner = [pcbnew.In1_Cu, pcbnew.In2_Cu]
+    for x, offset in [(17, 1.55), (29, -1.55), (40, 1.45), (51, -1.45)]:
+        bottom = -1
+        for index in channels:
+            center = 4.5 + index * 5 + offset
+            barrier(inner, x, bottom, x + .85, center - .65)
+            bottom = center + .65
+        barrier(inner, x, bottom, x + .85, 45)
+    board.set_project_rules()
+    source = board.save(tmp_path / "source").pcb_path
+    before = run_native_drc(source).raw
+    assert len(before["unconnected_items"]) == 8 and not before["violations"]
+
+    run, _ = guarded_cli
+    saved, op = tmp_path / "routed.kicad_pcb", tmp_path / "route.json"
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(saved),
+         "--operation-result", str(op)])
+    routing = json.loads(op.read_bytes())["routing"]
+    assert routing["status"] == "complete" and 0 < routing["expanded_states"] <= 100_000
+    after = run_native_drc(saved, sidecar_source=source).raw
+    assert not after["unconnected_items"] and not after["violations"]
+    reopened = pcbnew.LoadBoard(str(saved))
+    pieces = list(reopened.GetTracks())
+    for index in channels:
+        net = [p for p in pieces if p.GetNetname() == f"BUS{index}"]
+        assert sum(isinstance(p, pcbnew.PCB_VIA) for p in net) == 2
+        assert any(p.GetLayer() in inner for p in net)
