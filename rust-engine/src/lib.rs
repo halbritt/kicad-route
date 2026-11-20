@@ -1,5 +1,6 @@
 pub mod identity;
 pub use identity::{input_request_sha256, request_sha256};
+mod barrier_bound;
 mod budget;
 mod bus;
 mod components;

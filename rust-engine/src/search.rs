@@ -1,6 +1,7 @@
 mod octilinear_exit;
 mod pad_field;
 
+use crate::barrier_bound::BarrierBound;
 use crate::budget::WorkBudget;
 use crate::components::{span_mask, Copper};
 use crate::geometry;
@@ -1116,14 +1117,53 @@ fn search_component_path(
     };
 
     let minimum_step = engine.layer_policy.minimum_step(net);
+    let reversible = l_count >= 2
+        && engine.input.rules.same_net_hole_clearance_nm == 0
+        && !track_via_count
+        && !has_zone_target
+        && goal_bounds.len() <= 8;
+    let barriers = if reversible
+        && (engine.copper.tracks().next().is_some() || !engine.input.rule_areas.is_empty())
+    {
+        engine
+            .work
+            .charge((start_vec.len() + goal_bounds.len()) as u64)?;
+        let union = |(lo, hi): (Point, Point), (a, b): (Point, Point)| {
+            (
+                std::array::from_fn(|k| lo[k].min(a[k])),
+                std::array::from_fn(|k| hi[k].max(b[k])),
+            )
+        };
+        let source_box = start_vec
+            .iter()
+            .map(|&(p, _, _)| (p, p))
+            .reduce(union)
+            .expect("nonempty source seeds");
+        let target_box = goal_bounds
+            .iter()
+            .map(|b| (b.lo, b.hi))
+            .reduce(union)
+            .expect("nonempty join targets");
+        let candidate = BarrierBound::for_join(
+            &engine.input,
+            net,
+            engine.copper.tracks(),
+            stackup,
+            source_box,
+            target_box,
+            (max_eff_width + 1) / 2,
+            engine.input.rules.grid_nm,
+            minimum_step,
+            engine.layer_policy.scale(via_cost),
+            &engine.work,
+        )?;
+        candidate.is_active().then_some(candidate)
+    } else {
+        None
+    };
     loop {
-        let use_bidirectional = l_count >= 2
-            && engine.input.rules.same_net_hole_clearance_nm == 0
-            && conflict_filter.zones.is_empty()
-            && track_via_conflicts.is_empty()
-            && !track_via_count
-            && !has_zone_target
-            && targets.iter().flatten().count() <= 8;
+        let use_bidirectional =
+            reversible && conflict_filter.zones.is_empty() && track_via_conflicts.is_empty();
         let h_fwd_fn = |p, layer_idx| {
             let h_comp = component_estimate_multilayer(
                 p,
@@ -1142,6 +1182,10 @@ fn search_component_path(
             if h_comp == 0 {
                 return Ok(0);
             }
+            let h_comp = match barriers.as_ref().filter(|_| use_bidirectional) {
+                Some(bounds) => h_comp.max(bounds.estimate(p, layer_idx, &engine.work)?),
+                None => h_comp,
+            };
             if let Some((_, ref bwd)) = backward_h {
                 let h_bwd = bwd
                     .dist
@@ -1445,6 +1489,7 @@ fn search_component_path(
                 net,
                 &start_vec,
                 &goal_bounds,
+                barriers.as_ref(),
                 max_eff_width,
                 &layer_target_union,
                 via_cost,
@@ -3331,12 +3376,13 @@ struct SourcePhase {
     boxes: BTreeMap<u8, (Point, Point)>,
 }
 
-struct ReverseSources {
+struct ReverseSources<'a> {
+    barriers: Option<&'a BarrierBound>,
     grid: i64,
     phases: BTreeMap<Point, SourcePhase>,
 }
 
-impl ReverseSources {
+impl<'a> ReverseSources<'a> {
     fn new(starts: &[(Point, u8, bool)], grid: i64, work: &WorkBudget) -> Result<Self, Failure> {
         let mut phases = BTreeMap::<Point, SourcePhase>::new();
         let mut entries = starts.len();
@@ -3364,7 +3410,11 @@ impl ReverseSources {
                 }
             }
         }
-        Ok(Self { grid, phases })
+        Ok(Self {
+            grid,
+            phases,
+            barriers: None,
+        })
     }
 
     fn estimate(
@@ -3398,7 +3448,11 @@ impl ReverseSources {
                 })
                 .min()
         };
-        Ok(best.expect("a reverse phase has at least one forward start"))
+        let direct = best.expect("a reverse phase has at least one forward start");
+        match self.barriers {
+            Some(bounds) => Ok(direct.max(bounds.estimate_reverse(at, layer as usize, work)?)),
+            None => Ok(direct),
+        }
     }
 }
 
@@ -3878,6 +3932,7 @@ fn walk_multilayer_bidirectional(
     net: u32,
     starts: &[(Point, u8, bool)],
     targets: &[TargetBounds<'_>],
+    barriers: Option<&BarrierBound>,
     max_eff_width: i64,
     layer_target_bounds: &[Option<(Point, Point)>],
     via_cost: u64,
@@ -4063,6 +4118,7 @@ fn walk_multilayer_bidirectional(
             if local_exp == 256 && reverse_sources.is_none() {
                 let sources =
                     reverse_sources.insert(ReverseSources::new(starts, grid, &engine.work)?);
+                sources.barriers = barriers;
                 seed_backward_a_star(
                     engine,
                     net,
