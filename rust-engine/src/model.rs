@@ -402,6 +402,32 @@ pub(crate) struct PadGeometry<'a> {
 }
 
 impl Pad {
+    /// For these shapes both center cuts span the full copper width or height.
+    /// Rotated capsules, unions and arbitrary polygon vertices can have a
+    /// smaller axial section than their bounding boxes and are excluded.
+    pub(crate) fn axial_extents_2x(&self) -> Option<([i64; 2], [i64; 2])> {
+        match &self.shape {
+            Shape::Circle { radius_nm } => Some((self.at.map(|x| 2 * x), [2 * radius_nm; 2])),
+            Shape::Rect { half_size_nm } | Shape::RoundRect { half_size_nm, .. } => {
+                Some((self.at.map(|x| 2 * x), half_size_nm.map(|x| 2 * x)))
+            }
+            Shape::BoxExact {
+                center_2x,
+                half_size_2x,
+                ..
+            } => Some((*center_2x, *half_size_2x)),
+            Shape::Capsule {
+                start_nm: a,
+                end_nm: b,
+                width_nm,
+            } if a[0] == b[0] || a[1] == b[1] => Some((
+                std::array::from_fn(|k| a[k] + b[k]),
+                std::array::from_fn(|k| (a[k] - b[k]).abs() + width_nm),
+            )),
+            _ => None,
+        }
+    }
+
     pub(crate) fn geometry(&self) -> PadGeometry<'_> {
         PadGeometry {
             at: self.at,

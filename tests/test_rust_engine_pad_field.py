@@ -223,3 +223,29 @@ def test_offset_surface_pads_cross_a_keepout_on_an_internal_layer(tmp_path, guar
     assert any(abs(t.GetEndX() - t.GetStartX()) == abs(t.GetEndY() - t.GetStartY()) > 0 for t in traces)
     drc = run_native_drc(output, sidecar_source=source).raw
     assert not drc["violations"] and not drc["unconnected_items"]
+
+
+def test_long_surface_land_can_launch_from_its_far_end(tmp_path, guarded_cli):
+    board = BoardBuilder(copper_layers=4, seed=7008)
+    board.set_rect_outline(0, 0, 30_000_000, 30_000_000)
+    for ref, net, face, at, size in [
+        ("J1", "BUS", pcbnew.F_Cu, (7_000_000, 11_000_000), (7_000_000, 1_000_000)),
+        ("J2", "BUS", pcbnew.F_Cu, (20_000_000, 14_000_000), (650_000, 750_000)),
+        ("T1", "REF", pcbnew.B_Cu, (2_000_000, 24_000_000), (1_000_000, 1_000_000)),
+        ("T2", "REF", pcbnew.B_Cu, (19_000_000, 24_000_000), (1_000_000, 1_000_000)),
+    ]:
+        fp = board.add_footprint(ref, at, side="F" if face == pcbnew.F_Cu else "B")
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        shape = pcbnew.PAD_SHAPE_RECT if net == "BUS" else pcbnew.PAD_SHAPE_CIRCLE
+        board.add_pad(fp, "1", net, at, size_nm=size, shape=shape, layers=[face])
+    source = board.save(tmp_path / "input").pcb_path
+    output = tmp_path / "output.kicad_pcb"
+    run, _ = guarded_cli
+    run([str(_built_rust_engine(run)), "route-native", str(source), str(output)])
+    saved = pcbnew.LoadBoard(str(output))
+    copper = [t for t in saved.GetTracks() if t.GetNetname() == "BUS"]
+    assert copper and all(not isinstance(t, pcbnew.PCB_VIA) for t in copper)
+    assert min(min(t.GetStartX(), t.GetEndX()) for t in copper) == 10_000_000
+    drc = run_native_drc(output, sidecar_source=source).raw
+    assert not drc["unconnected_items"] and not drc["violations"]

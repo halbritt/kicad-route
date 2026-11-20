@@ -885,7 +885,7 @@ fn doubled_centerline_sections_match_swept_native_shape_predicates() {
     ];
     for shape in shapes {
         pad.shape = shape;
-        let (center, half) = super::pad_banks::axial_extents(&pad).unwrap();
+        let (center, half) = pad.axial_extents_2x().unwrap();
         for axis in 0..2 {
             if center[axis] % 2 != 0 {
                 continue;
@@ -914,7 +914,7 @@ fn doubled_centerline_sections_match_swept_native_shape_predicates() {
         end_nm: [5, 8],
         width_nm: 3,
     };
-    assert!(super::pad_banks::axial_extents(&pad).is_none());
+    assert!(pad.axial_extents_2x().is_none());
 }
 
 #[test]
