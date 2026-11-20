@@ -3593,12 +3593,23 @@ fn reconstruct_bi_path(
     })
 }
 
+/// The pending forward state can change layer at its current point or land
+/// anywhere along one axial grid edge, including a clipped pad contact.
+fn final_step_can_reach(from: Point, from_layer: u8, at: Point, layer: u8, grid: i64) -> bool {
+    at == from
+        || (layer == from_layer
+            && (0..2).any(|axis| {
+                at[1 - axis] == from[1 - axis] && at[axis].abs_diff(from[axis]) <= grid as u64
+            }))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn seed_backward_a_star(
     engine: &Engine,
     net: u32,
     sources: &ReverseSources,
     targets: &[TargetBounds<'_>],
+    last_forward_state: Option<State>,
     max_eff_width: i64,
     via_cost: u64,
     only_through_vias: bool,
@@ -3633,6 +3644,25 @@ fn seed_backward_a_star(
 
     let min_step = engine.layer_policy.minimum_step(net);
     let via_bound = engine.layer_policy.scale(via_cost);
+    // With a complete route past this join's share, the caller finishes only
+    // the current forward expansion before returning the best meeting. Every
+    // other reverse root would be queued and discarded without being popped.
+    let can_meet = |at: Point, layer: u8| -> Result<bool, Failure> {
+        let Some(last) = last_forward_state else {
+            return Ok(true);
+        };
+        engine.work.charge(1)?;
+        if final_step_can_reach(last.at, last.layer, at, layer, grid) {
+            return Ok(true);
+        }
+        Ok([false, true].into_iter().any(|arrived_by_via| {
+            best_fwd_meet.contains_key(&BiKey {
+                at,
+                layer,
+                arrived_by_via,
+            })
+        }))
+    };
     let mut record_seed = |bkey: BiKey, g_seed: u64, step: BwdStep| -> Result<(), Failure> {
         if best_bwd.get(&bkey).is_some_and(|&old| old <= g_seed) {
             return Ok(());
@@ -3646,20 +3676,22 @@ fn seed_backward_a_star(
         engine.work.charge(1)?;
         best_bwd.insert(bkey, g_seed);
         parent_bwd.insert(bkey, step);
-        let h = sources.estimate(bkey.at, bkey.layer, min_step, via_bound, &engine.work)?;
-        let (a, b) = match step.edge {
-            PathEdge::Track { start, end, .. } => (start, end),
-            PathEdge::Via(v) => (v.at, v.at),
-        };
-        q_bwd.push(Reverse((
-            g_seed.checked_add(h).expect("bounded bwd heuristic"),
-            TieG {
-                g: g_seed,
-                lane_rank: engine.bus_lane_rank(net, a, b)?,
-                prefer_higher: prefer_higher_g,
-            },
-            bkey,
-        )));
+        if last_forward_state.is_none() {
+            let h = sources.estimate(bkey.at, bkey.layer, min_step, via_bound, &engine.work)?;
+            let (a, b) = match step.edge {
+                PathEdge::Track { start, end, .. } => (start, end),
+                PathEdge::Via(v) => (v.at, v.at),
+            };
+            q_bwd.push(Reverse((
+                g_seed.checked_add(h).expect("bounded bwd heuristic"),
+                TieG {
+                    g: g_seed,
+                    lane_rank: engine.bus_lane_rank(net, a, b)?,
+                    prefer_higher: prefer_higher_g,
+                },
+                bkey,
+            )));
+        }
         for fwd_via in [false, true] {
             if only_through_vias && fwd_via && bkey.arrived_by_via {
                 continue;
@@ -3707,7 +3739,10 @@ fn seed_backward_a_star(
                     let p = [x, y];
                     if target.contact_steps(p, max_eff_width, grid) <= 1 {
                         for l_idx in 0..l_count {
-                            if (t_mask & (1u32 << l_idx)) != 0 && track_ok_on_layer[l_idx] {
+                            if (t_mask & (1u32 << l_idx)) != 0
+                                && track_ok_on_layer[l_idx]
+                                && can_meet(p, l_idx as u8)?
+                            {
                                 for delta in [[grid, 0], [0, grid], [-grid, 0], [0, -grid]] {
                                     engine.work.charge(1)?;
                                     let Some(qx) = p[0].checked_add(delta[0]) else {
@@ -3750,6 +3785,9 @@ fn seed_backward_a_star(
                         }
                         if l_count >= 2 {
                             for l_from in 0..l_count {
+                                if !can_meet(p, l_from as u8)? {
+                                    continue;
+                                }
                                 via_buf.clear();
                                 blocked_buf.clear();
                                 let cache_key =
@@ -4335,6 +4373,9 @@ fn walk_multilayer_bidirectional(
                     net,
                     sources,
                     targets,
+                    surface_deadline
+                        .filter(|&stop| *expanded >= stop)
+                        .map(|_| state),
                     max_eff_width,
                     via_cost,
                     only_through_vias,

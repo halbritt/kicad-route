@@ -290,7 +290,9 @@ different faces can share one through-via. A blocked face can use a pair
 of legal through-vias and an intermediate layer. The ordinary frontier can
 improve on that path. The initial expansion budget divided among the
 active nets' possible pad joins determines how long the search spends
-improving an available connection. Every prospective connection and track
+improving an available connection. Once this allowance is spent, reverse
+terminal checks still look for cheaper connections to reached forward states
+and the current step's possible landings. Other reverse roots need no queue. Every prospective connection and track
 sweep consumes the normal expansion or work allowance. The board transaction
 still requires full connectivity.
 

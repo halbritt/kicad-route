@@ -5735,3 +5735,25 @@ fn octilinear_launch_matches_the_minimum_planar_cost_and_respects_blocked_elbows
     assert_eq!(blocked.unwrap_err().status, Status::BudgetExhausted);
     assert_eq!(expanded, 1);
 }
+
+#[test]
+fn reverse_seeds_include_clipped_landings_and_in_place_layer_changes_on_the_last_step() {
+    let start = [15, 21];
+    let grid: i64 = 10;
+    for dx in -12i64..=12 {
+        for dy in -12i64..=12 {
+            let point = [start[0] + dx, start[1] + dy];
+            let planar = [[grid, 0], [-grid, 0], [0, grid], [0, -grid]]
+                .iter()
+                .any(|[x, y]| {
+                    (0..=grid).any(|step| [dx, dy] == [x.signum() * step, y.signum() * step])
+                });
+            for target_layer in 0..4 {
+                assert_eq!(
+                    super::final_step_can_reach(start, 1, point, target_layer, grid),
+                    (target_layer == 1 && planar) || point == start
+                );
+            }
+        }
+    }
+}
