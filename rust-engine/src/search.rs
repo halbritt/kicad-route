@@ -4,6 +4,8 @@ mod monotone_trunk;
 mod octilinear_exit;
 mod octilinear_terminal;
 mod pad_field;
+mod reverse_sources;
+use reverse_sources::ReverseSources;
 
 use crate::barrier_bound::BarrierBound;
 use crate::budget::WorkBudget;
@@ -3347,106 +3349,6 @@ enum MeetRecord {
     Joined { fwd_key: BiKey, bwd_key: BiKey },
 }
 
-// A reverse step moves exactly one grid unit or changes layer at the same
-// point. It can reach only starts with the same pair of coordinate residues.
-// Keep that subgraph's bound separate even when another branch is nearby.
-#[derive(Default)]
-struct SourcePhase {
-    starts: Vec<(Point, u8)>,
-    boxes: BTreeMap<u8, ([i64; 4], [i64; 4])>,
-}
-
-// The routing input bounds each coordinate to 100,000,000 nm. Each cardinal
-// step changes either diagonal projection by at most one grid pitch.
-fn source_projections([x, y]: Point) -> [i64; 4] {
-    [x, y, x + y, x - y]
-}
-
-struct ReverseSources<'a> {
-    barriers: Option<&'a BarrierBound>,
-    grid: i64,
-    phases: BTreeMap<Point, SourcePhase>,
-}
-
-impl<'a> ReverseSources<'a> {
-    fn new(starts: &[(Point, u8, bool)], grid: i64, work: &WorkBudget) -> Result<Self, Failure> {
-        let mut phases = BTreeMap::<Point, SourcePhase>::new();
-        let mut entries = starts.len();
-        work.charge(entries as u64)?;
-        work.search_storage(entries)?;
-        for &(point, layer, _) in starts {
-            let phase = point.map(|n| n.rem_euclid(grid));
-            if !phases.contains_key(&phase) {
-                entries += 1;
-                work.search_storage(entries)?;
-            }
-            phases.entry(phase).or_default().starts.push((point, layer));
-        }
-        for source in phases.values_mut().filter(|p| p.starts.len() > 16) {
-            work.charge(2 * source.starts.len() as u64)?;
-            for &(at, layer) in &source.starts {
-                if !source.boxes.contains_key(&layer) {
-                    entries += 1;
-                    work.search_storage(entries)?;
-                }
-                let p = source_projections(at);
-                let (lo, hi) = source.boxes.entry(layer).or_insert((p, p));
-                for k in 0..4 {
-                    lo[k] = lo[k].min(p[k]);
-                    hi[k] = hi[k].max(p[k]);
-                }
-            }
-        }
-        Ok(Self {
-            grid,
-            phases,
-            barriers: None,
-        })
-    }
-
-    fn estimate(
-        &self,
-        at: Point,
-        layer: u8,
-        min_step: u64,
-        via_cost: u64,
-        work: &WorkBudget,
-    ) -> Result<u64, Failure> {
-        let phase = at.map(|n| n.rem_euclid(self.grid));
-        let source = &self.phases[&phase];
-        let steps = |p: Point, source_layer: u8| {
-            let distance =
-                at[0].abs_diff(p[0]) / self.grid as u64 + at[1].abs_diff(p[1]) / self.grid as u64;
-            distance
-                .saturating_mul(min_step)
-                .saturating_add(if layer == source_layer { 0 } else { via_cost })
-        };
-        let best = if source.boxes.is_empty() {
-            work.charge(source.starts.len() as u64)?;
-            source.starts.iter().map(|&(p, l)| steps(p, l)).min()
-        } else {
-            work.charge(2 * source.boxes.len() as u64)?;
-            let p = source_projections(at);
-            source
-                .boxes
-                .iter()
-                .map(|(&l, &(lo, hi))| {
-                    let gap = |k: usize| p[k].abs_diff(p[k].clamp(lo[k], hi[k]));
-                    let planar_nm = (gap(0) + gap(1)).max(gap(2)).max(gap(3));
-                    (planar_nm / self.grid as u64)
-                        .saturating_mul(min_step)
-                        .saturating_add(if layer == l { 0 } else { via_cost })
-                })
-                .min()
-        };
-        let direct = best.expect("a reverse phase has at least one forward start");
-        match self.barriers {
-            Some(bounds) => Ok(direct.max(bounds.estimate_reverse(at, layer as usize, work)?)),
-            None => Ok(direct),
-        }
-    }
-}
-
 fn reconstruct_bi_path(
     parent_fwd: &HashMap<State, (State, PathEdge)>,
     parent_bwd: &HashMap<BiKey, BwdStep>,
@@ -4211,8 +4113,18 @@ fn walk_multilayer_bidirectional(
             *expanded = expanded.checked_add(1).expect("bounded expansion count");
             local_exp += 1;
             if local_exp == 256 && reverse_sources.is_none() {
-                let sources =
-                    reverse_sources.insert(ReverseSources::new(starts, grid, &engine.work)?);
+                engine.work.charge(targets.len() as u64)?;
+                engine.work.search_storage(targets.len())?;
+                let goals: Vec<Point> = targets
+                    .iter()
+                    .map(|t| std::array::from_fn(|k| t.lo[k].midpoint(t.hi[k])))
+                    .collect();
+                let sources = reverse_sources.insert(ReverseSources::new(
+                    starts,
+                    grid,
+                    &engine.work,
+                    &goals,
+                )?);
                 sources.barriers = barriers;
                 seed_backward_a_star(
                     engine,
