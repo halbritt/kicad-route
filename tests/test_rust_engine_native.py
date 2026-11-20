@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from unittest.mock import patch
 import uuid
 
 import pcbnew
@@ -16,7 +17,9 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('rust_engine_kicad', ROOT / 'tools/rust_engine_kicad.py')
 bridge = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(bridge)
+# Later native CLI checks use this same source directory for the bridge.
+with patch.object(sys, 'dont_write_bytecode', True):
+    SPEC.loader.exec_module(bridge)
 RULES = {'width_nm': 250000, 'clearance_nm': 1000000,
          'grid_nm': 250000, 'edge_clearance_nm': 500000}
 
