@@ -15,6 +15,7 @@ pub(super) fn from_state(
     state: State,
     remaining: u64,
     targets: &[TargetBounds<'_>],
+    source: bool,
     through_cost: Option<u64>,
     finished: &impl Fn(crate::model::Point, usize, Option<PathEdge>) -> Result<bool, Failure>,
 ) -> Result<Option<Path>, Failure> {
@@ -152,6 +153,36 @@ pub(super) fn from_state(
                         edges,
                         steps: remaining,
                     }));
+                }
+            }
+            if source && layer == end_layer {
+                for axis in 0..2 {
+                    let mut elbow = b;
+                    elbow[axis] = a[axis];
+                    let Some(end) =
+                        interior_landing(engine, pad, target, geometry_work, elbow, b, grid)?
+                    else {
+                        continue;
+                    };
+                    if let Some(points) =
+                        super::monotone_trunk::between(engine, net, layer, a, b, end, axis)?
+                    {
+                        let edges: Vec<_> = points
+                            .windows(2)
+                            .map(|p| PathEdge::Track {
+                                start: p[0],
+                                end: p[1],
+                                layer: state.layer,
+                            })
+                            .collect();
+                        if finished(end, layer, edges.last().copied())? {
+                            return Ok(Some(Path {
+                                points,
+                                edges,
+                                steps: remaining,
+                            }));
+                        }
+                    }
                 }
             }
         }

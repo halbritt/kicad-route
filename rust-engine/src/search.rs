@@ -1,3 +1,4 @@
+mod monotone_trunk;
 mod octilinear_exit;
 mod octilinear_terminal;
 mod pad_field;
@@ -4391,6 +4392,7 @@ fn walk_multilayer_bidirectional(
                             state,
                             priority - cost,
                             targets,
+                            previous.is_none(),
                             (previous.is_none() && only_through_vias).then_some(via_cost),
                             &finished,
                         )? {
