@@ -238,8 +238,8 @@ def test_staggered_surface_keepouts_admit_a_shortest_trunk(tmp_path, guarded_cli
                for t in segments)
 
 
-@pytest.mark.parametrize("bridge_width", [0, 3_000_000])
-def test_two_diagonal_pad_exits_meet_in_a_surface_channel(tmp_path, guarded_cli, bridge_width):
+@pytest.mark.parametrize("bridge_width,blocked", [(0, False), (3_000_000, False), (3_000_000, True)])
+def test_two_diagonal_pad_exits_meet_in_a_surface_channel(tmp_path, guarded_cli, bridge_width, blocked):
     board = BoardBuilder(copper_layers=4, seed=40757)
     side = 20_000_000
     board.set_rect_outline(0, 0, side, side)
@@ -258,6 +258,11 @@ def test_two_diagonal_pad_exits_meet_in_a_surface_channel(tmp_path, guarded_cli,
     for off, outer_y in [(159_000, side), (-159_000, -side)]:
         wall = [(x, y + off) for x, y in center] + [(side, outer_y), (0, outer_y)]
         board.add_keepout([pcbnew.F_Cu], wall, no_tracks=True, no_vias=True)
+    if blocked:
+        # Both diagonal departures fit. Only the middle copper is obstructed.
+        x = corner[0] + bridge_width // 2
+        board.add_keepout([pcbnew.F_Cu], [(x, -1), (x + 100_000, -1),
+                                         (x + 100_000, side + 1), (x, side + 1)])
     stack = [pcbnew.F_Cu, pcbnew.In1_Cu, pcbnew.In2_Cu, pcbnew.B_Cu]
     board.add_keepout(stack, [(-1, -1), (side + 1, -1), (side + 1, side + 1), (-1, side + 1)],
                       no_tracks=False, no_vias=True)
@@ -266,7 +271,15 @@ def test_two_diagonal_pad_exits_meet_in_a_surface_channel(tmp_path, guarded_cli,
     assert len(before["unconnected_items"]) == 1 and not before["violations"]
     output = tmp_path / "routed.kicad_pcb"
     run, _ = guarded_cli
-    run([str(_built_rust_engine(run)), "route-native", str(source), str(output)])
+    operation = tmp_path / "operation.json"
+    proc = run([str(_built_rust_engine(run)), "route-native", str(source), str(output),
+                "--operation-result", str(operation)], check=False)
+    report = json.loads(operation.read_bytes())
+    if blocked:
+        assert (proc.returncode, report["status"]) == (3, "unroutable")
+        assert not report["publication"]["published"] and not output.exists()
+        return
+    assert (proc.returncode, report["status"]) == (0, "complete")
     saved = pcbnew.LoadBoard(str(output))
     tracks = list(saved.GetTracks())
     assert len(tracks) == 2 + bool(bridge_width)
