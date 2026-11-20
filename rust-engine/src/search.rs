@@ -1,4 +1,5 @@
 mod octilinear_exit;
+mod octilinear_terminal;
 mod pad_field;
 
 use crate::barrier_bound::BarrierBound;
@@ -4161,7 +4162,7 @@ fn walk_multilayer_bidirectional(
     let mut via_buf: Vec<(u8, PlacedViaKey, u64)> = Vec::new();
     let mut blocked_via_spans: Vec<(u8, u8, bool)> = Vec::new();
     let mut local_exp = 0u64;
-    let try_straight = batch_search
+    let try_terminal_segments = batch_search
         && history.is_none_or(|h| h.is_empty())
         && engine
             .input
@@ -4331,7 +4332,45 @@ fn walk_multilayer_bidirectional(
             let mut any_track_blocked = false;
             if !state.via_only && track_ok_on_layer[state.layer as usize] {
                 let l_idx = state.layer as usize;
-                if try_straight && reverse_sources.is_none() {
+                if try_terminal_segments && reverse_sources.is_none() {
+                    let previous = parent_fwd.get(&state);
+                    let changed_heading = match previous {
+                        None | Some((_, PathEdge::Via(_))) => true,
+                        Some((parent, PathEdge::Track { start, end, .. })) => {
+                            engine.work.charge(1)?;
+                            match parent_fwd.get(parent) {
+                                Some((
+                                    _,
+                                    PathEdge::Track {
+                                        start: a, end: b, ..
+                                    },
+                                )) => (start[0] == end[0]) != (a[0] == b[0]),
+                                _ => false,
+                            }
+                        }
+                    };
+                    if changed_heading {
+                        if let Some(tail) = octilinear_terminal::from_state(
+                            engine,
+                            net,
+                            state,
+                            priority - cost,
+                            targets,
+                            &finished,
+                        )? {
+                            let mut path = reconstruct_bi_path(
+                                &parent_fwd,
+                                &parent_bwd,
+                                &engine.work,
+                                &MeetRecord::DirectFwd(state),
+                                priority,
+                            )?;
+                            engine.work.charge(tail.edges.len() as u64)?;
+                            path.points.extend(tail.points.into_iter().skip(1));
+                            path.edges.extend(tail.edges);
+                            return Ok(path);
+                        }
+                    }
                     if let Some(bounds) = layer_target_bounds[l_idx] {
                         if let Some(end) = certified_straight_terminal(
                             engine,
@@ -4343,7 +4382,7 @@ fn walk_multilayer_bidirectional(
                             layer_target_bounds,
                             min_step,
                             via_bound,
-                            parent_fwd.get(&state).map(|(_, e)| *e),
+                            previous.map(|(_, e)| *e),
                             attachment,
                         )? {
                             let mut path = reconstruct_bi_path(
