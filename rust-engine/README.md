@@ -114,6 +114,55 @@ tolerance and accepts `--meander-amplitude`. AC chains use
 `--ac-meander-amplitude`. The router rejects a pair tolerance or amplitude
 when the request has no matching operation that uses it.
 
+### Coupled centerline search
+
+For a fixed pair of terminal fanouts, a search label stores its grid point,
+layer, heading and whether the preceding move was straight, a turn or a via.
+The turn after a grid via costs 300,000 extra units. A turn elsewhere costs
+25,000. A via immediately following a turn on a grid finer than 800,000 nm
+also costs 300,000 extra units. Every label retains its own parent chain.
+Two prefixes at the same pose can yield different mitered tracks, via jogs
+and separation from earlier copper when the router builds the complete pair.
+
+The search favors the first or cheaper arrival at each pose. Other arrivals
+remain in a separate queue. Every eighth expansion can visit one of those
+alternatives, and they consume the same work, expansion and snap allowances.
+Within each queue the lower estimate is the accumulated cost plus the cost
+of an obstacle-free octilinear walk to the end fanout's snap box. Each axis
+needs as many whole grid steps as it takes to enter the six-step radius.
+The estimate uses the cheapest rounded axial and diagonal step costs on the
+pair's common layers. A via changes no coordinate and costs at least zero.
+The bound reaches zero inside the box, including on a different layer.
+The snap generator tests the allowed end layers and endpoint via sites,
+and tries a finite set of octilinear tails. A tail can change layers and
+adds no search cost. The full copper checks still apply to that tail.
+Every grid transition between layers must leave a track run on each side.
+
+The router tries at most 64 ranked fanout combinations on direct paths and
+16 per grid spacing in the centerline search. Each centerline attempt can
+expand at most 35,000 labels or the requested expansion limit, whichever is
+smaller, and try at most 128 snap sites (including repeated visits with
+different prefixes). Shared work and negotiation budgets can end it sooner.
+The search checks each proposed via against earlier vias in the same pair
+using the effective board rules, including hole spacing. It returns after
+both legs pass geometry and connectivity checks.
+A candidate that fails the connectivity check rolls back its copper and IDs.
+The next candidate uses the same frontier and remaining work budget. Both
+routing entries use a nested transaction for this check, subject to the
+request's transaction depth and journal limits. Failed validations retain
+their graph-building and traversal work charges. The coupled search tests
+compare the snap estimate against independent finite-grid Dijkstra results.
+They also send two prefixes with the same final pose through the copper
+builder. The shorter prefix crosses the shared terminal approach. The
+longer prefix connects both nets.
+These bounds and the enumerated fanouts, sampled grid spacings and tail
+shapes limit reachability. Exhausting a local snap or expansion allowance
+advances to the next fanout or grid spacing. Exhausting the public search
+storage or work allowance returns `admission_exceeded` or `work_exhausted`.
+Storage includes the immutable labels, both queues, the expanded-pose map
+and the temporary reconstructed chain. Physical length, via count and total
+pair cost carry no optimality guarantee.
+
 ### Signal layer policy
 
 Pass `--layer-policy-json` to `route-native`, or supply the same object in
@@ -785,7 +834,7 @@ resource defaults, not board-specific routing settings.
 | --- | ---: | ---: | --- |
 | `max_work` | 100,000,000 | 1,000,000,000 | Charged forward units per outer operation/transaction |
 | `max_items` | 100,000 | 1,000,000 | Input nets + pads + tracks + live generated tracks |
-| `max_search_entries` | 1,000,000 | 4,000,000 | Combined heap + best-map + parent-map entries; also seed-set size |
+| `max_search_entries` | 1,000,000 | 4,000,000 | Combined search queues and retained states and parents, including coupled centerline histories. Also bounds seed-set size. |
 | `max_journal_entries` | 1,000,000 | 1,000,000 | All retained undo entries, including inner commits |
 | `max_depth` | 64 | 256 | Active transaction frames, including routing method scopes |
 

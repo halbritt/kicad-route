@@ -541,6 +541,41 @@ fn impedance_equations_and_stripline_asymmetry_preflight_refusal() {
 }
 
 #[test]
+fn pair_candidate_journal_failure_propagates_in_both_routing_entries() {
+    for negotiated in [false, true] {
+        let mut input = base_diff_input(&["CAN+", "CAN-"]);
+        input.limits.max_journal_entries = 1;
+        let mut engine = Engine::new(input).unwrap();
+        let failure = if negotiated {
+            engine.route_all().unwrap_err()
+        } else {
+            prepare_and_route_pairs_in_tx(&mut engine).unwrap_err()
+        };
+        assert_eq!(
+            failure.status,
+            Status::JournalExhausted,
+            "negotiated={negotiated}"
+        );
+        assert_eq!(engine.copper().generated().count(), 0);
+        assert_eq!(engine.copper().generated_vias().count(), 0);
+    }
+}
+
+#[test]
+fn coupled_search_reports_storage_exhaustion_without_publishing_either_leg() {
+    let mut input = base_diff_input(&["CAN+", "CAN-"]);
+    input.limits.max_search_entries = 3;
+    let mut engine = Engine::new(input).unwrap();
+    // The nonzero history penalty bypasses the direct centerline shortcuts.
+    let failure = prepare_and_route_pairs_with_penalty_in_tx(&mut engine, &|_, _| 1, &|_, _, _| 0)
+        .unwrap_err();
+    assert_eq!(failure.status, Status::AdmissionExceeded);
+    assert!(failure.reason.contains("search storage"));
+    assert_eq!(engine.copper().generated().count(), 0);
+    assert_eq!(engine.copper().generated_vias().count(), 0);
+}
+
+#[test]
 fn coupled_routing_invokes_penalty_hooks_and_rolls_back_atomically_on_keepout_block() {
     // 1. Clean route invokes step_penalty hook
     let calls = Arc::new(AtomicUsize::new(0));
@@ -4711,6 +4746,31 @@ fn diff_pair_zero_mask_clearance_detours_around_static_gnd_mask_aperture() {
     }
 }
 
+fn nets_at_front_mask(
+    tracks: &[Track],
+    vias: &[Via],
+    mask: &MaskAperture,
+    clearance: i64,
+) -> std::collections::BTreeSet<u32> {
+    assert_eq!(mask.layer, "F.Mask");
+    let hit = |a, b, width| {
+        kicad_route_engine::geometry::track_near_mask(a, b, width, clearance, mask, false)
+    };
+    tracks
+        .iter()
+        .filter(|t| t.layer == "F.Cu" && hit(t.start, t.end, t.width_nm))
+        .map(|t| t.net)
+        .chain(
+            vias.iter()
+                .filter(|v| {
+                    (v.start_layer == "F.Cu" || v.end_layer == "F.Cu")
+                        && hit(v.at, v.at, v.diameter_nm)
+                })
+                .map(|v| v.net),
+        )
+        .collect()
+}
+
 #[test]
 fn diff_pair_zero_mask_clearance_blocks_coupled_self_bridge_over_empty_aperture() {
     let mut input = base_diff_input(&["DP_P", "DP_N"]);
@@ -4733,24 +4793,45 @@ fn diff_pair_zero_mask_clearance_blocks_coupled_self_bridge_over_empty_aperture(
         expansion_nm: 0,
     };
     input.mask_apertures.push(mask.clone());
-    let out = kicad_route_engine::run(input);
-    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
-    let pos_hits = out.added_tracks.iter().any(|t| {
-        t.net == 1
-            && kicad_route_engine::geometry::track_near_mask(
-                t.start, t.end, t.width_nm, 0, &mask, false,
-            )
-    });
-    let neg_hits = out.added_tracks.iter().any(|t| {
-        t.net == 2
-            && kicad_route_engine::geometry::track_near_mask(
-                t.start, t.end, t.width_nm, 0, &mask, false,
-            )
-    });
-    assert!(
-        !(pos_hits && neg_hits),
-        "DP_P and DP_N must never both cross the same F.Mask aperture"
-    );
+    for front_only in [false, true] {
+        if front_only {
+            input.routing_options.as_mut().unwrap().pair_layers = vec!["F.Cu".into()];
+        }
+        let out = kicad_route_engine::run(input.clone());
+        assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+        assert!(!out.added_tracks.is_empty());
+        if front_only {
+            assert!(out.added_tracks.iter().all(|t| t.layer == "F.Cu"));
+        }
+        let hits = nets_at_front_mask(&out.added_tracks, &out.added_vias, &mask, 0);
+        assert!(
+            !(hits.contains(&1) && hits.contains(&2)),
+            "both legs exposed on F.Mask: {hits:?}"
+        );
+
+        // A front track from one leg and a through-via land from the other
+        // violate the same opening even if the second leg continues on B.Cu.
+        let mut track = out.added_tracks[0].clone();
+        track.net = 1;
+        track.layer = "F.Cu".into();
+        track.start = [24_500_000, 10_000_000];
+        track.end = [25_500_000, 10_000_000];
+        let via = Via {
+            id: uuid(999),
+            net: 2,
+            at: [25_000_000, 11_500_000],
+            diameter_nm: 600_000,
+            drill_nm: 300_000,
+            start_layer: "F.Cu".into(),
+            end_layer: "B.Cu".into(),
+            kind: ViaKind::Through,
+            locked: false,
+        };
+        assert_eq!(
+            nets_at_front_mask(&[track], &[via], &mask, 0),
+            [1, 2].into_iter().collect()
+        );
+    }
 }
 
 #[test]
@@ -4856,21 +4937,38 @@ fn diff_pair_wider_than_default_width_respects_mask_aperture_both_clearances() {
             expansion_nm: 0,
         };
         input.mask_apertures.push(mask.clone());
-        let out = kicad_route_engine::run(input);
-        assert_eq!(
-            out.status,
-            Status::Complete,
-            "to_cu={to_cu}: {:?}",
-            out.reason
-        );
-        for t in &out.added_tracks {
-            assert_eq!(t.width_nm, 500_000);
-            assert!(
-                !kicad_route_engine::geometry::track_near_mask(
-                    t.start, t.end, t.width_nm, to_cu, &mask, false
-                ),
-                "to_cu={to_cu}: wide track {t:?} violated mask clearance"
+        for front_only in [false, true] {
+            if front_only {
+                input.routing_options.as_mut().unwrap().pair_layers = vec!["F.Cu".into()];
+            }
+            let out = kicad_route_engine::run(input.clone());
+            assert_eq!(
+                out.status,
+                Status::Complete,
+                "to_cu={to_cu}: {:?}",
+                out.reason
             );
+            assert!(!out.added_tracks.is_empty());
+            assert!(out.added_tracks.iter().all(|t| t.width_nm == 500_000));
+            if front_only {
+                assert!(out.added_tracks.iter().all(|t| t.layer == "F.Cu"));
+            }
+            let hits = nets_at_front_mask(&out.added_tracks, &out.added_vias, &mask, to_cu);
+            assert!(
+                hits.is_empty(),
+                "wide pair violated front mask clearance: {hits:?}"
+            );
+
+            let mut probe = out.added_tracks[0].clone();
+            probe.layer = "F.Cu".into();
+            probe.start = [24_500_000, 9_600_000 - to_cu];
+            probe.end = [25_500_000, 9_600_000 - to_cu];
+            assert!(
+                nets_at_front_mask(std::slice::from_ref(&probe), &[], &mask, to_cu)
+                    .contains(&probe.net)
+            );
+            probe.width_nm = 250_000;
+            assert!(nets_at_front_mask(&[probe], &[], &mask, to_cu).is_empty());
         }
     }
 }
