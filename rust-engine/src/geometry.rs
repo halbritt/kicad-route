@@ -1179,6 +1179,18 @@ pub fn track_connects_via(t: &Track, v: &Via) -> bool {
     point_near_segment(v.at, t.start, t.end, gap2, true)
 }
 
+/// A newly routed junction carries at least the radius of the narrower item
+/// into the other item's copper. Native connectivity alone also admits two
+/// rounded edges that overlap by only a nanometre.
+pub(crate) fn track_lands_on_via(t: &Track, v: &Via) -> bool {
+    let track_radius = t.width_nm / 2;
+    let via_radius = v.diameter_nm / 2;
+    let distance = track_radius
+        .max(via_radius)
+        .min(track_radius + via_radius - CONTACT_OVERLAP_NM);
+    point_near_segment(v.at, t.start, t.end, 2 * i128::from(distance), true)
+}
+
 pub fn via_connects_pad(v: &Via, p: &Pad) -> bool {
     let synth = Track {
         id: String::new(),

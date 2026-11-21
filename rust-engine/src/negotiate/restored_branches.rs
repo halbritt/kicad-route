@@ -32,6 +32,7 @@ pub(super) fn restore(engine: &mut Engine, net: u32, removed: Range<usize>) -> R
         engine.copper.removed_copper(removed),
         &engine.layer_names,
         &engine.work,
+        crate::geometry::track_lands_on_via,
     )?;
     if groups.len() < 2 {
         return Ok(());
@@ -46,7 +47,11 @@ pub(super) fn restore(engine: &mut Engine, net: u32, removed: Range<usize>) -> R
             }
             for &item in &group {
                 engine.charge_work(pad.shape.parts().len() as u64)?;
-                if item.touches(Copper::Pad(pad), &engine.layer_names) {
+                if item.touches(
+                    Copper::Pad(pad),
+                    &engine.layer_names,
+                    crate::geometry::track_lands_on_via,
+                ) {
                     pads += 1;
                     break;
                 }

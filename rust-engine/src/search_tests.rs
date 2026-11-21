@@ -5898,3 +5898,85 @@ fn a_cheaper_complete_repair_restores_its_improvement_window() {
     assert!(repair_window_elapsed(&mut best, 140, 5_064, 32));
     assert!(repair_window_elapsed(&mut None, 140, 5_064, 0));
 }
+
+#[test]
+fn track_via_landing_uses_the_copper_body_in_both_directions() {
+    let via = Via {
+        id: id(100),
+        net: 1,
+        at: [50, 50],
+        diameter_nm: 20,
+        drill_nm: 6,
+        start_layer: "F.Cu".into(),
+        end_layer: "B.Cu".into(),
+        kind: ViaKind::Through,
+        locked: true,
+    };
+    let stack = ["F.Cu".into(), "B.Cu".into()];
+    let work = WorkBudget::new(Limits::default());
+    for (width, endpoint, expected) in [
+        (10, [36, 50], false), // One nm of outer-edge contact.
+        (10, [40, 50], true),
+        (10, [44, 58], true), // 6-8-10 oblique contact.
+        (10, [43, 58], false),
+        (40, [30, 50], true), // A broad trace can contain a smaller via.
+        (40, [25, 50], false),
+    ] {
+        let t = track(101, 1, [10, endpoint[1]], endpoint, width);
+        assert!(geometry::track_connects_via(&t, &via));
+        assert_eq!(
+            Copper::Via(&via).touches_route(&t, &stack, &work).unwrap(),
+            expected
+        );
+        assert_eq!(
+            Copper::Track(&t).touches_via(&via, &stack, &work).unwrap(),
+            expected
+        );
+    }
+    let hit = Copper::Via(&via)
+        .attachment([10, 58], [70, 58], 1, 10, "F.Cu", &stack, &work)
+        .unwrap();
+    assert_eq!(hit, Some([44, 58]));
+}
+
+#[test]
+fn only_an_imported_track_and_via_retain_their_native_fringe_connection() {
+    let via = Via {
+        id: id(100),
+        net: 1,
+        at: [25_000_000, 10_000_000],
+        diameter_nm: 500_000,
+        drill_nm: 300_000,
+        start_layer: "F.Cu".into(),
+        end_layer: "B.Cu".into(),
+        kind: ViaKind::Through,
+        locked: true,
+    };
+    for end_x in [24_712_774, 25_000_000] {
+        let t = track(
+            101,
+            1,
+            [7_000_000, 10_200_000],
+            [end_x, 10_200_000],
+            200_000,
+        );
+        for (input_track, input_via) in [(true, true), (true, false), (false, true), (false, false)]
+        {
+            let mut input = surface_pad_wall(7_000_000, 40_000_000);
+            input.pads.clear();
+            input.tracks = input_track.then(|| t.clone()).into_iter().collect();
+            input.vias = input_via.then(|| via.clone()).into_iter().collect();
+            let mut engine = Engine::new(input).unwrap();
+            engine.copper.begin(&engine.work).unwrap();
+            if !input_track {
+                engine.copper.insert(t.clone(), &engine.work).unwrap();
+            }
+            if !input_via {
+                engine.copper.insert_via(via.clone(), &engine.work).unwrap();
+            }
+            engine.copper.commit();
+            let joined = engine.components(1).unwrap().len() == 1;
+            assert_eq!(joined, (input_via && input_track) || end_x == via.at[0]);
+        }
+    }
+}

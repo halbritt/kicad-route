@@ -2891,7 +2891,13 @@ impl Engine {
                 }
             }
         }
-        let mut groups = components::partition(items, &self.layer_names, &self.work)?;
+        let mut groups =
+            components::partition(items, &self.layer_names, &self.work, |track, via| {
+                geometry::track_lands_on_via(track, via)
+                    || (geometry::track_connects_via(track, via)
+                        && self.copper.is_input_id(&track.id)
+                        && self.copper.is_input_id(&via.id))
+            })?;
         if includes_refillable_fill && groups.len() > 1 {
             // Source fills supply a few seed vertices. Target fills can accept
             // a legal connection anywhere on their copper, including long edges.

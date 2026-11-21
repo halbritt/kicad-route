@@ -111,7 +111,12 @@ impl<'a> Copper<'a> {
         }
     }
 
-    pub(crate) fn touches(self, other: Self, stackup: &[String]) -> bool {
+    pub(crate) fn touches(
+        self,
+        other: Self,
+        stackup: &[String],
+        track_via_contact: impl Fn(&Track, &Via) -> bool,
+    ) -> bool {
         if (self.layer_mask(stackup) & other.layer_mask(stackup)) == 0 {
             return false;
         }
@@ -132,7 +137,7 @@ impl<'a> Copper<'a> {
                 geometry::via_connects_pad(v, p)
             }
             (Self::Via(v), Self::Track(t)) | (Self::Track(t), Self::Via(v)) => {
-                geometry::track_connects_via(t, v)
+                track_via_contact(t, v)
             }
             (Self::Via(v), Self::Graphic(g)) | (Self::Graphic(g), Self::Via(v)) => {
                 geometry::via_connects_graphic(v, g)
@@ -175,7 +180,7 @@ impl<'a> Copper<'a> {
             Self::Pad(p) => geometry::track_connects_pad(route, p),
             Self::Track(t) => geometry::tracks_connect(route, t),
             Self::Graphic(g) => geometry::track_connects_graphic(route, g),
-            Self::Via(v) => geometry::track_connects_via(route, v),
+            Self::Via(v) => geometry::track_lands_on_via(route, v),
             Self::ZoneFill { poly, .. } => {
                 geometry::track_connects_filled_polygon(route, &poly.outer, &poly.holes)
             }
@@ -194,7 +199,7 @@ impl<'a> Copper<'a> {
         }
         Ok(match self {
             Self::Pad(p) => geometry::via_connects_pad(via, p),
-            Self::Track(t) => geometry::track_connects_via(t, via),
+            Self::Track(t) => geometry::track_lands_on_via(t, via),
             Self::Graphic(g) => geometry::via_connects_graphic(via, g),
             Self::Via(v) => geometry::vias_connect(via, v),
             Self::ZoneFill { poly, .. } => {
@@ -337,6 +342,7 @@ pub(crate) fn partition<'a>(
     items: Vec<Copper<'a>>,
     stackup: &[String],
     work: &WorkBudget,
+    track_via_contact: impl Fn(&Track, &Via) -> bool,
 ) -> Result<Vec<Vec<Copper<'a>>>, Failure> {
     work.charge(items.len() as u64)?;
     let mut seen = vec![false; items.len()];
@@ -358,7 +364,7 @@ pub(crate) fn partition<'a>(
                     continue;
                 }
                 work.charge(items[i].primitive_count() * items[j].primitive_count())?;
-                if items[i].touches(items[j], stackup) {
+                if items[i].touches(items[j], stackup, &track_via_contact) {
                     seen[j] = true;
                     pending.push(j);
                 }

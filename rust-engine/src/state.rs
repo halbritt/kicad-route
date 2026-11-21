@@ -209,6 +209,10 @@ impl CopperStore {
         !self.by_seq.is_empty()
     }
 
+    pub(crate) fn is_input_id(&self, id: &str) -> bool {
+        self.reserved.contains(id)
+    }
+
     pub fn generated(&self) -> impl Iterator<Item = &Track> {
         self.by_seq.values().map(|&slot| {
             self.slots[slot as usize]
