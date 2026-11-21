@@ -223,65 +223,61 @@ def t5_03(ctx: DriverContext) -> dict[str, Any]:
     for idx, x in enumerate((4_000_000, 21_000_000), 1):
         fp = b.add_footprint(f"J{idx}", (x, 7_500_000))
         b.add_pad(fp, "1", "SIG", (x, 7_500_000), size_nm=(800_000, 800_000))
-    b.set_project_rules(rule_severities={"clearance": "ignore"})
-    bundle_ign = b.save(ctx.work_dir / "ign_src")
-    out_ign = ctx.work_dir / "out" / "ign.kicad_pcb"
-    out_ign.parent.mkdir(parents=True, exist_ok=True)
-    p_ign = ctx.native_driver.run_native(bundle_ign.pcb_path, out_ign)
-    assert p_ign.returncode == 2, f"expected exit 2 on ignored clearance, got {p_ign.returncode}: {p_ign.stderr}"
-    assert not out_ign.exists()
+    b.set_project_rules()
+    clean = b.save(ctx.work_dir / "clean_src")
+    out_dir = ctx.work_dir / "out"
+    out_dir.mkdir()
+    routed = out_dir / "clean.kicad_pcb"
+    good = ctx.native_driver.run_native(clean.pcb_path, routed)
+    assert good.returncode == 0, good.stderr
+    verify_routed_board(clean.pcb_path, routed)
 
-    # verify_routed_board oracle also refuses ignored physical DRC checks
-    b_clean = BoardBuilder(copper_layers=2, seed=5003)
-    b_clean.set_rect_outline(0, 0, 25_000_000, 15_000_000)
-    for idx, x in enumerate((4_000_000, 21_000_000), 1):
-        fp = b_clean.add_footprint(f"J{idx}", (x, 7_500_000))
-        b_clean.add_pad(fp, "1", "SIG", (x, 7_500_000), size_nm=(800_000, 800_000))
-    b_clean.set_project_rules()
-    bundle_clean = b_clean.save(ctx.work_dir / "clean_src")
-    out_clean = ctx.work_dir / "out" / "clean.kicad_pcb"
-    p_clean = ctx.native_driver.run_native(bundle_clean.pcb_path, out_clean)
-    assert p_clean.returncode == 0, p_clean.stderr
-    try:
-        verify_routed_board(bundle_ign.pcb_path, out_clean)
-        raise AssertionError("verify_routed_board must reject clearance=ignore")
-    except AssertionError as exc:
-        assert "clearance" in str(exc), str(exc)
+    def expect_rejection(source: Path, candidate: Path, reason: str) -> None:
+        try:
+            verify_routed_board(source, candidate)
+        except AssertionError as exc:
+            assert str(exc) == reason, f"expected {reason!r}, got {str(exc)!r}"
+        else:
+            raise AssertionError(f"verifier accepted a board requiring rejection: {reason}")
 
-    # Broken .kicad_dru emitting rule_compile_error fails closed
-    b_dru = BoardBuilder(copper_layers=2, seed=5003)
-    b_dru.set_rect_outline(0, 0, 25_000_000, 15_000_000)
-    for idx, x in enumerate((4_000_000, 21_000_000), 1):
-        fp = b_dru.add_footprint(f"J{idx}", (x, 7_500_000))
-        b_dru.add_pad(fp, "1", "SIG", (x, 7_500_000), size_nm=(800_000, 800_000))
-    b_dru.set_project_rules()
-    b_dru.set_dru_text("(version 1)\n(rule broken (constraint bogus_unknown_constraint (min 0.5mm)))\n")
-    bundle_dru = b_dru.save(ctx.work_dir / "dru_src")
-    out_dru = ctx.work_dir / "out" / "dru.kicad_pcb"
-    p_dru = ctx.native_driver.run_native(bundle_dru.pcb_path, out_dru)
+    ignored_exits = {}
+    for check in ("clearance", "track_dangling", "via_dangling"):
+        b.set_project_rules(rule_severities={check: "ignore"})
+        ignored = b.save(ctx.work_dir / f"{check}_src")
+        output = out_dir / f"{check}.kicad_pcb"
+        result = ctx.native_driver.run_native(ignored.pcb_path, output)
+        assert result.returncode == 2, result.stderr
+        operation = json.loads(result.stdout)
+        assert operation["status"] == "native_validation_failed", operation
+        assert operation["reason"] == f"native DRC ignored required physical checks: {[check]}", operation
+        assert not output.exists()
+        ignored_exits[check] = result.returncode
+
+        if check == "clearance":
+            # The successful router published the clean project's companion.
+            expect_rejection(
+                ignored.pcb_path, routed,
+                f"output board sidecar {routed.with_suffix('.kicad_pro')} "
+                f"conflicts with authoritative {ignored.pro_path}",
+            )
+
+        # Grade the same saved copper under the deliberately ignored rule.
+        candidate = ignored.directory / "routed.kicad_pcb"
+        shutil.copyfile(routed, candidate)
+        shutil.copyfile(ignored.pro_path, candidate.with_suffix(".kicad_pro"))
+        expect_rejection(
+            ignored.pcb_path, candidate, f"required DRC checks were ignored: {[check]}"
+        )
+
+    b.set_project_rules()
+    b.set_dru_text("(version 1)\n(rule broken (constraint bogus_unknown_constraint (min 0.5mm)))\n")
+    broken = b.save(ctx.work_dir / "dru_src")
+    out_dru = out_dir / "dru.kicad_pcb"
+    p_dru = ctx.native_driver.run_native(broken.pcb_path, out_dru)
     assert p_dru.returncode == 2, f"expected exit 2 on rule_compile_error, got {p_dru.returncode}: {p_dru.stderr}"
     assert not out_dru.exists()
 
-    # R2-GAP-04: ignored track_dangling / via_dangling fail closed in both route-native and verify_routed_board
-    for chk in ("track_dangling", "via_dangling"):
-        b_dang = BoardBuilder(copper_layers=2, seed=5003)
-        b_dang.set_rect_outline(0, 0, 25_000_000, 15_000_000)
-        for idx, x in enumerate((4_000_000, 21_000_000), 1):
-            fp = b_dang.add_footprint(f"J{idx}", (x, 7_500_000))
-            b_dang.add_pad(fp, "1", "SIG", (x, 7_500_000), size_nm=(800_000, 800_000))
-        b_dang.set_project_rules(rule_severities={chk: "ignore"})
-        bundle_dang = b_dang.save(ctx.work_dir / f"{chk}_src")
-        out_dang = ctx.work_dir / "out" / f"{chk}.kicad_pcb"
-        p_dang = ctx.native_driver.run_native(bundle_dang.pcb_path, out_dang)
-        assert p_dang.returncode == 2, f"expected exit 2 on ignored {chk}, got {p_dang.returncode}: {p_dang.stderr}"
-        assert not out_dang.exists()
-        try:
-            verify_routed_board(bundle_dang.pcb_path, out_clean)
-            raise AssertionError(f"verify_routed_board must reject {chk}=ignore")
-        except AssertionError as exc:
-            assert chk in str(exc), str(exc)
-
-    return {"ign_rc": p_ign.returncode, "dru_rc": p_dru.returncode}
+    return {"ign_rc": ignored_exits["clearance"], "dru_rc": p_dru.returncode}
 
 
 @register_test(
