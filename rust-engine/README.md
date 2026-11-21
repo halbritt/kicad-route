@@ -36,13 +36,22 @@ failed or the board that was published. Read both the process exit code and
 the result. Run `route-native --help` on the executable for options covering
 rules, limits, pair routing and length matching.
 
-The output is a standalone PCB. To reopen or check it under its original
-design rules, place the source `.kicad_pro` and `.kicad_dru` files that exist
-beside the output, using the output board's basename. For example, a board
-named `routed.kicad_pcb` uses `routed.kicad_pro` and `routed.kicad_dru`.
-Keep project-relative footprint libraries and tables at their expected paths.
-KiCad can load different defaults when it cannot find the project. Use a
-separate directory when the same filename already belongs to another project.
+If the source has a KiCad project or custom rule file, the router publishes
+each one beside the PCB under the output basename. For example,
+`routed.kicad_pcb` uses `routed.kicad_pro` and `routed.kicad_dru`.
+If a file already exists at either path, its contents must match the
+corresponding source file. A conflict prevents publication.
+
+The router grades and publishes the project's `fp-lib-table` when present.
+Absolute paths and installed-library references such as
+`${KICAD10_FOOTPRINT_DIR}` retain their spelling. For `${KIPRJMOD}` or
+`$(KIPRJMOD)` references, KiCad looks in the project directory. The router
+keeps these references when the destination contains the same libraries.
+Otherwise, it writes absolute paths to the source libraries in the new table.
+Keep those libraries accessible to reopen or check the saved PCB. To move the
+project independently, place equivalent libraries at the destination before
+routing. The router preserves an equivalent destination table and refuses
+publication when an existing table conflicts with the source project.
 
 Use `--nets 'SIG_[AB]'` to select `SIG_A` and `SIG_B`, or
 `--nets '!SIG_[AB]'` to exclude both. A pattern without a slash can match the

@@ -14,7 +14,7 @@ from decimal import Decimal, InvalidOperation
 import errno
 import fnmatch
 import hashlib
-from itertools import chain
+from itertools import chain, zip_longest
 import json
 import math
 import os
@@ -194,6 +194,7 @@ def verify_native_rule_loading(candidate: Path, project: bytes | None, rules: by
         board.Add(track)
         if not pcbnew.SaveBoard(str(probe), board, True):
             raise NativeValidationError('cannot save board for custom-rule check')
+        _copy_private_footprint_table(candidate, probe)
         if project is not None:
             probe.with_suffix('.kicad_pro').write_bytes(project)
         check = f"""\n(rule "{marker}" (condition "A.NetName == '{marker}'") (constraint disallow track))\n"""
@@ -228,6 +229,8 @@ def _check_sidecar_at(path: Path, resolved: Path):
     if not path.name:
         return
     is_canon = _is_canonical_board_alias(path, resolved)
+    if path.parent.resolve() != resolved.parent and os.path.lexists(path.with_name('fp-lib-table')):
+        raise UnsupportedBoard(f'ambiguous symlink-hop fp-lib-table shadows canonical board: {path.parent}')
     for suffix in ('.kicad_pro', '.kicad_dru'):
         sidecar = path.with_suffix(suffix)
         try:
@@ -379,11 +382,124 @@ def reject_external_rules(path: Path):
     return resolve_sidecars(path)
 
 
+def _footprint_table(board: Path) -> bytes | None:
+    table = board.with_name('fp-lib-table')
+    return read_bounded(table) if os.path.lexists(table) else None
+
+
+def _table_tokens(text):
+    # Descriptions and quoted paths can contain literal '(uri ...)' text.
+    previous = None
+    want_uri = False
+    for token in re.finditer(r'#[^\n]*|"(?:\\.|[^"\\])*"|[()]|[^\s()"]+', text):
+        spelling = token.group()
+        if spelling.startswith('#'):
+            continue
+        value = _unescape_sexpr_str(spelling[1:-1]) if spelling.startswith('"') else spelling
+        yield token, value, want_uri
+        want_uri = previous == '(' and spelling == 'uri'
+        previous = spelling
+
+
+def _library_reference(uri, directory):
+    """Resolve local libraries and normalize the spelling of environment-based URIs."""
+    if Path(uri).is_absolute() and '$' not in uri:
+        return Path(uri)
+    variable = re.fullmatch(r'\$(?:\{([A-Za-z_]\w*)\}|\(([A-Za-z_]\w*)\))/([^$]+)', uri)
+    if variable:
+        name = variable[1] or variable[2]
+        suffix = variable[3]
+        if name == 'KIPRJMOD' and not Path(suffix).is_absolute():
+            return directory / suffix
+        if name != 'KIPRJMOD' and (re.fullmatch(r'KICAD(?:\d+)?_(?:FOOTPRINT_DIR|3RD_PARTY)', name)
+                                    or Path(os.environ.get(name, '')).is_absolute()):
+            return '${' + name + '}/' + suffix
+    raise UnsupportedBoard(f'cannot relocate footprint library URI {uri!r}; use an absolute '
+                           'path, ${KIPRJMOD}/, or a KiCad footprint directory variable')
+
+
+def _same_library(left, right):
+    if left == right:
+        return True
+    try:
+        if left.samefile(right):
+            return True
+        if left.is_file() and right.is_file():
+            return read_bounded(left) == read_bounded(right)
+        if not (left.is_dir() and right.is_dir() and left.suffix == right.suffix == '.pretty'):
+            return False
+        # A native library's footprints are its .kicad_mod files. A destination
+        # can contain an independent byte-identical copy of the same library.
+        for item in left.iterdir():
+            if item.suffix == '.kicad_mod':
+                other = right / item.name
+                if not other.is_file() or read_bounded(item) != read_bounded(other):
+                    return False
+        return all((left / item.name).is_file() for item in right.iterdir() if item.suffix == '.kicad_mod')
+    except FileNotFoundError:
+        return False
+
+
+def _equivalent_tables(raw, project, incumbent, destination):
+    left = _table_tokens(raw.decode('utf-8'))
+    right = _table_tokens(incumbent.decode('utf-8'))
+    for source, target in zip_longest(left, right):
+        if source is None or target is None or source[2] != target[2]:
+            return False
+        a, b = source[1], target[1]
+        if source[2]:
+            path_a = _library_reference(a, project)
+            path_b = _library_reference(b, destination)
+            if isinstance(path_a, Path) and isinstance(path_b, Path):
+                if not _same_library(path_a, path_b):
+                    return False
+            elif path_a != path_b:
+                return False
+            continue
+        if source[0].group() != target[0].group():
+            return False
+    return True
+
+
+def _relocated_footprint_table(raw, project, destination=None):
+    """Keep portable URIs. Rebase local URIs that would resolve elsewhere."""
+    text = raw.decode('utf-8')
+    parts, offset, size = [], 0, len(raw)
+    for token, uri, is_uri in _table_tokens(text):
+        if not is_uri:
+            continue
+        path = _library_reference(uri, project)
+        if not uri.startswith(('${KIPRJMOD}/', '$(KIPRJMOD)/')):
+            continue
+        if destination is not None and _same_library(path, _library_reference(uri, destination)):
+            continue
+        if destination is not None and not path.exists():
+            raise UnsupportedBoard(f'cannot relocate missing source footprint library {path}')
+        substitution = json.dumps(str(path), ensure_ascii=False)
+        size += len(substitution.encode()) - len(token.group().encode())
+        if size > MAX_DOCUMENT_BYTES:
+            raise ValueError(f'relocated footprint library table exceeds {MAX_DOCUMENT_BYTES} bytes')
+        parts.extend((text[offset:token.start()], substitution))
+        offset = token.end()
+    return (''.join(parts) + text[offset:]).encode('utf-8') if parts else raw
+
+
+def _copy_private_footprint_table(board: Path, destination: Path):
+    table = _footprint_table(board)
+    if table is not None:
+        destination.with_name('fp-lib-table').write_bytes(
+            _relocated_footprint_table(table, board.resolve().parent))
+
+
 @contextmanager
-def source_snapshot(path: Path, *, project_path: Path | None = None):
+def source_snapshot(path: Path, *, project_path: Path | None = None,
+                    library_project: Path | None = None, footprint_publication=None):
     canonical = Path(os.path.realpath(path))
     pro_before, dru_before = resolve_sidecars(path, project_path=project_path)
+    table = _footprint_table(canonical)
     body = read_bounded(path)
+    if table != _footprint_table(canonical):
+        raise ValueError('project footprint library table changed during snapshot admission')
     pro_after, dru_after = resolve_sidecars(path, project_path=project_path)
     if pro_before != pro_after or dru_before != dru_after:
         raise ValueError('sidecar changed during snapshot admission')
@@ -392,11 +508,28 @@ def source_snapshot(path: Path, *, project_path: Path | None = None):
     with tempfile.TemporaryDirectory(prefix='kicad-route-source-') as directory:
         snapshot = (Path(directory) / canonical.name).with_suffix('.kicad_pcb')
         snapshot.write_bytes(body)
+        if table is not None:
+            project = library_project or canonical.parent
+            snapshot.with_name('fp-lib-table').write_bytes(_relocated_footprint_table(table, project))
         if pro_after is not None:
             snapshot.with_suffix('.kicad_pro').write_bytes(pro_after)
         if dru_after is not None:
             snapshot.with_suffix('.kicad_dru').write_bytes(dru_after)
         yield snapshot
+        if footprint_publication is not None and table is not None:
+            _, destination, staged_table = footprint_publication
+            destination = destination.resolve()
+            desired = _relocated_footprint_table(table, project, destination)
+            incumbent = _footprint_table(destination / canonical.name)
+            if incumbent is not None and incumbent != desired:
+                try:
+                    equivalent = _equivalent_tables(table, project, incumbent, destination)
+                except (UnicodeError, UnsupportedBoard):
+                    equivalent = False
+                if equivalent:
+                    desired = incumbent
+            with staged_table.open('xb') as output:
+                output.write(desired)
 
 
 def _cu_stack(board):
@@ -1634,10 +1767,12 @@ def _board_bounds_and_outline(board):
 
 def export_board(path: Path, rules: dict | None = None, max_expansions: int = 100000,
                  limits: dict | None = None, *, original_source: Path | None = None,
-                 project_path: Path | None = None):
+                 project_path: Path | None = None, footprint_publication=None):
     if original_source is not None:
         resolve_sidecars(original_source)
-    with source_snapshot(path, project_path=project_path) as snapshot:
+    library_project = footprint_publication[0] if footprint_publication else None
+    with source_snapshot(path, project_path=project_path, library_project=library_project,
+                         footprint_publication=footprint_publication) as snapshot:
         return export_snapshot(snapshot, rules, max_expansions, limits)
 
 
@@ -2813,7 +2948,7 @@ def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request:
                original_source: Path | None = None, drc_timeout: float = 30.0,
                validation_report: Path | None = None, refill_state: Path | None = None,
                pour_area_loss: float | None = None,
-               pour_min_spokes: int | None = None):
+               pour_min_spokes: int | None = None, footprint_publication=None):
     if source.resolve() == destination.resolve():
         raise ValueError('output must be a new path distinct from the input')
     if os.path.lexists(destination):
@@ -2822,10 +2957,11 @@ def apply_plan(source: Path, plan: dict, destination: Path, *, expected_request:
         raise FileExistsError(f'validation report already exists: {validation_report}')
     if original_source is not None:
         resolve_sidecars(original_source)
-    with source_snapshot(source) as snapshot:
+    library_project = footprint_publication[0] if footprint_publication else None
+    with source_snapshot(source, library_project=library_project) as snapshot:
         apply_snapshot(snapshot, plan, destination, expected_request=expected_request,
                        drc_timeout=drc_timeout, validation_report=validation_report, refill_state=refill_state,
-                       pour_area_loss=pour_area_loss, pour_min_spokes=pour_min_spokes)
+                       pour_area_loss=pour_area_loss, pour_min_spokes=pour_min_spokes, footprint_publication=footprint_publication)
 
 
 def _net_matches_filter_token(pattern: str, net_name: str) -> bool:
@@ -3082,7 +3218,8 @@ def _verify_saved_connectivity(saved, before_board: Path, before_drc: dict, afte
 
 def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
                    drc_timeout: float = 30.0, validation_report: Path | None = None,
-                   refill_state: Path | None = None, pour_area_loss: float | None = None, pour_min_spokes: int | None = None):
+                   refill_state: Path | None = None, pour_area_loss: float | None = None, pour_min_spokes: int | None = None,
+                   footprint_publication=None):
     if not math.isfinite(drc_timeout) or drc_timeout <= 0:
         raise ValueError('drc timeout must be positive and finite')
     if pour_area_loss is not None and (not math.isfinite(pour_area_loss) or not 0.0 <= pour_area_loss <= 100.0):
@@ -3264,6 +3401,12 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         if not pcbnew.SaveBoard(str(temporary), board):
             raise OSError('KiCad did not save the candidate board')
         pro_bytes, dru_bytes = resolve_sidecars(source)
+        if footprint_publication:
+            _, public_directory, prepared = footprint_publication
+            temporary.with_name('fp-lib-table').write_bytes(
+                _relocated_footprint_table(read_bounded(prepared), public_directory.resolve()))
+        else:
+            _copy_private_footprint_table(source, temporary)
         drc_pro_bytes = pro_bytes
         if pro_bytes is not None:
             pro_doc = json.loads(pro_bytes.decode('utf-8'))
@@ -3285,6 +3428,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         before_dir.mkdir()
         before_board = before_dir / Path(os.path.realpath(source)).name
         before_board.write_bytes(source.read_bytes())
+        _copy_private_footprint_table(source, before_board)
         if drc_pro_bytes is not None:
             before_board.with_suffix('.kicad_pro').write_bytes(drc_pro_bytes)
         if dru_bytes is not None:
@@ -3579,6 +3723,10 @@ def main():
     apply.add_argument('output', type=Path)
     apply.add_argument('--request', type=Path, required=True,
                        help='exact retained request JSON passed to the Rust engine')
+    for command in (export, apply):
+        command.add_argument('--footprint-publication', type=Path, nargs=3,
+                             metavar=('SOURCE_DIR', 'DEST_DIR', 'STAGED_TABLE'),
+                             help='prepare or grade the footprint table for the final project directory')
     apply.add_argument('--original-source', type=Path, default=None,
                        help='optional original source board path for sidecar checks before snapshotting')
     apply.add_argument('--drc-timeout', type=float, default=30.0,
@@ -3604,7 +3752,7 @@ def main():
             rules_obj = read_object(args.rules) if args.rules is not None else None
             result = export_board(args.board, rules_obj, args.max_expansions, limits,
                                   original_source=args.original_source,
-                                  project_path=args.project)
+                                  project_path=args.project, footprint_publication=args.footprint_publication)
             write_request(result, args.output)
         elif args.command == 'measure-layer-policy':
             facts = measure_layer_policy(args.source, args.candidate, args.pour_area_loss, args.reference_spec)
@@ -3616,7 +3764,7 @@ def main():
                        drc_timeout=args.drc_timeout,
                        validation_report=args.validation_report, refill_state=args.refill_state,
                        pour_area_loss=args.pour_area_loss,
-                       pour_min_spokes=args.pour_min_spokes)
+                       pour_min_spokes=args.pour_min_spokes, footprint_publication=args.footprint_publication)
     except (UnsupportedBoard, NativeValidationError, FileExistsError, OSError, ValueError) as error:
         if isinstance(error, UnsupportedBoard):
             status = 'unsupported'
