@@ -498,7 +498,7 @@
         "If weighted or non-admissible heuristics are introduced, the independent oracle verifies the claimed cost bound, not only reachability."
       ],
       "state": "verified-on-listed-controls",
-      "current_evidence": "rust-engine/src/search_tests.rs compares integer search costs in 4,096 worlds, compares 256 multi-target worlds and exercises an independent augmented multilayer oracle. three_via_last_via_only_counterexample_witness_re02 demonstrates why an earlier hole can invalidate a later continuation at the same position, heading and most recent via. The four-layer T1-F6-05 checks native hole spacing. The finite search uses grid phases, bounded alternatives and a shared work limit. Returned incumbents have the cost guarantees of the specific search used."
+      "current_evidence": "rust-engine/src/search_tests.rs compares integer search costs in 4,096 worlds, compares 256 multi-target worlds and exercises an independent augmented multilayer oracle. three_via_last_via_only_counterexample_witness_re02 demonstrates why an earlier hole can invalidate a later continuation at the same position, heading and most recent via. drilled_pad_clearance_depends_on_straight_run_origin compares both routing axes with a nine-point oracle where only the longer straight run touches the drilled pad. The four-layer T1-F6-05 checks native hole spacing. The finite search uses grid phases, bounded alternatives and a shared work limit. Returned incumbents have the cost guarantees of the specific search used."
     },
     {
       "id": "RE-03",
