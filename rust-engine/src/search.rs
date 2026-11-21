@@ -615,8 +615,8 @@ fn join_components_inner(
                       choices: &[Vec<Copper<'_>>],
                       seed_layers,
                       extra_starts: Option<Vec<(Point, u8, bool)>>| {
-        let mut attempt = |pad_contact| {
-            search_component_path(
+        let mut attempt = |pad_contact| -> Result<Path, Failure> {
+            let mut path = search_component_path(
                 engine,
                 net,
                 seeds,
@@ -629,7 +629,17 @@ fn join_components_inner(
                 frontier.as_deref_mut(),
                 prefer_higher_g,
                 pad_contact,
-            )
+            )?;
+            extend_clipped_via_lead(engine, net, &mut path, true, seeds.iter().copied(), history)?;
+            extend_clipped_via_lead(
+                engine,
+                net,
+                &mut path,
+                false,
+                choices.iter().flatten().copied(),
+                history,
+            )?;
+            Ok(path)
         };
         // A clipped pad approach often extends into a full-width landing on
         // the same path. Keep that route when its actual copper joins both
@@ -747,6 +757,120 @@ impl PadAxes {
         }
         Ok(axes)
     }
+}
+
+/// A last fraction of a grid step can reach the target before it has
+/// cleared the new via's bore. Keep the original step cost and extend only
+/// that lead within its cell, checking its far endpoint and all clearances.
+fn extend_clipped_via_lead<'a>(
+    engine: &Engine,
+    net: u32,
+    path: &mut Path,
+    first: bool,
+    terminals: impl Iterator<Item = Copper<'a>> + Clone,
+    history: Option<&crate::negotiate::CongestionHistory>,
+) -> Result<(), Failure> {
+    let (key, tip, layer) = match (first, path.edges.as_slice()) {
+        (true, [PathEdge::Track { start, end, layer }, PathEdge::Via(v), ..]) if *end == v.at => {
+            (*v, *start, *layer)
+        }
+        (false, [.., PathEdge::Via(v), PathEdge::Track { start, end, layer }])
+            if *start == v.at =>
+        {
+            (*v, *end, *layer)
+        }
+        _ => return Ok(()),
+    };
+    let at = key.at;
+    if (at[0] == tip[0]) == (at[1] == tip[1]) {
+        return Ok(());
+    }
+    let axis = usize::from(at[0] == tip[0]);
+    let delta = tip[axis] - at[axis];
+    let grid = engine.input.rules.grid_nm;
+    if delta.abs() >= grid {
+        return Ok(());
+    }
+    let layer = usize::from(layer);
+    let name = engine.layer_name(layer);
+    let width_nm = engine.effective_rules.track_width_for(net, name)?;
+    let via = key.as_via(engine, net)?;
+    let reach = geometry::via_track_reach(&via, width_nm);
+    if delta.abs() >= reach || reach > grid {
+        return Ok(());
+    }
+    let stack = engine.all_layers_slice();
+    for t in terminals.clone() {
+        if t.touches_via(&via, stack, &engine.work)? {
+            return Ok(());
+        }
+    }
+    engine.work.charge(path.edges.len() as u64)?;
+    let prior_vias: Vec<_> = path
+        .edges
+        .iter()
+        .filter_map(|edge| match edge {
+            PathEdge::Via(v) => Some(*v),
+            _ => None,
+        })
+        .collect();
+    for distance in [grid, reach] {
+        let mut end = at;
+        end[axis] += delta.signum() * distance;
+        // A step pays congestion at its destination. Moving the source tip
+        // preserves that destination. Moving the final tip must keep its price.
+        if let Some(h) = history.filter(|_| !first) {
+            engine.work.charge(2)?;
+            let penalty = |p| h.step_penalty(layer as u8, p, engine.input.bounds.min, grid);
+            if penalty(tip) != penalty(end) {
+                continue;
+            }
+        }
+        let cap = Track {
+            start: end,
+            end,
+            width_nm,
+            layer: name.to_owned(),
+            net,
+            id: String::new(),
+            locked: false,
+        };
+        let lead = Track {
+            start: at,
+            ..cap.clone()
+        };
+        for t in terminals.clone() {
+            if !t.touches_route(&cap, stack, &engine.work)?
+                || matches!(t, Copper::Via(target) if !geometry::via_anchored_on_track(target, &lead))
+            {
+                continue;
+            }
+            if engine.legal_edge_on(net, layer, at, end)?
+                && engine.edge_clears_same_net_vias(net, layer, at, end, &prior_vias)?
+            {
+                let (edge, point) = if first {
+                    (path.edges.first_mut(), path.points.first_mut())
+                } else {
+                    (path.edges.last_mut(), path.points.last_mut())
+                };
+                if let Some(PathEdge::Track {
+                    start, end: last, ..
+                }) = edge
+                {
+                    if first {
+                        *start = end;
+                    } else {
+                        *last = end;
+                    }
+                }
+                if let Some(p) = point {
+                    *p = end;
+                }
+                return Ok(());
+            }
+        }
+    }
+    Ok(())
 }
 
 fn path_lands_on<'a>(

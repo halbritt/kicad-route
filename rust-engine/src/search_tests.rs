@@ -2609,45 +2609,58 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
         stackup: Vec::new(),
         routing_options: None,
     };
-    let eng_b5 = Engine::new(b5.clone()).unwrap();
-    let b5_t0 = eng_b5.copper().tracks().next().unwrap();
-    let path_b5 = join_components(
-        &eng_b5,
-        1,
-        &[
-            Copper::Pad(&eng_b5.input.pads[0]),
-            Copper::Pad(&eng_b5.input.pads[1]),
-            Copper::Track(b5_t0),
-        ],
-        &[vec![Copper::Pad(&eng_b5.input.pads[2])]],
-        50_000,
-        &mut 0,
-    )
-    .unwrap();
-    assert_eq!(
-        path_b5.steps, 40,
-        "probe_b5 must choose optimal 40-cost Via: {:?}",
-        path_b5.edges
-    );
-    assert!(path_b5.edges.iter().any(|e| matches!(e, PathEdge::Via(_))));
+    // The original centered 0.2 mm bore removes the complete B.Cu terminal.
+    // One grid step along B.Cu allows the via at x=1 mm. Moving only the
+    // terminal to x=0.4 mm leaves its copper on the original via's annulus.
+    for (terminal_x, cost) in [(500_000, 41), (400_000, 40)] {
+        b5.pads[1].at[0] = terminal_x;
+        let eng_b5 = Engine::new(b5.clone()).unwrap();
+        let b5_t0 = eng_b5.copper().tracks().next().unwrap();
+        let path_b5 = join_components(
+            &eng_b5,
+            1,
+            &[
+                Copper::Pad(&eng_b5.input.pads[0]),
+                Copper::Pad(&eng_b5.input.pads[1]),
+                Copper::Track(b5_t0),
+            ],
+            &[vec![Copper::Pad(&eng_b5.input.pads[2])]],
+            50_000,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(
+            path_b5.steps, cost,
+            "probe_b5 must choose the least-cost supported via: {:?}",
+            path_b5.edges
+        );
+        assert!(path_b5.edges.iter().any(|e| matches!(e, PathEdge::Via(_))));
+
+        assert_eq!(crate::run(b5.clone()).status, Status::Complete);
+    }
 
     // 2. Challenger 1 Probe 4: 3L board with min_via_annular_width = 1nm and
     // (layer "B.Cu") (constraint hole_size (min 0.000044mm)) gives drill = 44nm,
-    // effective via diam = 46 nm, making [0,10]->[10,10] + Via@[10,10] (cost 41)
-    // beat the 42-step F.Cu route [0,10]->[-418,10].
-    let p4 = Input {
+    // effective via diameter = 46 nm. The original first 10 nm step leaves
+    // the source inside the bore. With a 30 nm grid the first step clears
+    // the bore and the same 22 nm gap to the next pad reaches the annulus.
+    // The F.Cu alternative stays 42 steps away in both geometries.
+    for (grid, cost) in [(10, 42), (30, 41)] {
+        let near = grid + 22;
+        let far = 2 - 42 * grid;
+        let p4 = Input {
         version: 1,
         source_id: "2".repeat(64),
         layer: "F.Cu".into(),
         layers: vec!["F.Cu".into(), "In1.Cu".into(), "B.Cu".into()],
         bounds: Bounds {
-            min: [-500, -100],
+            min: [-50 * grid, -100],
             max: [200, 100],
         },
         rules: Rules {
             width_nm: 2,
             clearance_nm: 1,
-            grid_nm: 10,
+            grid_nm: grid,
             edge_clearance_nm: 1,
             hole_clearance_nm: 0,
             same_net_hole_clearance_nm: 0,
@@ -2686,7 +2699,7 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
             Pad {
                 id: id(2),
                 net: 1,
-                at: [32, 10],
+                at: [near, 10],
                 layers: vec!["B.Cu".into()],
                 local_clearance_nm: None,
                 shape: Shape::Circle { radius_nm: 1 },
@@ -2703,10 +2716,12 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
             Pad {
                 id: id(3),
                 net: 1,
-                at: [-418, 10],
+                at: [far, 10],
                 layers: vec!["F.Cu".into()],
                 local_clearance_nm: None,
-                shape: Shape::Circle { radius_nm: 1 },
+                // The original target has an imported 2 nm via in a 2 nm pad.
+                // Give the new control copper outside that existing bore.
+                shape: Shape::Circle { radius_nm: if grid == 10 { 1 } else { 2 } },
                 drill: None,
                 zone_connection: crate::model::PadZoneConnection::Inherited,
                 thermal_gap_nm: None,
@@ -2723,8 +2738,8 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 id: id(10),
                 net: 1,
                 layer: "B.Cu".into(),
-                start: [-418, 10],
-                end: [-418, 60],
+                start: [far, 10],
+                end: [far, 60],
                 width_nm: 2,
                 locked: true,
             },
@@ -2732,8 +2747,8 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 id: id(12),
                 net: 1,
                 layer: "B.Cu".into(),
-                start: [-418, 60],
-                end: [32, 60],
+                start: [far, 60],
+                end: [near, 60],
                 width_nm: 2,
                 locked: true,
             },
@@ -2741,8 +2756,8 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
                 id: id(13),
                 net: 1,
                 layer: "B.Cu".into(),
-                start: [32, 60],
-                end: [32, 10],
+                start: [near, 60],
+                end: [near, 10],
                 width_nm: 2,
                 locked: true,
             },
@@ -2750,7 +2765,7 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
         vias: vec![Via {
             id: id(11),
             net: 1,
-            at: [-418, 10],
+            at: [far, 10],
             diameter_nm: 4,
             drill_nm: 2,
             start_layer: "F.Cu".into(),
@@ -2798,31 +2813,35 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
             stackup: Vec::new(),
             routing_options: None,
 };
-    let eng_p4 = Engine::new(p4).unwrap();
-    let p4_tracks: Vec<_> = eng_p4.copper().tracks().map(Copper::Track).collect();
-    let p4_v0 = eng_p4.copper().vias().next().unwrap();
-    let mut p4_targets = vec![
-        Copper::Pad(&eng_p4.input.pads[1]),
-        Copper::Pad(&eng_p4.input.pads[2]),
-        Copper::Via(p4_v0),
-    ];
-    p4_targets.extend(p4_tracks);
-    let path_p4 = join_components(
-        &eng_p4,
-        1,
-        &[Copper::Pad(&eng_p4.input.pads[0])],
-        &[p4_targets],
-        50_000,
-        &mut 0,
-    )
-    .unwrap();
-    assert_eq!(
-        path_p4.steps, 41,
-        "Probe 4 must choose optimal 41-cost Via route: {:?}",
-        path_p4.edges
-    );
-    assert!(path_p4.edges.iter().any(|e| matches!(e, PathEdge::Via(_))));
-    let _ = &mut b5;
+        assert_eq!(crate::run(p4.clone()).status, Status::Complete);
+        let eng_p4 = Engine::new(p4).unwrap();
+        let p4_tracks: Vec<_> = eng_p4.copper().tracks().map(Copper::Track).collect();
+        let p4_v0 = eng_p4.copper().vias().next().unwrap();
+        let mut p4_targets = vec![
+            Copper::Pad(&eng_p4.input.pads[1]),
+            Copper::Pad(&eng_p4.input.pads[2]),
+            Copper::Via(p4_v0),
+        ];
+        p4_targets.extend(p4_tracks);
+        let path_p4 = join_components(
+            &eng_p4,
+            1,
+            &[Copper::Pad(&eng_p4.input.pads[0])],
+            &[p4_targets],
+            50_000,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(
+            path_p4.steps, cost,
+            "Probe 4 must choose the least-cost supported route: {:?}",
+            path_p4.edges
+        );
+        assert_eq!(
+            path_p4.edges.iter().any(|e| matches!(e, PathEdge::Via(_))),
+            grid == 30
+        );
+    }
 }
 
 #[test]
@@ -3276,7 +3295,7 @@ fn probe_d_350_open_vs_ctrl_re02() {
 #[test]
 fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
     // 1. Reviewer 2 [0,20] -> [20,0] witness (same_net_hole_clearance_nm = 25, Via@[20,0] only):
-    let witness_in = Input {
+    let mut witness_in = Input {
         version: 1,
         source_id: "6".repeat(64),
         layer: "F.Cu".into(),
@@ -3444,6 +3463,15 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
         stackup: Vec::new(),
         routing_options: None,
     };
+    // The only via site drills out the original 2 nm terminal. A 4 nm
+    // terminal retains a 1 nm annulus and must take the original detour.
+    let assert_drilled_out = |input| {
+        let out = crate::run(input);
+        assert_eq!(out.status, Status::Unroutable, "{:?}", out.reason);
+        assert!(out.added_tracks.is_empty() && out.added_vias.is_empty());
+    };
+    assert_drilled_out(witness_in.clone());
+    witness_in.pads[1].shape = Shape::Circle { radius_nm: 2 };
     let eng_w = Engine::new(witness_in.clone()).unwrap();
     let path_w = join_components(
         &eng_w,
@@ -3587,8 +3615,12 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
         }
     };
 
-    let a1_open = crate::run(make_a1(false));
-    let a1_ctrl = crate::run(make_a1(true));
+    let [a1_open, a1_ctrl] = [false, true].map(|blocked| {
+        let mut input = make_a1(blocked);
+        assert_drilled_out(input.clone());
+        input.pads[1].shape = Shape::Circle { radius_nm: 2 };
+        crate::run(input)
+    });
     assert_eq!(a1_open.status, Status::Complete, "{:?}", a1_open.reason);
     assert_eq!(a1_ctrl.status, Status::Complete, "{:?}", a1_ctrl.reason);
     assert_eq!(a1_open.added_vias.len(), 1);
@@ -6339,6 +6371,191 @@ fn generated_via_needs_a_supported_layer_and_surface_copper_outside_its_bore() {
     assert!(Copper::Via(&beside_bore)
         .touches_via(&via, &stack, &work)
         .unwrap());
+}
+
+#[test]
+fn a_via_bore_cannot_remove_a_terminal_on_its_layer_span() {
+    let mut input: Input = serde_json::from_value(serde_json::json!({
+        "version": 1, "source_id": "c".repeat(64), "layer": "F.Cu",
+        "layers": ["F.Cu", "B.Cu"],
+        "bounds": {"min": [0, 0], "max": [1_600_000, 1_600_000]},
+        "rules": {"width_nm": 60_000, "grid_nm": 200_000, "clearance_nm": 30_000, "edge_clearance_nm": 0},
+        "nets": [{"id": 1, "name": "signal"}], "pads": [], "tracks": [], "max_expansions": 1000
+    }))
+    .unwrap();
+    let at = [1_000_000, 200_000];
+    for (id, pos, layer) in [(1, at, "F.Cu"), (2, [400_000, 1_200_000], "B.Cu")] {
+        let mut terminal = pad(id, 1, pos, Shape::Circle { radius_nm: 40_000 });
+        terminal.layers.push(layer.into());
+        input.pads.push(terminal);
+    }
+    let mut rules = crate::rules::EffectiveRules::from_uniform_rules(input.rules, &input.nets);
+    for net in rules.net_rules.values_mut() {
+        net.via_diameter_nm = 300_000;
+        net.via_drill_nm = 150_000;
+    }
+    rules.max_via_diameter_nm = 300_000;
+    rules.via_cost = 5;
+    input.effective_rules = Some(rules);
+
+    // A centered drill would erase either terminal. Start and finish on a trace.
+    let out = crate::run(input.clone());
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    assert_eq!(out.added_vias.len(), 1);
+    let via = &out.added_vias[0];
+    for terminal in &input.pads {
+        assert!(!geometry::drill_removes_pad(via.at, via.drill_nm, terminal));
+        assert!(out.added_tracks.iter().any(
+            |t| terminal.layers.contains(&t.layer) && geometry::track_lands_on_pad(t, terminal)
+        ));
+    }
+
+    let mut supported = input.clone();
+    for terminal in &mut supported.pads {
+        terminal.at = at;
+        terminal.shape = Shape::Circle { radius_nm: 125_000 };
+    }
+    let direct = crate::run(supported.clone());
+    assert_eq!(direct.status, Status::Complete, "{:?}", direct.reason);
+    assert!(direct.added_tracks.is_empty());
+    assert_eq!(direct.added_vias.len(), 1);
+    assert_eq!(direct.added_vias[0].at, at);
+    for terminal in &supported.pads {
+        assert!(geometry::via_lands_on_pad(&direct.added_vias[0], terminal));
+    }
+
+    input.layers = ["F.Cu", "In1.Cu", "In2.Cu", "B.Cu"]
+        .map(String::from)
+        .into();
+    let rules = input.effective_rules.as_mut().unwrap();
+    rules.allow_blind_buried_vias = true;
+    rules.minimums.allow_blind_buried_vias = true;
+    let engine = Engine::new(input).unwrap();
+    for (a, b, allowed) in [(0, 1, false), (1, 2, true)] {
+        assert_eq!(
+            engine
+                .legal_via(1, at, a, b, ViaKind::BlindBuried, &[])
+                .unwrap()
+                .is_some(),
+            allowed
+        );
+    }
+}
+
+#[test]
+fn a_clipped_via_lead_reaches_both_the_annulus_and_the_target_when_clear() {
+    let via = PlacedViaKey {
+        at: [1_800_000, 1_000_000],
+        start_layer: 0,
+        end_layer: 1,
+        kind: 0,
+    };
+    let terminal = track(3, 1, [2_000_000, 500_000], [2_000_000, 1_500_000], 200_000);
+    let tip = [1_900_000, 1_000_000];
+    for (wall_x, priced, expected) in [
+        (3_000_000, false, 2_000_000),
+        (2_050_000, false, 1_925_000),
+        (2_001_000, false, tip[0]),
+        (3_000_000, true, 2_000_000),
+    ] {
+        let input: Input = serde_json::from_value(serde_json::json!({
+            "version": 1, "source_id": "a".repeat(64), "layer": "F.Cu", "layers": ["F.Cu", "B.Cu"],
+            "bounds": {"min": [0, 0], "max": [4_000_000, 2_000_000]},
+            "rules": {"width_nm": 200_000, "grid_nm": 200_000, "clearance_nm": 30_000, "edge_clearance_nm": 0},
+            "nets": [{"id": 1, "name": "signal"}], "pads": [], "tracks": [terminal], "max_expansions": 1000,
+            "routing_options": {"layer_policy": {"signal_layers": ["F.Cu", "B.Cu"], "layer_costs": [1.5, 1.0]}},
+            "rule_areas": [{"id": id(4), "layers": ["F.Cu"], "no_tracks": true, "no_vias": false,
+                "outer": [[wall_x, 500_000], [wall_x + 10_000, 500_000], [wall_x + 10_000, 1_500_000], [wall_x, 1_500_000]]}]
+        })).unwrap();
+        let engine = Engine::new(input).unwrap();
+        let mut history = crate::negotiate::CongestionHistory::new();
+        if priced {
+            history.add_weight((0, 10, 5), 7, &engine).unwrap();
+        }
+        for first in [false, true] {
+            let expected_x = if priced && !first {
+                1_925_000
+            } else {
+                expected
+            };
+            let (start, end) = if first { (tip, via.at) } else { (via.at, tip) };
+            let lead = PathEdge::Track {
+                start,
+                end,
+                layer: 0,
+            };
+            let (edges, points) = if first {
+                (vec![lead, PathEdge::Via(via)], vec![tip, via.at, via.at])
+            } else {
+                (vec![PathEdge::Via(via), lead], vec![via.at, via.at, tip])
+            };
+            let mut path = Path {
+                edges,
+                points,
+                steps: 2_500_000,
+            };
+            extend_clipped_via_lead(
+                &engine,
+                1,
+                &mut path,
+                first,
+                [Copper::Track(&terminal)].into_iter(),
+                Some(&history),
+            )
+            .unwrap();
+            let endpoint = if first {
+                path.points.first()
+            } else {
+                path.points.last()
+            };
+            assert_eq!(endpoint, Some(&[expected_x, tip[1]]));
+            let lead = track(5, 1, via.at, *endpoint.unwrap(), 200_000);
+            assert_eq!(
+                geometry::via_anchored_on_track(&via.as_via(&engine, 1).unwrap(), &lead),
+                expected_x != tip[0]
+            );
+            assert!(geometry::tracks_land_together(&lead, &terminal));
+            let destination = if first { via.at } else { *endpoint.unwrap() };
+            let cost = engine
+                .layer_policy
+                .step(0, history.step_penalty(0, destination, [0, 0], 200_000))
+                + engine.layer_policy.via_step(1, 0).unwrap();
+            assert_eq!(path.steps, cost);
+            assert_eq!(path.steps, 2_500_000);
+        }
+    }
+}
+
+#[test]
+fn drill_containment_uses_the_complete_pad_and_half_nanometre_extents() {
+    let at = [0, 0];
+    let oblong = Shape::Capsule {
+        start_nm: [-5, 0],
+        end_nm: [5, 0],
+        width_nm: 5,
+    };
+    let compound = Shape::Union {
+        shapes: vec![Shape::Circle { radius_nm: 2 }, oblong.clone()],
+    };
+    // Both the odd-width oblong and the connected compound reach x = ±7.5 nm.
+    for shape in [oblong, compound] {
+        let terminal = pad(1, 1, at, shape);
+        assert!(geometry::drill_removes_pad(at, 15, &terminal));
+        assert!(!geometry::drill_removes_pad(at, 14, &terminal));
+        assert!(!geometry::drill_removes_pad([1, 0], 15, &terminal));
+    }
+    let offset = pad(
+        2,
+        1,
+        at,
+        Shape::BoxExact {
+            center_2x: [1, 0],
+            half_size_2x: [5, 5],
+            radius_2x: 5,
+        },
+    );
+    assert!(geometry::drill_removes_pad(at, 6, &offset));
+    assert!(!geometry::drill_removes_pad(at, 5, &offset));
 }
 
 #[test]

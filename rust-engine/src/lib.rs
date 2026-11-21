@@ -43,6 +43,7 @@ pub struct Engine {
     max_zone_local_clearance_nm: i64,
     copper: CopperStore,
     pad_spatial: Vec<StaticSpatialIndex<PadCore>>,
+    min_pad_span: Vec<i64>,
     hole_spatial: StaticSpatialIndex<DrillGeom>,
     outline_spatial: StaticSpatialIndex<EdgeGeom>,
     artwork_spatial: Vec<StaticSpatialIndex<ArtworkGeom>>,
@@ -462,6 +463,10 @@ impl Engine {
             .unwrap_or(0);
         let mut per_layer_pads: Vec<Vec<(u32, u32, CopperAabb, PadCore)>> =
             vec![Vec::new(); layer_count];
+        // Outward-rounded pad envelopes can exceed their copper span by a
+        // nanometre on each side. Skip same-net bore queries only when every
+        // pad on that layer is wider than the drill along at least one axis.
+        let mut min_pad_span = vec![i64::MAX; layer_count];
         for (i, pad) in input.pads.iter().enumerate() {
             let core = match &pad.shape {
                 Shape::Circle { radius_nm } => PadCore::Box {
@@ -505,22 +510,28 @@ impl Engine {
                 },
                 Shape::ConvexPolygon { .. } | Shape::Union { .. } => PadCore::General,
             };
+            let bounds = CopperAabb::from_bounds(pad.copper_bounds());
+            let span = (bounds.max[0] - bounds.min[0]).max(bounds.max[1] - bounds.min[1]) - 2;
             let entry = (
                 u32::try_from(i).expect("bounded input pad count"),
                 pad.net,
-                CopperAabb::from_bounds(pad.copper_bounds()),
+                bounds,
                 core,
             );
+            let mut insert = |layer: usize| {
+                min_pad_span[layer] = min_pad_span[layer].min(span);
+                per_layer_pads[layer].push(entry);
+            };
             if pad.layers.is_empty() {
                 let l_idx = layer_names
                     .iter()
                     .position(|l| l == &input.layer)
                     .unwrap_or(0);
-                per_layer_pads[l_idx].push(entry);
+                insert(l_idx);
             } else {
                 for pl in &pad.layers {
                     if let Some(l_idx) = layer_names.iter().position(|l| l == pl) {
-                        per_layer_pads[l_idx].push(entry);
+                        insert(l_idx);
                     }
                 }
             }
@@ -959,6 +970,7 @@ impl Engine {
             max_zone_local_clearance_nm,
             copper,
             pad_spatial,
+            min_pad_span,
             hole_spatial,
             outline_spatial,
             artwork_spatial,
@@ -2344,12 +2356,16 @@ impl Engine {
                 .board_design_settings
                 .as_ref()
                 .is_some_and(|bds| !(bds.cap_vias && bds.fill_vias));
-            let pad_net_filter =
-                if (r.same_net_hole_clearance_nm > 0 || disallow_smd_via_in_pad) && net != 0 {
-                    None
-                } else {
-                    Some(net)
-                };
+            let check_pad_removal = drill >= self.min_pad_span[l_idx];
+            let pad_net_filter = if (r.same_net_hole_clearance_nm > 0
+                || disallow_smd_via_in_pad
+                || check_pad_removal)
+                && net != 0
+            {
+                None
+            } else {
+                Some(net)
+            };
             let pad_swept = SweptAabb::swept(
                 at,
                 at,
@@ -2404,6 +2420,12 @@ impl Engine {
                         })
                     };
                     if pad.net == net && net != 0 {
+                        if check_pad_removal && (pad.drill.is_some() || !disallow_smd_via_in_pad) {
+                            self.work.charge(pad.shape.parts().len() as u64)?;
+                            if geometry::drill_removes_pad(at, drill, pad) {
+                                return Ok(ControlFlow::Break(()));
+                            }
+                        }
                         if pad.drill.is_none() && disallow_smd_via_in_pad {
                             if check_core(drill, 0)? {
                                 return Ok(ControlFlow::Break(()));

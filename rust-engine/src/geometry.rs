@@ -594,6 +594,10 @@ enum ConnCore2x {
 
 impl ConnCore2x {
     fn from_primitive(p: PadGeometry<'_>) -> (Self, i64) {
+        Self::with_dimensions(p, |v| (v / 2) * 2)
+    }
+
+    fn with_dimensions(p: PadGeometry<'_>, dimension_2x: impl Fn(i64) -> i64) -> (Self, i64) {
         match p.shape {
             Shape::Union { .. } => unreachable!("contact cores represent single primitives"),
             Shape::Circle { radius_nm } => (
@@ -625,10 +629,10 @@ impl ConnCore2x {
                 half_size_2x,
                 radius_2x,
             } => {
-                let r2 = (radius_2x / 2) * 2;
+                let r2 = dimension_2x(*radius_2x);
                 let half2 = [
-                    (half_size_2x[0] / 2) * 2 - r2,
-                    (half_size_2x[1] / 2) * 2 - r2,
+                    dimension_2x(half_size_2x[0]) - r2,
+                    dimension_2x(half_size_2x[1]) - r2,
                 ];
                 (
                     Self::Box {
@@ -647,7 +651,7 @@ impl ConnCore2x {
                     a2: [start_nm[0] * 2, start_nm[1] * 2],
                     b2: [end_nm[0] * 2, end_nm[1] * 2],
                 },
-                (width_nm / 2) * 2,
+                dimension_2x(*width_nm),
             ),
             Shape::ConvexPolygon {
                 vertices,
@@ -1344,10 +1348,7 @@ pub(crate) fn via_anchored_on_track(v: &Via, t: &Track) -> bool {
     }
     // Copper wholly inside the drilled opening cannot join the land. Check
     // the farthest trace cap as well as the outer-circle contact above.
-    let bore = (v.drill_nm + 1) / 2;
-    let wall = v.diameter_nm / 2 - bore;
-    let track_radius = t.width_nm / 2;
-    let outside = bore + track_radius.min((wall + 1) / 2).max(CONTACT_OVERLAP_NM) - track_radius;
+    let outside = via_track_reach(v, t.width_nm);
     if outside > 0
         && [t.start, t.end]
             .iter()
@@ -1360,6 +1361,14 @@ pub(crate) fn via_anchored_on_track(v: &Via, t: &Track) -> bool {
     point_near_segment(v.at, t.start, t.end, track_width, true)
         || point_near_segment(t.start, v.at, v.at, via_diameter, true)
         || point_near_segment(t.end, v.at, v.at, via_diameter, true)
+}
+
+/// Minimum distance a track cap center must reach from the drill center.
+pub(crate) fn via_track_reach(v: &Via, width_nm: i64) -> i64 {
+    let bore = (v.drill_nm + 1) / 2;
+    let wall = v.diameter_nm / 2 - bore;
+    let radius = width_nm / 2;
+    bore + radius.min((wall + 1) / 2).max(CONTACT_OVERLAP_NM) - radius
 }
 
 /// The geometry of the outer via land is a round cap. Layer spans are
@@ -1403,6 +1412,22 @@ fn via_ring(v: &Via) -> CopperGraphic {
             filled: false,
         },
     }
+}
+
+/// Drilling through a terminal must leave some of its actual copper outside
+/// the hole. For a convex core swept by a circle, the farthest point is one
+/// core vertex plus the sweep radius. Every primitive of a union must fit.
+pub(crate) fn drill_removes_pad(at: Point, drill: i64, pad: &Pad) -> bool {
+    let center2 = at.map(|x| 2 * x);
+    pad.geometry().parts().all(|part| {
+        let (core, round2) = ConnCore2x::with_dimensions(part, |v| v);
+        let reach2 = drill - round2;
+        reach2 >= 0
+            && core.vertices().iter().all(|&v| {
+                let d = sub(v, center2);
+                dot(d, d) <= sq(i128::from(reach2))
+            })
+    })
 }
 
 pub(crate) fn via_lands_on_pad(v: &Via, p: &Pad) -> bool {

@@ -170,11 +170,15 @@ A new trace ending on a filled copper graphic or zone fill carries its
 centerline onto the copper. Pads, graphic strokes and trace junctions require
 an overlap of at least the smaller feature radius. A via joining a surface must
 reach the surface with its land and have copper in common outside the drilled
-opening. A compound pad can supply that contact across its connected
-primitives. The component search checks layer spans, polygon cutouts and the
-actual curved edges. It can extend a clipped pad approach before accepting
-it. If the proposed copper cannot join both islands, the search continues
-against the landing geometry using its remaining work and expansion budgets.
+opening. The search rejects a via whose drill would remove an entire pad on
+its layer span. It can leave a small terminal on a trace before changing layers.
+A clipped trace from a via can extend within its last grid step to reach both
+the annulus and its terminal. A compound pad can supply contact across its
+connected primitives. The component search checks layer spans, polygon
+cutouts and the actual curved edges. It can extend a clipped pad approach
+before accepting it. If the proposed copper cannot join both islands, the
+search continues against the landing geometry using its remaining work and
+expansion budgets.
 Existing connections between input items retain their native contact rules.
 
 ## Original single-layer JSON routing subset
