@@ -345,13 +345,16 @@ def reject_external_rules(path: Path):
 
 @contextmanager
 def source_snapshot(path: Path, *, project_path: Path | None = None):
+    canonical = Path(os.path.realpath(path))
     pro_before, dru_before = resolve_sidecars(path, project_path=project_path)
     body = read_bounded(path)
     pro_after, dru_after = resolve_sidecars(path, project_path=project_path)
     if pro_before != pro_after or dru_before != dru_after:
         raise ValueError('sidecar changed during snapshot admission')
+    if Path(os.path.realpath(path)) != canonical:
+        raise ValueError('source board path changed during snapshot admission')
     with tempfile.TemporaryDirectory(prefix='kicad-route-source-') as directory:
-        snapshot = Path(directory) / 'source.kicad_pcb'
+        snapshot = (Path(directory) / canonical.name).with_suffix('.kicad_pcb')
         snapshot.write_bytes(body)
         if pro_after is not None:
             snapshot.with_suffix('.kicad_pro').write_bytes(pro_after)
@@ -1397,11 +1400,25 @@ def _extract_npth_mask_apertures(pad, settings):
     return out
 
 
-def _check_physical_text_context(item, has_variants):
+def _check_text_context(item, has_variants):
     if not isinstance(item, pcbnew.EDA_TEXT) or not item.HasTextVars():
         return
     layer = item.GetLayer()
     if not pcbnew.IsCopperLayer(layer) and layer not in (pcbnew.F_Mask, pcbnew.B_Mask):
+        # Matching basenames preserve PROJECTNAME and FILENAME. Detect absolute
+        # FILEPATH dependencies (also through fields or project variables) with
+        # KiCad's own renderer, keeping the admitted project attached throughout.
+        board = item.GetBoard()
+        filename = board.GetFileName()
+        native_text = item.GetShownText(False)
+        alternate = Path(filename).parent / 'alternate' / Path(filename).name
+        board.SetFileName(str(alternate))
+        try:
+            if item.GetShownText(False) != native_text:
+                raise UnsupportedBoard(
+                    f'text {item_id(item)} on {pcbnew.LayerName(layer)} depends on the absolute PCB path')
+        finally:
+            board.SetFileName(filename)
         return
     # These complete substitutions read a literal property of the same board.
     # Other expressions can resolve through the project, including recursively.
@@ -1446,7 +1463,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
     if len(cu_layers) >= 2 and (not settings.m_TentViasFront or not settings.m_TentViasBack):
         raise UnsupportedBoard('untented vias are not represented')
     for drawing in board.GetDrawings():
-        _check_physical_text_context(drawing, has_variants)
+        _check_text_context(drawing, has_variants)
         layer = drawing.GetLayer()
         if layer in cu_set:
             _check_graphic_drawing(drawing, context_label='board copper', layer=layer)
@@ -1468,7 +1485,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
             raise UnsupportedBoard('net-tie connectivity is not represented')
         for field in footprint.GetFields():
             if field.IsVisible():
-                _check_physical_text_context(field, has_variants)
+                _check_text_context(field, has_variants)
             field_layer = field.GetLayer()
             if pcbnew.IsCopperLayer(field_layer):
                 raise UnsupportedBoard('footprint copper fields are not represented')
@@ -1479,7 +1496,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
             ):
                 raise UnsupportedBoard('footprint solder-mask fields are not represented')
         for drawing in footprint.GraphicalItems():
-            _check_physical_text_context(drawing, has_variants)
+            _check_text_context(drawing, has_variants)
             layer = drawing.GetLayer()
             if layer == pcbnew.Margin:
                 raise UnsupportedBoard('footprint Margin geometry is not represented')
@@ -3166,7 +3183,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         used_ids.add(ident)
     # Keep the candidate unpublished until the saved native representation
     # independently confirms completion and DRC non-regression.
-    with tempfile.TemporaryDirectory(prefix=f'.{destination.stem}-', dir=destination.parent) as directory:
+    with tempfile.TemporaryDirectory(prefix='.kicad-route-apply-', dir=destination.parent) as directory:
         directory = Path(directory)
         temporary = directory / destination.name
         if not pcbnew.SaveBoard(str(temporary), board):
@@ -3443,7 +3460,7 @@ def measure_layer_policy(source, candidate, area_loss, reference):
         raise ValueError('pour area-loss limit must be nonnegative and finite')
     candidate_data = read_bounded(candidate)
     with source_snapshot(source) as original, tempfile.TemporaryDirectory(prefix='kicad-route-policy-') as tmp:
-        other = Path(tmp) / original.name
+        other = (Path(tmp) / candidate.name).with_suffix('.kicad_pcb')
         other.write_bytes(candidate_data)
         for suffix in ('.kicad_pro', '.kicad_dru'):
             snapshot_sidecar = original.with_suffix(suffix)

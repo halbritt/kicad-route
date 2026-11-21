@@ -1454,6 +1454,7 @@ fn run_native_with_hooks(
 
 #[derive(Debug)]
 struct AdmittedSource {
+    source_name: OsString,
     source_bytes: Vec<u8>,
     source_sha256: String,
     project_bytes: Option<Vec<u8>>,
@@ -1465,6 +1466,7 @@ struct AdmittedSource {
 
 struct AdmittedInputs {
     bridge_path: PathBuf,
+    source_name: OsString,
     source_bytes: Vec<u8>,
     source_sha256: String,
     rules_bytes: Option<Vec<u8>>,
@@ -1744,6 +1746,10 @@ fn admit_source_board_with_hook(
         None => (None, None),
     };
     Ok(AdmittedSource {
+        source_name: canon_source
+            .file_name()
+            .expect("canonical board filename")
+            .into(),
         source_bytes,
         source_sha256,
         project_bytes,
@@ -1952,6 +1958,7 @@ fn phase_pre_snapshot_admission(
 
         Ok(AdmittedInputs {
             bridge_path,
+            source_name: admitted_source.source_name,
             source_bytes: admitted_source.source_bytes,
             source_sha256: admitted_source.source_sha256,
             rules_bytes,
@@ -2027,7 +2034,12 @@ fn execute_phases(
     result.staging.dir = Some(staging_dir.display().to_string());
     result.staging.cleaned_up = false;
 
-    let staged_source = staging_dir.join("source.kicad_pcb");
+    // KiCad expands the PCB and project names in native drawings. Keep the
+    // public stems, separating source and output even when their names match.
+    let source_dir = staging_dir.join("input");
+    let staged_source = source_dir
+        .join(&admitted.source_name)
+        .with_extension("kicad_pcb");
     let staged_rules = admitted
         .rules_bytes
         .as_ref()
@@ -2035,16 +2047,21 @@ fn execute_phases(
     let staged_pro = admitted
         .project_bytes
         .as_ref()
-        .map(|_| staging_dir.join("source.kicad_pro"));
+        .map(|_| staged_source.with_extension("kicad_pro"));
     let staged_dru = admitted
         .dru_bytes
         .as_ref()
-        .map(|_| staging_dir.join("source.kicad_dru"));
+        .map(|_| staged_source.with_extension("kicad_dru"));
     let staged_limits = admitted
         .limits_bytes
         .as_ref()
         .map(|_| staging_dir.join("limits.json"));
     let stage_write_res = (|| -> std::io::Result<()> {
+        let mut private = DirBuilder::new();
+        #[cfg(unix)]
+        private.mode(0o700);
+        private.create(&source_dir)?;
+        private.create(staging_dir.join("output"))?;
         write_file_create_new(&staged_source, &admitted.source_bytes, 0o600)?;
         if let (Some(rp), Some(rb)) = (&staged_rules, &admitted.rules_bytes) {
             write_file_create_new(rp, rb, 0o600)?;
@@ -2447,7 +2464,10 @@ fn execute_staged_phases(
         return Err((OperationStatus::OperationTimeout, msg));
     }
     let drc_timeout_secs = ((remaining_ms as f64) / 1000.0).max(0.05);
-    let staged_candidate = staging_dir.join("candidate.kicad_pcb");
+    let staged_candidate = staging_dir
+        .join("output")
+        .join(config.output.file_name().expect("admitted output filename"))
+        .with_extension("kicad_pcb");
     let staged_report = staging_dir.join("apply-report.json");
     let mut apply_options: Vec<OsString> = vec![
         "--request".into(),
@@ -4124,6 +4144,7 @@ elif cmd == "apply":
         let bridge = make_stub_bridge(&dir);
         let cfg = base_config(&dir, &bridge);
         let admitted = AdmittedInputs {
+            source_name: OsString::from("source.kicad_pcb"),
             bridge_path: bridge,
             source_bytes: b"(kicad_pcb)".to_vec(),
             source_sha256: sha256_hex(b"(kicad_pcb)"),

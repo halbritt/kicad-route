@@ -190,3 +190,69 @@ def test_public_route_variable_in_native_rule_condition(tmp_path, guarded_cli, o
         assert widths and min(widths) >= 450_000
         after = run_native_drc(output, sidecar_source=source, refill_zones=True)
         assert not after.violations and not after.unconnected_items
+
+
+@pytest.mark.parametrize(('source_name', 'output_name', 'new_warnings', 'use_alias'), [
+    ('a', 'published_under_another_name', True, False),
+    ('published_under_another_name', 'published_under_another_name', False, False),
+    ('published_under_another_name', 'a', False, False),
+    ('published_under_another_name', 'published_under_another_name', False, True),
+])
+def test_public_drc_renders_silk_with_admitted_project_and_real_names(
+        tmp_path, guarded_cli, source_name, output_name, new_warnings, use_alias):
+    run, _ = guarded_cli
+    source = copy_project(tmp_path, source_name)
+    project_path = source.with_suffix('.kicad_pro')
+    project = json.loads(project_path.read_bytes())
+    project['text_variables'] = {'LEGEND': '${PROJECTNAME}'}
+    project_path.write_text(json.dumps(project))
+    board = pcbnew.LoadBoard(str(source))
+    text_id = add_text(board, pcbnew.F_SilkS, '${LEGEND}', 111.5, 103)
+    text = next(t for t in board.GetDrawings() if t.m_Uuid.AsString() == text_id)
+    text.SetTextSize(pcbnew.VECTOR2I(1_000_000, 1_000_000))
+    text.SetTextThickness(200_000)
+    assert pcbnew.SaveBoard(str(source), board)
+    output_dir = tmp_path / 'output'
+    output_dir.mkdir()
+    output = output_dir / (output_name + '.kicad_pcb')
+    for ext in ('.kicad_pro', '.kicad_dru'):
+        shutil.copy2(source.with_suffix(ext), output.with_suffix(ext))
+    for table in ('fp-lib-table', 'sym-lib-table'):
+        shutil.copy2(source.parent / table, output_dir / table)
+    before = run_native_drc(source, refill_zones=True)
+    source_findings = [] if source_name == 'a' else ['silk_over_copper'] * 2
+    assert [v['type'] for v in before.violations] == source_findings
+    assert len(before.unconnected_items) == 6
+    operation = tmp_path / 'result.json'
+    route_source = source
+    if use_alias:
+        route_source = tmp_path / 'a.kicad_pcb'
+        route_source.symlink_to(source)
+    result = run([str(_built_rust_engine(run)), 'route-native', str(route_source), str(output),
+                  '--operation-result', str(operation)], check=False)
+    report = json.loads(operation.read_bytes())
+    if new_warnings:
+        assert (result.returncode, report['status']) == (2, 'native_validation_failed')
+        failure = next(p for p in report['phases'] if p['phase'] == 'native_apply_validate')
+        assert 'silk_over_copper (2)' in failure['detail']
+        assert not output.exists() and not report['publication']['commit_point_reached']
+    else:
+        assert (result.returncode, report['status']) == (0, 'complete'), result.stderr
+        after = run_native_drc(output, refill_zones=True)
+        assert [v['type'] for v in after.violations] == ([] if output_name == 'a' else source_findings)
+        assert not after.unconnected_items
+    for ext in ('.kicad_pro', '.kicad_dru'):
+        assert output.with_suffix(ext).read_bytes() == source.with_suffix(ext).read_bytes()
+
+
+def test_native_detects_file_path_through_project_variable_on_silk(tmp_path):
+    source = copy_project(tmp_path, 'plain_name')
+    project = source.with_suffix('.kicad_pro')
+    data = json.loads(project.read_bytes())
+    data['text_variables'] = {'LEGEND': '${FILEPATH}'}
+    project.write_text(json.dumps(data))
+    board = pcbnew.LoadBoard(str(source))
+    text_id = add_text(board, pcbnew.F_SilkS, '${LEGEND}')
+    assert pcbnew.SaveBoard(str(source), board)
+    with pytest.raises(bridge.UnsupportedBoard, match=text_id + '.*absolute PCB path'):
+        bridge.export_board(source)

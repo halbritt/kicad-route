@@ -57,9 +57,17 @@ resulting edits and publishes the board after native checks.
 A successful standalone `route-native` operation publishes the routed PCB.
 When opening the output in KiCad or running DRC later, keep a copy of its
 original `.kicad_pro` and any `.kicad_dru` next to the PCB under the same
-basename. The process validates its staged copy under the original rules.
+basename. Native DRC uses the source and output basenames in separate private
+directories. Each PCB has the admitted custom rules and project settings.
+The bridge clears saved DRC exclusions in both private project copies so it
+can compare the underlying findings.
+For an input symlink, the canonical board supplies the source basename and
+sidecar files.
 If the output has a different basename or directory, KiCad needs those
 files at the corresponding destination to reproduce that validation.
+The router publishes the PCB alone. Its private DRC copies use installed
+KiCad libraries and settings. For project library checks when reopening the
+PCB, supply the original library tables and the libraries they reference.
 
 KiCad text variables such as `${PROJECTNAME}` can render different copper or
 solder-mask strokes when a PCB is staged or reopened under a different name.
@@ -68,7 +76,9 @@ literal text and a standalone `${LAYER}` with a literal layer name. On a board
 without assembly variants, a footprint text graphic can also show its literal
 `${REFERENCE}` or `${VALUE}`. Other variable expressions in this
 artwork are reported as unsupported before routing or applying edits.
-Text variables on silkscreen and fabrication layers are allowed.
+Silkscreen and fabrication text can use project variables, including the PCB
+filename and project name. The adapter refuses text whose rendering depends
+on the PCB's absolute path, which changes in private staging.
 KiCad also expands variables in `.kicad_dru` before parsing rule conditions
 or removing comments. A multiline project variable in a comment can introduce
 a rule. The adapter therefore reports variables anywhere in this file as
