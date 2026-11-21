@@ -21,6 +21,7 @@ from tests.e2e_rust_router.drivers import parse_last_json_line
 from tests.e2e_rust_router.kicad_verify import (
     BoardBuilder,
     _pcbnew,
+    _track_snapshot,
     verify_routed_board,
 )
 from tests.e2e_rust_router.runner import DriverContext, register_test
@@ -163,8 +164,7 @@ def t5_02(ctx: DriverContext) -> dict[str, Any]:
 
     def locked_tracks(path):
         board = pn.LoadBoard(str(path))
-        return {(t.m_Uuid.AsString(), t.GetNetname(), t.GetLayer(), t.GetWidth(),
-                 tuple(t.GetStart()), tuple(t.GetEnd())) for t in board.GetTracks() if t.IsLocked()}
+        return {_track_snapshot(t) for t in board.GetTracks() if t.IsLocked()}
 
     original_locked = locked_tracks(locked_pcb)
     assert len(original_locked) == 1 and locked_tracks(locked_out) == original_locked
@@ -526,13 +526,10 @@ print(json.dumps({{"rc": rc}}))
     excluded = {"/SIG_A", "/SIG_B"}
 
     def excluded_copper(board):
-        return {
-            (t.m_Uuid.AsString(), t.GetNetname(), tuple(t.GetStart()), tuple(t.GetEnd()),
-             int(t.GetLayer()), int(t.GetWidth()), bool(t.IsLocked()))
-            for t in board.GetTracks() if t.GetNetname() in excluded
-        }
+        return {_track_snapshot(t) for t in board.GetTracks() if t.GetNetname() in excluded}
 
-    assert excluded_copper(after) == excluded_copper(before)
+    original, saved = excluded_copper(before), excluded_copper(after)
+    assert original == saved, f"Excluded copper changed: removed={original - saved}, added={saved - original}"
     assert len(list(after.GetTracks())) > len(list(before.GetTracks()))
     return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
 

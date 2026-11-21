@@ -938,7 +938,8 @@ def _track_snapshot(item: Any) -> tuple[Any, ...]:
             item.m_Uuid.AsString(),
             item.GetNetname(),
             (int(item.GetPosition().x), int(item.GetPosition().y)),
-            int(item.GetWidth(item.TopLayer())),
+            tuple((int(layer), int(item.GetWidth(layer)))
+                  for layer in item.GetBoard().GetEnabledLayers().CuStack() if item.IsOnLayer(layer)),
             int(item.GetDrill()),
             int(item.GetViaType()),
             (int(item.TopLayer()), int(item.BottomLayer())),

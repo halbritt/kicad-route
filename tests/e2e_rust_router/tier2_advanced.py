@@ -1366,7 +1366,7 @@ def t2_f11_04(ctx: DriverContext) -> dict[str, Any]:
     tier=2,
     feature="F11",
     min_stage="M5",
-    name="Rule-floor / .kicad_pro tampering or moved footprint rejected",
+    name="Changed project rules, footprint position or via diameter rejected",
 )
 def t2_f11_05(ctx: DriverContext) -> dict[str, Any]:
     ctx.agent_ee_driver.probe_rust_integration(ctx.native_driver)
@@ -1402,4 +1402,18 @@ def t2_f11_05(ctx: DriverContext) -> dict[str, Any]:
         raise AssertionError("expected verify_preservation to reject shifted footprint")
     except AssertionError as exc:
         assert "footprints altered" in str(exc)
-    return {"checked": ["pro_tamper", "footprint_shift"]}
+
+    resized_dir = stage_fixture_copy(src_dir, ctx.work_dir / "resized-via")
+    resized_pcb = resized_dir / ref_pcb.name
+    resized = pn.LoadBoard(str(resized_pcb))
+    via = next(item for item in resized.GetTracks() if item.GetClass() == "PCB_VIA")
+    via.Padstack().SetMode(pn.PADSTACK.MODE_FRONT_INNER_BACK)
+    via.SetWidth(pn.B_Cu, via.GetWidth(pn.B_Cu) + 50_000)
+    assert pn.SaveBoard(str(resized_pcb), resized, True)
+    try:
+        verify_preservation(ref_pcb, resized_pcb)
+    except AssertionError as exc:
+        assert "input copper item mutated" in str(exc)
+    else:
+        raise AssertionError("preservation check accepted a resized bottom-layer via pad")
+    return {"checked": ["pro_tamper", "footprint_shift", "via_bottom_diameter"]}
