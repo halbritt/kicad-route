@@ -130,7 +130,11 @@ impl<'a> Copper<'a> {
                     || (geometry::tracks_connect(a, b) && both_from_input(&a.id, &b.id))
             }
             (Self::Graphic(g), Self::Track(t)) | (Self::Track(t), Self::Graphic(g)) => {
-                geometry::track_connects_graphic(t, g)
+                if matches!(g.shape, GraphicShape::Arc { .. }) && !both_from_input(&t.id, &g.id) {
+                    geometry::track_lands_on_graphic(t, g)
+                } else {
+                    geometry::track_connects_graphic(t, g)
+                }
             }
             (Self::Graphic(g), Self::Pad(p)) | (Self::Pad(p), Self::Graphic(g)) => {
                 geometry::graphic_connects_pad(g, p)
@@ -183,7 +187,7 @@ impl<'a> Copper<'a> {
         Ok(match self {
             Self::Pad(p) => geometry::track_connects_pad(route, p),
             Self::Track(t) => geometry::tracks_land_together(route, t),
-            Self::Graphic(g) => geometry::track_connects_graphic(route, g),
+            Self::Graphic(g) => geometry::track_lands_on_graphic(route, g),
             Self::Via(v) => geometry::track_lands_on_via(route, v),
             Self::ZoneFill { poly, .. } => {
                 geometry::track_connects_filled_polygon(route, &poly.outer, &poly.holes)

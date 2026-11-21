@@ -145,7 +145,9 @@ The engine represents a copper or solder-mask arc by its start point, a point on
 the sweep and its end point. For clearance it widens the chord strokes by a
 bound on their deviation from the circle. For connectivity it narrows them by
 the same bound. Subdivision retains all three supplied points and uses at most
-64 chords for a clockwise or counterclockwise sweep.
+64 chords for a clockwise or counterclockwise sweep. A generated trace finishes
+at an arc when its centerline reaches the arc stroke or an original arc end
+lands on the trace. This also permits a connection in the interior of the sweep.
 
 ## Original single-layer JSON routing subset
 

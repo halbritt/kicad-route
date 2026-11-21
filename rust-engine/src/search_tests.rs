@@ -5965,6 +5965,57 @@ fn a_cheaper_complete_repair_restores_its_improvement_window() {
 }
 
 #[test]
+fn new_track_lands_on_a_circular_arc_body_or_an_original_endpoint() {
+    let arc = CopperGraphic {
+        id: id(101),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Arc {
+            start: [1000, 0],
+            mid: [0, 1000],
+            end: [-1000, 0],
+            width_nm: 20,
+        },
+    };
+    let target = Copper::Graphic(&arc);
+    let work = WorkBudget::new(Limits::default());
+    let stack = ["F.Cu".to_owned()];
+    for (start, end, expected) in [
+        ([620, 900], [600, 850], false), // A cap overlaps the middle of the arc.
+        ([620, 900], [600, 800], true),  // Pythagorean interior point on the circle.
+        ([1100, 0], [1055, 0], true),    // Arc endpoint in the 60 nm track cap.
+    ] {
+        let t = track(102, 1, start, end, 120);
+        assert!(target.touches(Copper::Track(&t), &stack, |_, _| true));
+        assert_eq!(
+            target.touches(Copper::Track(&t), &stack, |_, _| false),
+            expected
+        );
+        assert_eq!(target.touches_route(&t, &stack, &work).unwrap(), expected);
+    }
+    let hit = target
+        .attachment([600, 950], [600, 750], 1, 120, "F.Cu", &stack, &work)
+        .unwrap()
+        .unwrap();
+    assert!(hit[1] >= 800 && hit[1] <= 813, "{hit:?}");
+    // This 10 nm stroke is narrower than the chord error, but the radii
+    // at 45 degrees still certify an interior attachment away from all three inputs.
+    let thin = CopperGraphic {
+        shape: GraphicShape::Arc {
+            start: [10_000_000, 0],
+            mid: [0, 10_000_000],
+            end: [-10_000_000, 0],
+            width_nm: 10,
+        },
+        ..arc
+    };
+    let on_arc = track(103, 1, [7_071_068, 7_071_068], [7_071_070, 7_071_068], 120);
+    assert!(Copper::Graphic(&thin)
+        .touches_route(&on_arc, &stack, &work)
+        .unwrap());
+}
+
+#[test]
 fn track_via_landing_uses_the_copper_body_in_both_directions() {
     let via = Via {
         id: id(100),
