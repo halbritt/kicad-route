@@ -95,6 +95,42 @@ impl Join<'_> {
         Ok(true)
     }
 
+    // These two legs belong to one unfinished join. When the route stays on
+    // the surface, the proposed drill is only a waypoint. Keep the physical
+    // source and target and drop any copper traversed in both directions.
+    fn continue_without_drilling(
+        &self,
+        edges: &mut Vec<PathEdge>,
+        at: Point,
+        end: Point,
+        layer: usize,
+    ) -> Result<bool, Failure> {
+        self.engine.work.charge(1)?;
+        let mut start = at;
+        if let Some(&PathEdge::Track {
+            start: prev,
+            end: tip,
+            layer: face,
+        }) = edges.last()
+        {
+            if usize::from(face) == layer
+                && tip == at
+                && crate::geometry::orientation(prev, at, end) == 0
+                && !(prev.min(end)..=prev.max(end)).contains(&at)
+            {
+                if prev != end && !self.engine.legal_edge_on(self.net, layer, prev, end)? {
+                    return Ok(false);
+                }
+                edges.pop();
+                start = prev;
+            }
+        }
+        if start != end {
+            edges.push(track(start, end, layer));
+        }
+        Ok(true)
+    }
+
     fn follow_corridor(
         &self,
         c: &Corridor,
@@ -145,7 +181,8 @@ impl Join<'_> {
             if far == pos {
                 return Ok(None);
             }
-            if pos == 0 && plane == self.source.layer && first.via().is_some() {
+            let surface_launch = pos == 0 && plane == self.source.layer && first.via().is_some();
+            if surface_launch {
                 edges.pop(); // The surface stub continues without a layer transfer.
             }
             last_layer = plane;
@@ -197,7 +234,14 @@ impl Join<'_> {
                 .work
                 .search_storage(occupied + holes.len() + edges.len() + 4)?;
             for pair in c.pieces(pos, next).windows(2) {
-                if pair[0] != pair[1] {
+                if pair[0] == pair[1] {
+                    continue;
+                }
+                if surface_launch && pair[0] == first.at() {
+                    if !self.continue_without_drilling(&mut edges, pair[0], pair[1], plane)? {
+                        return Ok(None);
+                    }
+                } else {
                     edges.push(track(pair[0], pair[1], plane));
                 }
             }
@@ -210,9 +254,19 @@ impl Join<'_> {
         if let Some(v) = last.via() {
             if last_layer != self.target.layer {
                 edges.push(PathEdge::Via(v));
+                edges.push(track(v.at, self.target.at, self.target.layer));
+            } else if !self.continue_without_drilling(
+                &mut edges,
+                v.at,
+                self.target.at,
+                self.target.layer,
+            )? {
+                return Ok(None);
             }
-            edges.push(track(v.at, self.target.at, self.target.layer));
         } else if !last.reaches(last_layer) {
+            return Ok(None);
+        }
+        if edges.is_empty() {
             return Ok(None);
         }
         engine.work.charge(edges.len() as u64)?;

@@ -243,3 +243,105 @@ fn existing_barrel_uses_only_layers_present_on_its_ends() {
         }
     }
 }
+
+#[test]
+fn unused_drill_sites_do_not_extend_or_price_a_surface_join_past_its_turn() {
+    let engine = board(&[]);
+    let source = [3_000_000, 6_000_000];
+    let a = [7_000_000, 6_000_000];
+    let corner = [7_000_000, 9_000_000];
+    let b = [7_090_000, 9_000_000];
+    let target = [3_090_000, 9_000_000];
+    let access = |at| Access::NewVia(PlacedViaKey { at, ..hole(0) });
+    for reverse in [false, true] {
+        let (s, t, first, last) = if reverse {
+            (target, source, b, a)
+        } else {
+            (source, target, a, b)
+        };
+        let mut join = join(&engine);
+        join.source = Terminal { at: s, layer: 0 };
+        join.target = Terminal { at: t, layer: 0 };
+        let path = join
+            .follow_corridor(
+                &Corridor::new(first, corner, last, GRID),
+                access(first),
+                access(last),
+                &[true, false, false, false],
+                0,
+                &mut || Ok(true),
+            )
+            .unwrap()
+            .unwrap();
+        let mut expected = vec![source, a, corner, target];
+        if reverse {
+            expected.reverse();
+        }
+        assert_eq!(path.points, expected);
+        let expected_edges: Vec<_> = expected.windows(2).map(|p| track(p[0], p[1], 0)).collect();
+        assert_eq!(path.edges, expected_edges);
+        let steps: u64 = expected
+            .windows(2)
+            .map(|p| (p[0][0].abs_diff(p[1][0]) + p[0][1].abs_diff(p[1][1])).div_ceil(GRID as u64))
+            .sum();
+        assert_eq!(path.steps, steps * engine.layer_policy.weight(0));
+    }
+
+    let mut join = join(&engine);
+    join.source = Terminal {
+        at: source,
+        layer: 0,
+    };
+    join.target = Terminal {
+        at: target,
+        layer: 3,
+    };
+    let crossing = join
+        .follow_corridor(
+            &Corridor::new(a, corner, b, GRID),
+            access(a),
+            access(b),
+            &[true, false, false, true],
+            0,
+            &mut || Ok(true),
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        crossing.edges,
+        vec![
+            track(source, a, 0),
+            track(a, corner, 0),
+            track(corner, b, 0),
+            PathEdge::Via(access(b).via().unwrap()),
+            track(b, target, 3),
+        ]
+    );
+}
+
+#[test]
+fn a_shortened_landing_requires_a_clear_continuous_track() {
+    let engine = board(&[("F.Cu", 6_000_000, 7_000_000)]);
+    let guarded = join(&engine);
+    let (start, tip, target) = (
+        [4_000_000, 5_000_000],
+        [10_000_000, 11_000_000],
+        [8_000_000, 9_000_000],
+    );
+    let mut edges = vec![track(start, tip, 0)];
+    assert!(!guarded
+        .continue_without_drilling(&mut edges, tip, target, 0)
+        .unwrap());
+    assert_eq!(edges, vec![track(start, tip, 0)]);
+
+    let clear = board(&[]);
+    let join = join(&clear);
+    assert!(join
+        .continue_without_drilling(&mut edges, tip, target, 0)
+        .unwrap());
+    assert_eq!(edges, vec![track(start, target, 0)]);
+    assert!(join
+        .continue_without_drilling(&mut edges, target, start, 0)
+        .unwrap());
+    assert!(edges.is_empty());
+}
