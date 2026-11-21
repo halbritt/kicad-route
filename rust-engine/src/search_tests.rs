@@ -37,6 +37,71 @@ fn track(n: u64, net: u32, a: Point, b: Point, w: i64) -> Track {
         locked: true,
     }
 }
+
+#[test]
+fn clipped_pad_entry_continues_the_arriving_stroke_when_the_elbow_is_clear() {
+    for obstructed in [false, true] {
+        let mut input: Input = serde_json::from_value(serde_json::json!({
+            "version": 1, "source_id": "a".repeat(64), "layer": "F.Cu",
+            "bounds": {"min": [0, 0], "max": [250, 250]},
+            "rules": {"width_nm": 10, "grid_nm": 10, "clearance_nm": 2, "edge_clearance_nm": 1},
+            "nets": [{"id": 1, "name": "terminal"}, {"id": 2, "name": "obstacle"}],
+            "pads": [], "tracks": [], "max_expansions": 1000
+        }))
+        .unwrap();
+        let target = [100, 100];
+        input.pads.push(pad(
+            1,
+            1,
+            target,
+            Shape::Rect {
+                half_size_nm: [20, 15],
+            },
+        ));
+        if obstructed {
+            input.tracks.push(track(2, 2, [127, 104], [127, 106], 4));
+        }
+        let mut engine = Engine::new(input).unwrap();
+        let pad = &engine.input.pads[0];
+        let (lo, hi) = pad.copper_bounds();
+        let points = vec![[160, 120], [120, 120], [120, 119]];
+        let edges = points
+            .windows(2)
+            .map(|p| PathEdge::Track {
+                start: p[0],
+                end: p[1],
+                layer: 0,
+            })
+            .collect();
+        let mut path = Path {
+            points,
+            edges,
+            steps: 5,
+        };
+        extend_path_into_target_pad(&engine, 1, &[vec![(Copper::Pad(pad), lo, hi)]], &mut path)
+            .unwrap();
+        engine.insert_path(1, path).unwrap();
+        let actual: Vec<_> = engine
+            .copper
+            .tracks()
+            .filter(|t| t.net == 1)
+            .map(|t| (t.start, t.end))
+            .collect();
+        let expected = if obstructed {
+            // The alternative must keep its one-nanometre piece on this tiny board.
+            vec![[160, 120], [120, 120], [120, 119], [100, 119], target]
+        } else {
+            vec![[160, 120], [120, 120], [120, 100], target]
+        };
+        assert_eq!(
+            actual,
+            expected
+                .windows(2)
+                .map(|p| (p[0], p[1]))
+                .collect::<Vec<_>>()
+        );
+    }
+}
 fn legal(i: &Input, foreign: &[Body], a: Point, b: Point) -> bool {
     let r = i.rules.width_nm + 2 * i.rules.edge_clearance_nm;
     if [a, b].iter().any(|p| {
