@@ -2890,7 +2890,7 @@ pub fn route_all_negotiated(
     engine.operation(|tx| {
         let mut expanded = 0u64;
         let _stats = solve_with_adapter(tx, &mut adapter, &mut expanded)?;
-        Ok(())
+        crate::length_rules::check(tx.engine, expanded)
     })
 }
 

@@ -185,6 +185,32 @@ comparisons on item type or net name, KiCad matches the left value against the
 case-insensitive pattern on the right. A custom minimum or maximum drill
 diameter uses the native `hole_size` constraint.
 
+For project netclass patterns, Rust tries KiCad's anchored regular expression
+and anchored wildcard. For example, `SIG?` assigns the class to `SIG` via
+the regular expression and to `SIGA` via the wildcard. Rust checks named
+constituents against the native assignments in the board snapshot. A
+disagreement stops routing and names the net and its patterns. Net selection
+on the command line keeps its own syntax. [KiCad 10.0.8 pattern matcher](https://gitlab.com/kicad/code/kicad/-/blob/10.0.8/common/eda_pattern_match.cpp)
+
+An absolute `length` maximum in distance units can apply to a whole net,
+using its name, code, or class. After routing and tuning, Rust checks every
+such net to which it added copper, inside the transaction. It sums the
+straight track lengths, exported pad-to-die lengths and, when height is
+enabled, a full stack height per via. It allows for rounding and off-center
+contacts when KiCad clips merged tracks at pads and vias. The result is a
+conservative upper bound. A legal tightly constrained route can be refused,
+especially when it uses only part of a through via. The diagnostic gives the
+bound, the rule and its maximum. An unsuccessful check rolls back the edits.
+[KiCad 10.0.8 length calculation](https://gitlab.com/kicad/code/kicad/-/blob/10.0.8/pcbnew/length_delay_calculation/length_delay_calculation.cpp)
+
+Absolute length minima, absolute delay bounds, and absolute length selectors
+on individual items, layers or paths are unsupported. The router also refuses
+a selected net with an existing net-assigned arc subject to an absolute length
+maximum. The request represents routed and graphic arcs with the same shape. Physical width, clearance and drill predicates that use `inDiffPair`
+or `fromTo` require path context the item checks cannot supply. These cases
+report the rule at admission. The existing pair skew, fromTo path measurement
+and explicitly requested length/delay matching use the pair routing context.
+
 Before publication KiCad reloads the candidate and the adapter checks the width of
 each new track and the diameter and drill of each new via against the native
 effective class. Requested differential pairs use their differential width.

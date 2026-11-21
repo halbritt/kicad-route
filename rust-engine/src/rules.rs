@@ -170,6 +170,8 @@ pub struct BoardDesignSettings {
     pub netclasses: Vec<NetClassDef>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub netclass_assignments: BTreeMap<String, Vec<String>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub pad_to_die_length_nm: BTreeMap<String, i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_height_for_length_calcs: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -461,7 +463,7 @@ struct Nfa {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct PatternMatcher {
     regex: Option<Nfa>,
-    wildcard: Option<String>,
+    wildcard: String,
 }
 
 impl PatternMatcher {
@@ -472,38 +474,40 @@ impl PatternMatcher {
                 "netclass pattern exceeds maximum length",
             ));
         }
-        let has_regex_meta = pattern.chars().any(|c| {
-            matches!(
-                c,
-                '^' | '$' | '\\' | '+' | '[' | ']' | '(' | ')' | '{' | '}' | '|'
-            )
-        }) || pattern.contains(".*")
-            || pattern.contains(".?");
-        let wildcard = if !has_regex_meta && (pattern.contains('*') || pattern.contains('?')) {
-            Some(pattern.to_owned())
-        } else {
-            None
+        // KiCad's CTX_NETCLASS tries both an anchored wxRegEx and an anchored
+        // wildcard. A bare leading '*' is a valid glob and an invalid regex.
+        let anchored = format!(
+            "{}{}{}",
+            if pattern.starts_with('^') { "" } else { "^" },
+            pattern,
+            if pattern.ends_with('$') { "" } else { "$" },
+        );
+        let regex = match compile_nfa(&anchored) {
+            Ok(nfa) => Some(nfa),
+            Err(err)
+                if err.status == Status::Invalid
+                    && pattern.contains(['*', '?'])
+                    && !pattern
+                        .contains(['^', '$', '\\', '+', '[', ']', '(', ')', '{', '}', '|']) =>
+            {
+                None
+            }
+            Err(mut err) => {
+                err.reason = format!("netclass pattern {pattern:?}: {}", err.reason);
+                return Err(err);
+            }
         };
-        let regex = if wildcard.is_some() {
-            None
-        } else {
-            Some(compile_nfa(pattern)?)
-        };
-        Ok(Self { regex, wildcard })
+        Ok(Self {
+            regex,
+            wildcard: pattern.to_owned(),
+        })
     }
 
     fn matches(&self, text: &str) -> bool {
-        if let Some(nfa) = &self.regex {
-            if nfa.full_match(text) {
-                return true;
-            }
-        }
-        if let Some(glob) = &self.wildcard {
-            if wildcard_full_match(glob, text) {
-                return true;
-            }
-        }
-        false
+        self.regex
+            .as_ref()
+            .is_some_and(|nfa| nfa.matches_at_start(text))
+            || wildcard_full_match(&self.wildcard, text)
     }
 }
 
@@ -600,57 +604,28 @@ impl<'a> RegexParser<'a> {
     }
 
     fn parse_quantified(&mut self, depth: usize) -> Result<RegexAst, Failure> {
-        let mut atom = self.parse_atom(depth)?;
-        loop {
-            match self.peek() {
-                Some('*') => {
-                    self.next();
-                    if self.peek() == Some('?') {
-                        self.next();
-                    }
-                    atom = RegexAst::Repeat {
-                        inner: Box::new(atom),
-                        min: 0,
-                        max: None,
-                    };
-                }
-                Some('+') => {
-                    self.next();
-                    if self.peek() == Some('?') {
-                        self.next();
-                    }
-                    atom = RegexAst::Repeat {
-                        inner: Box::new(atom),
-                        min: 1,
-                        max: None,
-                    };
-                }
-                Some('?') => {
-                    self.next();
-                    if self.peek() == Some('?') {
-                        self.next();
-                    }
-                    atom = RegexAst::Repeat {
-                        inner: Box::new(atom),
-                        min: 0,
-                        max: Some(1),
-                    };
-                }
-                Some('{') => {
-                    let (min, max) = self.parse_brace_quantifier()?;
-                    if self.peek() == Some('?') {
-                        self.next();
-                    }
-                    atom = RegexAst::Repeat {
-                        inner: Box::new(atom),
-                        min,
-                        max,
-                    };
-                }
-                _ => break,
+        let atom = self.parse_atom(depth)?;
+        let (min, max) = match self.peek() {
+            Some(ch @ ('*' | '+' | '?')) => {
+                self.next();
+                (usize::from(ch == '+'), (ch == '?').then_some(1))
             }
+            Some('{') => self.parse_brace_quantifier()?,
+            _ => return Ok(atom),
+        };
+        if self.peek() == Some('?') {
+            self.next(); // non-greedy repetition has the same membership test
         }
-        Ok(atom)
+        if matches!(atom, RegexAst::AnchorStart | RegexAst::AnchorEnd)
+            || matches!(self.peek(), Some('*' | '+' | '?' | '{'))
+        {
+            return Err(Failure::new(Status::Invalid, "invalid regex repetition"));
+        }
+        Ok(RegexAst::Repeat {
+            inner: Box::new(atom),
+            min,
+            max,
+        })
     }
 
     fn parse_brace_quantifier(&mut self) -> Result<(usize, Option<usize>), Failure> {
@@ -979,10 +954,13 @@ impl Nfa {
         out
     }
 
-    fn full_match(&self, text: &str) -> bool {
+    fn matches_at_start(&self, text: &str) -> bool {
         let chars: Vec<char> = text.chars().collect();
         let mut current = self.epsilon_closure(&[self.start], true, chars.is_empty());
         for (i, &ch) in chars.iter().enumerate() {
+            if current.contains(&0) {
+                return true;
+            }
             let mut next_seeds = Vec::new();
             for &idx in &current {
                 if let NfaNode::Step { matcher, next } = &self.nodes[idx] {
@@ -1798,6 +1776,36 @@ impl DruExpr {
                     a.requires_via(side, when_true) && b.requires_via(side, when_true)
                 }
             }
+            _ => false,
+        }
+    }
+
+    fn path_predicate(&self) -> Option<&'static str> {
+        match self {
+            Self::InDiffPair { .. } => Some("inDiffPair"),
+            Self::FromTo { .. } => Some("fromTo"),
+            Self::Not(x) => x.path_predicate(),
+            Self::And(a, b) | Self::Or(a, b) => a.path_predicate().or_else(|| b.path_predicate()),
+            _ => None,
+        }
+    }
+
+    fn selects_whole_nets(&self) -> bool {
+        match self {
+            Self::BoolLit(_) | Self::HasNetClass { side: Side::A, .. } => true,
+            Self::Not(x) => x.selects_whole_nets(),
+            Self::And(a, b) | Self::Or(a, b) => a.selects_whole_nets() && b.selects_whole_nets(),
+            Self::Eq(a, b) | Self::Ne(a, b) => [a, b].iter().all(|v| {
+                matches!(
+                    v,
+                    DruValueExpr::StrLit(_)
+                        | DruValueExpr::IntLit(_)
+                        | DruValueExpr::Prop(
+                            Side::A,
+                            DruProp::Net | DruProp::NetName | DruProp::NetClass
+                        )
+                )
+            }),
             _ => false,
         }
     }
@@ -3593,6 +3601,27 @@ impl EffectiveRules {
         Ok(width)
     }
 
+    pub(crate) fn whole_net_length_limit(&self, net: u32) -> Option<(&str, i64)> {
+        let item = self.make_item(net, DruItemKind::Track, &[]);
+        // Later applicable KiCad rules replace earlier rules of the same kind.
+        for rule in self.dru_rules.iter().rev() {
+            if let DruConstraint::Length { max_nm, .. } = rule.constraint {
+                // An ignored item-specific rule cannot cancel a whole-net bound.
+                if rule.layer.is_none()
+                    && rule
+                        .condition
+                        .as_ref()
+                        .is_none_or(|c| c.selects_whole_nets() && eval_dru_expr(c, &item, None))
+                {
+                    return max_nm
+                        .filter(|_| rule.severity != DruSeverity::Ignore)
+                        .map(|max| (rule.name.as_str(), max));
+                }
+            }
+        }
+        None
+    }
+
     fn make_item<'a>(
         &'a self,
         net_id: u32,
@@ -4071,6 +4100,39 @@ fn resolve_net_classes(net_name: &str, pro: &ProjectRules) -> (String, Vec<Strin
     (members.join(","), members, effective)
 }
 
+fn check_native_pattern_members(
+    net: &str,
+    resolved: &[String],
+    project: &ProjectRules,
+    board: Option<&BoardDesignSettings>,
+) -> Result<(), Failure> {
+    if project.patterns.is_empty() {
+        return Ok(());
+    }
+    let Some(native) = board.and_then(|b| b.netclass_assignments.get(net)) else {
+        return Ok(());
+    };
+    // The Default class also supplies inherited fields. Compare explicit named members.
+    fn named(members: &[String]) -> BTreeSet<&str> {
+        members
+            .iter()
+            .map(String::as_str)
+            .filter(|&name| name != "Default")
+            .collect()
+    }
+    if named(native) != named(resolved) {
+        let patterns: Vec<_> = project
+            .patterns
+            .iter()
+            .filter(|p| native.contains(&p.netclass) != resolved.contains(&p.netclass))
+            .map(|p| p.pattern.as_str())
+            .collect();
+        return Err(Failure::new(Status::Unsupported, format!(
+            "unsupported netclass pattern assignment for net {net:?}: patterns {patterns:?}, resolved {resolved:?}, native {native:?}")));
+    }
+    Ok(())
+}
+
 fn resolve_rule_layers(
     rules: &mut [DruRule],
     layers: &[String],
@@ -4079,6 +4141,38 @@ fn resolve_rule_layers(
     for rule in rules {
         if rule.severity == DruSeverity::Ignore {
             continue;
+        }
+        if let DruConstraint::Length {
+            min_nm,
+            max_nm,
+            min_as,
+            max_as,
+        } = rule.constraint
+        {
+            if min_nm.is_some()
+                || max_nm.is_none()
+                || min_as.is_some()
+                || max_as.is_some()
+                || rule.layer.is_some()
+                || rule
+                    .condition
+                    .as_ref()
+                    .is_some_and(|c| !c.selects_whole_nets())
+            {
+                return Err(Failure::new(Status::Unsupported, format!(
+                    "unsupported length rule {:?}: only a whole-net maximum in length units is supported", rule.name)));
+            }
+        }
+        if !matches!(
+            rule.constraint,
+            DruConstraint::DiffPairGap { .. }
+                | DruConstraint::DiffPairUncoupled { .. }
+                | DruConstraint::Skew { .. }
+        ) {
+            if let Some(path) = rule.condition.as_ref().and_then(DruExpr::path_predicate) {
+                return Err(Failure::new(Status::Unsupported, format!(
+                    "unsupported .kicad_dru rule {:?}: {path} has no path context for this constraint", rule.name)));
+            }
         }
         if matches!(rule.constraint, DruConstraint::ViaCount { .. })
             && (rule.layer.is_some() || rule.condition.as_ref().is_some_and(DruExpr::uses_layer))
@@ -4419,7 +4513,16 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
 
     for net in all_nets {
         let (class_name, class_members, class) = match &pro {
-            Some(p) => resolve_net_classes(&net.name, p),
+            Some(p) => {
+                let (name, members, dimensions) = resolve_net_classes(&net.name, p);
+                check_native_pattern_members(
+                    &net.name,
+                    &members,
+                    p,
+                    input.board_design_settings.as_ref(),
+                )?;
+                (name, members, dimensions)
+            }
             None => (
                 "Default".to_owned(),
                 vec!["Default".to_owned()],
@@ -4747,21 +4850,32 @@ mod tests {
         assert!(p_glob.matches("SYS_PWR_3V3"));
         assert!(!p_glob.matches("SIGNAL"));
 
-        // Wildcard mode must not evaluate regex quantifier semantics (* = 0+, ? = 0/1)
+        // Each interpretation can add a match.
+        let leading_question = PatternMatcher::compile("?ABC").unwrap();
+        assert!(leading_question.matches("XABC"));
+        assert!(!leading_question.matches("ABC"));
+        let adjacent_stars = PatternMatcher::compile("SIG**").unwrap();
+        assert!(adjacent_stars.matches("SIG_A"));
+        assert!(!adjacent_stars.matches("SI"));
+
         let p_pwr_glob = PatternMatcher::compile("PWR*").unwrap();
         assert!(p_pwr_glob.matches("PWR"));
         assert!(p_pwr_glob.matches("PWR_3V3"));
-        assert!(!p_pwr_glob.matches("PW"));
+        assert!(p_pwr_glob.matches("PW"));
 
         let p_usb_glob = PatternMatcher::compile("USB?").unwrap();
         assert!(p_usb_glob.matches("USB1"));
         assert!(p_usb_glob.matches("USBA"));
-        assert!(!p_usb_glob.matches("USB"));
-        assert!(!p_usb_glob.matches("US"));
+        assert!(p_usb_glob.matches("USB"));
+        assert!(p_usb_glob.matches("US"));
+        assert!(!p_usb_glob.matches("SUB"));
 
         let p_dot_glob = PatternMatcher::compile("3.3V*").unwrap();
         assert!(p_dot_glob.matches("3.3V_SYS"));
-        assert!(!p_dot_glob.matches("3a3"));
+        assert!(p_dot_glob.matches("3a3"));
+        assert!(!p_dot_glob.matches("3a3_SYS"));
+        assert!(PatternMatcher::compile("a|b").unwrap().matches("alphabet"));
+        assert!(!PatternMatcher::compile("a|b").unwrap().matches("xxb"));
 
         let p_dotstar_re = PatternMatcher::compile("HV_.*").unwrap();
         assert!(p_dotstar_re.matches("HV_BUS"));

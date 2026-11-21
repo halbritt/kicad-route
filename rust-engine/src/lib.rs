@@ -7,6 +7,7 @@ mod components;
 pub mod diff_pair;
 pub mod geometry;
 mod layer_policy;
+mod length_rules;
 pub mod model;
 pub mod negotiate;
 mod net_scope;
@@ -410,6 +411,7 @@ impl Engine {
         let effective_rules = rules::resolve_effective_rules(&mut input)?;
         let work = budget::WorkBudget::with_control(input.limits, control);
         input.validate_with_work(&work)?;
+        length_rules::admit(&input, &effective_rules, &work)?;
         // Older requests omit pad layers to select the request's routing layer.
         // Resolve it once for indexing, contact, clearance, and routing.
         for pad in &mut input.pads {
@@ -3512,6 +3514,7 @@ impl Engine {
                     ));
                 }
             }
+            length_rules::check(tx.engine, expanded)?;
             Ok((expanded, pairs))
         });
         self.delay_profile_layers.clear();
@@ -3564,6 +3567,7 @@ impl Engine {
                     e.expanded_states = expanded;
                     scoped_routing_failure(e, net)
                 })?;
+            length_rules::check(engine, expanded)?;
             Ok(expanded)
         })
     }

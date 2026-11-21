@@ -142,6 +142,7 @@ fn base_diff_input(net_names: &[&str]) -> Input {
             max_error_nm: None,
             netclasses,
             netclass_assignments: assignments,
+            pad_to_die_length_nm: Default::default(),
             use_height_for_length_calcs: Some(false),
             board_thickness_nm: None,
             outer_solder_mask_thickness_nm: None,

@@ -1924,6 +1924,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     all_zones = _all_board_zones(board)
     has_copper_zones = any(not z.GetIsRuleArea() and not z.IsTeardropArea() for z in all_zones)
     pads = []
+    pad_to_die_length_nm = {}
     holes = []
     components = []
     for footprint in board.GetFootprints():
@@ -1979,6 +1980,9 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 entry['fromto_id'] = f'{fp_ref}-{pad_num}'
             if pad_net != 0:
                 fp_net_ids.add(pad_net)
+            die_length = int(pad.GetPadToDieLength())
+            if die_length:
+                pad_to_die_length_nm[entry['id']] = die_length
             pads.append(entry)
         if fp_ref:
             components.append({
@@ -2252,6 +2256,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         # Implicit class labels need not have a class definition. Include their literal
         # names as candidates without interpreting either patterns or net assignments here.
         project_nets = pro_doc.get('net_settings') or {}
+        patterns = None
         if isinstance(project_nets, dict):
             labels = project_nets.get('netclass_assignments')
             if isinstance(labels, dict):
@@ -2265,6 +2270,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         for code, net in board.GetNetsByNetcode().items():
             if code > 0:
                 nc_name = net.GetNetClassName()
+                if nc_name == 'Default' and patterns:
+                    nc_assign[net.GetNetname()] = ['Default']
                 if nc_name and nc_name != 'Default':
                     if ',' not in nc_name:
                         nc_assign[net.GetNetname()] = [nc_name]
@@ -2315,6 +2322,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     min_resolved_spokes = pro_min_spokes if pro_min_spokes is not None else int(getattr(settings, 'm_MinResolvedSpokes', 2))
     bds['min_resolved_spokes'] = min_resolved_spokes
     bds['max_error_nm'] = max(0, int(getattr(settings, 'm_MaxError', 5000)))
+    if pad_to_die_length_nm:
+        bds['pad_to_die_length_nm'] = pad_to_die_length_nm
     result['board_design_settings'] = bds
     if pro_text is not None:
         result['project_rules'] = pro_text
