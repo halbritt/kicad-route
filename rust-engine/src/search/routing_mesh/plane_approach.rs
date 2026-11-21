@@ -2,14 +2,14 @@
 //! plane. Identify the plane with the longest clear approaches from the ends.
 use super::{Failure, Mesh, Node, PathEdge, PlacedViaKey, Point, ViaKind};
 use crate::search::monotone_trunk::clear_span;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 impl Mesh<'_> {
     /// A surface mesh goal may itself admit a through-drill. Register that
     /// same connection on its other faces, including the actual drill price.
     pub(super) fn drilled_goals(
         &self,
-        goals: &mut HashMap<Node, (u64, Vec<PathEdge>)>,
+        goals: &mut BTreeMap<Node, (u64, Vec<PathEdge>)>,
         allowed: &[bool],
         occupied: usize,
     ) -> Result<(), Failure> {
@@ -64,8 +64,8 @@ impl Mesh<'_> {
         &self,
         src: Point,
         dst: Point,
-        launches: &HashMap<Node, Vec<PathEdge>>,
-        goals: &HashMap<Node, (u64, Vec<PathEdge>)>,
+        launches: &BTreeMap<Node, Vec<PathEdge>>,
+        goals: &BTreeMap<Node, (u64, Vec<PathEdge>)>,
     ) -> Result<Option<u8>, Failure> {
         let axis = usize::from(src[0].abs_diff(dst[0]) < src[1].abs_diff(dst[1]));
         let limit = (src[axis].abs_diff(dst[axis]) / self.pitch as u64) as i64;

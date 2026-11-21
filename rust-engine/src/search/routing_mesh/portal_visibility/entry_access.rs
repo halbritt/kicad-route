@@ -1,6 +1,6 @@
 //! A nearby portal can face a keepout. Compare another landing on the
 //! same plane when it avoids an unavoidable first step away from the span.
-use super::{Failure, HashMap, Mesh, Node, PathEdge, Point, Tail};
+use super::{BTreeMap, Failure, HashMap, Mesh, Node, PathEdge, Point, Tail};
 
 type Pair = (u64, Node, Node);
 
@@ -30,9 +30,9 @@ impl Mesh<'_> {
     pub(super) fn accessible_neighbor(
         &self,
         (bound, source, goal): Pair,
-        roots: &HashMap<Node, Vec<PathEdge>>,
+        roots: &BTreeMap<Node, Vec<PathEdge>>,
         costs: &HashMap<Node, u64>,
-        goals: &HashMap<Node, Tail>,
+        goals: &BTreeMap<Node, Tail>,
     ) -> Result<Option<(Pair, u64)>, Failure> {
         if roots.len() == 1 && goals.len() == 1 {
             return Ok(None);

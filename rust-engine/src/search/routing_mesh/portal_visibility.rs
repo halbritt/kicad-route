@@ -1,6 +1,6 @@
 use super::{link, Failure, Mesh, MeshPricing, Node, Path, PathEdge, Point};
 use crate::search::monotone_trunk::clear_span;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 mod entry_access;
 
@@ -9,9 +9,9 @@ type Tail = (u64, Vec<PathEdge>);
 impl Mesh<'_> {
     fn entry_pairs(
         &self,
-        roots: &HashMap<Node, Vec<PathEdge>>,
+        roots: &BTreeMap<Node, Vec<PathEdge>>,
         costs: &HashMap<Node, u64>,
-        goals: &HashMap<Node, Tail>,
+        goals: &BTreeMap<Node, Tail>,
         direct_layers: u32,
         occupied: usize,
     ) -> Result<Vec<(u64, Node, Node)>, Failure> {
@@ -111,7 +111,7 @@ impl Mesh<'_> {
     fn attach_trunk(
         &self,
         source: Node,
-        roots: &HashMap<Node, Vec<PathEdge>>,
+        roots: &BTreeMap<Node, Vec<PathEdge>>,
         suffix: &[PathEdge],
         path: [Point; 4],
         occupied: usize,
@@ -132,9 +132,9 @@ impl Mesh<'_> {
     /// connect across the whole board between their registered mesh entries.
     pub(super) fn visible_entries(
         &self,
-        roots: &HashMap<Node, Vec<PathEdge>>,
+        roots: &BTreeMap<Node, Vec<PathEdge>>,
         costs: &HashMap<Node, u64>,
-        goals: &HashMap<Node, Tail>,
+        goals: &BTreeMap<Node, Tail>,
         direct_layers: u32,
         occupied: usize,
         expand: &mut impl FnMut() -> Result<bool, Failure>,

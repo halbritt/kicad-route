@@ -9,7 +9,7 @@ use crate::diff_pair::octilinear_elbow_paths;
 use crate::model::Status;
 use crate::negotiate::{BlockedFrontier, CongestionHistory, TrialBudget};
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap};
+use std::collections::{BTreeMap, BinaryHeap, HashMap};
 
 mod corner_guides;
 mod drill_access;
@@ -168,7 +168,7 @@ impl Mesh<'_> {
         &self,
         start: Node,
         parents: &HashMap<Node, (Node, PathEdge)>,
-        roots: &HashMap<Node, Vec<PathEdge>>,
+        roots: &BTreeMap<Node, Vec<PathEdge>>,
         tail: &[PathEdge],
     ) -> Result<Option<Path>, Failure> {
         let mut node = start;
@@ -377,7 +377,9 @@ impl Mesh<'_> {
             *expanded += 1;
             Ok(true)
         };
-        let mut goals = HashMap::<Node, (u64, Vec<PathEdge>)>::new();
+        // Varying prefix and tail lengths incur different atomic work charges.
+        // Traverse terminal nodes in coordinate/layer order, including on exhaustion.
+        let mut goals = BTreeMap::<Node, (u64, Vec<PathEdge>)>::new();
         let mut ends = Vec::new();
         let target_mesh = Self {
             pricing: if self.pricing.paid() {
@@ -456,7 +458,7 @@ impl Mesh<'_> {
         };
         let mut open = BinaryHeap::new();
         let mut costs = HashMap::new();
-        let mut roots = HashMap::new();
+        let mut roots = BTreeMap::new();
         let mut parents = HashMap::new();
         let mut source_layers = 0u32;
         for &(p, layer, via_only) in starts {
@@ -817,7 +819,7 @@ mod tests {
                 ((b, 1), ((a, 1), link(a, b, 1))),
                 (end, ((b, 1), PathEdge::Via(via(b)))),
             ]);
-            let roots = HashMap::from([(start, Vec::new())]);
+            let roots = BTreeMap::from([(start, Vec::new())]);
             let route = mesh.to_path(end, &parents, &roots, &[]).unwrap();
             assert_eq!(route.is_some(), accepted);
             if let Some(path) = route {
@@ -825,7 +827,7 @@ mod tests {
             }
             // A drill in the target attachment must survive reversal and be
             // checked against the drill in the source attachment.
-            let roots = HashMap::from([((b, 1), vec![PathEdge::Via(via(a)), link(a, b, 1)])]);
+            let roots = BTreeMap::from([((b, 1), vec![PathEdge::Via(via(a)), link(a, b, 1)])]);
             let contact = [b[0], b[1] + 200_000];
             let tail = [link(contact, b, 0), PathEdge::Via(via(b))];
             let route = mesh

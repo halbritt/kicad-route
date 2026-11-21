@@ -110,15 +110,15 @@ fn route(engine: &Engine, reverse: bool, budget: u64, inner_steps: u64) -> (Opti
         + engine.layer_policy.scale(if reverse { 7 } else { 16 });
     let (roots, costs, goals) = if reverse {
         (
-            HashMap::from([((DRILL, 1), stub)]),
-            HashMap::from([((DRILL, 1), stub_cost)]),
-            HashMap::from([((PLATED, 1), (0, vec![]))]),
+            From::from([((DRILL, 1), stub)]),
+            From::from([((DRILL, 1), stub_cost)]),
+            From::from([((PLATED, 1), (0, vec![]))]),
         )
     } else {
         (
-            HashMap::from([((PLATED, 1), vec![])]),
-            HashMap::from([((PLATED, 1), 0)]),
-            HashMap::from([((DRILL, 1), (stub_cost, stub))]),
+            From::from([((PLATED, 1), vec![])]),
+            From::from([((PLATED, 1), 0)]),
+            From::from([((DRILL, 1), (stub_cost, stub))]),
         )
     };
     let mut used = 0;
@@ -455,15 +455,15 @@ fn a_terminal_can_use_the_next_portal_when_its_closest_approach_faces_copper() {
         for reverse in [false, true] {
             let (roots, costs, goals) = if reverse {
                 (
-                    HashMap::from([((closed, 1), away.clone()), ((DRILL, 1), direct.clone())]),
-                    HashMap::from([((closed, 1), tail), ((DRILL, 1), stub)]),
-                    HashMap::from([((PLATED, 1), (0, vec![]))]),
+                    From::from([((closed, 1), away.clone()), ((DRILL, 1), direct.clone())]),
+                    From::from([((closed, 1), tail), ((DRILL, 1), stub)]),
+                    From::from([((PLATED, 1), (0, vec![]))]),
                 )
             } else {
                 (
-                    HashMap::from([((PLATED, 1), vec![])]),
-                    HashMap::from([((PLATED, 1), 0)]),
-                    HashMap::from([
+                    From::from([((PLATED, 1), vec![])]),
+                    From::from([((PLATED, 1), 0)]),
+                    From::from([
                         ((closed, 1), (tail, away.clone())),
                         ((DRILL, 1), (stub, direct.clone())),
                     ]),
@@ -512,6 +512,53 @@ fn a_terminal_can_use_the_next_portal_when_its_closest_approach_faces_copper() {
                         .unwrap()),
                 }
             }
+        }
+    }
+}
+
+#[test]
+fn exhausted_portal_work_has_the_same_charged_prefix_in_either_insertion_order() {
+    let source = (([0, 0], 1), Vec::new());
+    let roots = BTreeMap::from([source]);
+    let costs = HashMap::from([(([0, 0], 1), 0)]);
+    for reverse in [false, true] {
+        let mut goals = BTreeMap::new();
+        for i in 0..16 {
+            let k = if reverse { 15 - i } else { i };
+            let x = 40 * (k + 1);
+            let tail = (0..k)
+                .map(|j| link([x, 200 + 10 * j], [x, 210 + 10 * j], 1))
+                .collect();
+            goals.insert(([x, 200], 1), (k as u64, tail));
+        }
+        // Finishing the first n tails costs 1 + 2 + ... + n. The next whole
+        // charge must refuse without counting a tail that was never examined.
+        for (limit, committed) in [
+            (20, 15),
+            (40, 36),
+            (60, 55),
+            (80, 78),
+            (100, 91),
+            (130, 120),
+        ] {
+            let mut engine = board(false, false, false);
+            let mut limits = engine.input.limits.clone();
+            limits.max_work = limit;
+            engine.work = crate::budget::WorkBudget::new(limits);
+            let mesh = Mesh {
+                engine: &engine,
+                net: 1,
+                grid: 10,
+                pitch: 40,
+                via_step: 40,
+                history: None,
+                occupied_entries: 0,
+                pricing: MeshPricing::Unpenalized,
+            };
+            let failed = mesh.entry_pairs(&roots, &costs, &goals, 0, 0).unwrap_err();
+            assert_eq!(failed.status, crate::model::Status::WorkExhausted);
+            assert_eq!(failed.work_used, committed);
+            assert_eq!(engine.work_used(), committed);
         }
     }
 }
