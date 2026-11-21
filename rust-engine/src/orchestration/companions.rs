@@ -20,12 +20,14 @@ use std::{
 pub(super) struct Present {
     pub project: bool,
     pub rules: bool,
+    pub footprints: bool,
 }
 
 pub(super) fn inspect(
     output: &Path,
     project: Option<&[u8]>,
     rules: Option<&[u8]>,
+    footprints: Option<&[u8]>,
     required: Present,
 ) -> Result<Present, String> {
     Ok(Present {
@@ -33,6 +35,11 @@ pub(super) fn inspect(
             &output.with_extension("kicad_pro"),
             project,
             required.project,
+        )?,
+        footprints: inspect_file(
+            &output.with_file_name("fp-lib-table"),
+            footprints,
+            required.footprints,
         )?,
         rules: inspect_file(&output.with_extension("kicad_dru"), rules, required.rules)?,
     })
@@ -118,9 +125,12 @@ impl Publication {
             if same_regular_file(&staged, &dest)? {
                 return Ok(()); // Linked board commits the entire set.
             }
-            for ext in ["kicad_pro", "kicad_dru"] {
-                let path = dest.with_extension(ext);
-                if same_regular_file(&staged.with_extension(ext), &path)? {
+            for path in [
+                dest.with_extension("kicad_pro"),
+                dest.with_extension("kicad_dru"),
+                dest.with_file_name("fp-lib-table"),
+            ] {
+                if same_regular_file(&stage_dir.join(path.file_name().unwrap()), &path)? {
                     fs::remove_file(path)?;
                 }
             }
@@ -136,16 +146,25 @@ pub(super) fn install(
     output: &Path,
     project: Option<&[u8]>,
     rules: Option<&[u8]>,
+    footprints: Option<&[u8]>,
     existing: Present,
 ) -> io::Result<()> {
-    for (ext, contents, present) in [
-        ("kicad_pro", project, existing.project),
-        ("kicad_dru", rules, existing.rules),
+    for (target, contents, present) in [
+        (
+            output.with_extension("kicad_pro"),
+            project,
+            existing.project,
+        ),
+        (output.with_extension("kicad_dru"), rules, existing.rules),
+        (
+            output.with_file_name("fp-lib-table"),
+            footprints,
+            existing.footprints,
+        ),
     ] {
         if let Some(bytes) = contents.filter(|_| !present) {
-            let staged = staged_board.with_extension(ext);
+            let staged = staged_board.with_file_name(target.file_name().unwrap());
             write_file_create_new(&staged, bytes, 0o644)?;
-            let target = output.with_extension(ext);
             match fs::hard_link(&staged, &target) {
                 Ok(()) => (),
                 // A concurrent external copy may be identical. The caller

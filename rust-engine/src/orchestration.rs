@@ -787,6 +787,30 @@ fn check_sidecar_at(
         return Ok(());
     }
     let is_canon = is_canonical_board_alias(path, canonical);
+    // A renamed alias in the same directory uses the same directory-wide
+    // library table. An alias in another project can shadow that context.
+    let directory = parent_dir_or_dot(path);
+    if canonical.and_then(Path::parent) != fs::canonicalize(directory).ok().as_deref() {
+        let table = directory.join("fp-lib-table");
+        match fs::symlink_metadata(&table) {
+            Ok(_) => {
+                return Err((
+                    OperationStatus::Unsupported,
+                    format!(
+                        "ambiguous symlink-hop fp-lib-table shadows canonical board: {}",
+                        table.display()
+                    ),
+                ))
+            }
+            Err(e) if e.kind() == ErrorKind::NotFound => (),
+            Err(e) => {
+                return Err((
+                    OperationStatus::Invalid,
+                    format!("cannot inspect {}: {e}", table.display()),
+                ))
+            }
+        }
+    }
     for (ext, flag) in [
         ("kicad_pro", &mut check.kicad_pro_present),
         ("kicad_dru", &mut check.kicad_dru_present),
@@ -1505,24 +1529,26 @@ fn run_native_with_hooks(
 
 #[derive(Debug)]
 struct AdmittedSource {
-    source_name: OsString,
+    source_path: PathBuf,
     source_bytes: Vec<u8>,
     source_sha256: String,
     project_bytes: Option<Vec<u8>>,
     project_sha256: Option<String>,
     project_canonical: Option<PathBuf>,
     dru_bytes: Option<Vec<u8>>,
+    footprint_table: Option<Vec<u8>>,
     dru_sha256: Option<String>,
 }
 
 struct AdmittedInputs {
     bridge_path: PathBuf,
-    source_name: OsString,
+    source_path: PathBuf,
     source_bytes: Vec<u8>,
     source_sha256: String,
     rules_bytes: Option<Vec<u8>>,
     project_bytes: Option<Vec<u8>>,
     dru_bytes: Option<Vec<u8>>,
+    footprint_table: Option<Vec<u8>>,
     destination_companions: companions::Present,
     limits_bytes: Option<Vec<u8>>,
 }
@@ -1568,9 +1594,10 @@ fn check_output_preflight(path: &Path, label: &str) -> Result<(), (OperationStat
 
 fn is_board_companion(config: &OperationConfig, path: &Path) -> bool {
     let companion_of = |board: &Path| {
-        ["kicad_pro", "kicad_dru"]
-            .iter()
-            .any(|ext| paths_may_alias(path, &board.with_extension(ext)))
+        paths_may_alias(path, &board.with_file_name("fp-lib-table"))
+            || ["kicad_pro", "kicad_dru"]
+                .iter()
+                .any(|ext| paths_may_alias(path, &board.with_extension(ext)))
     };
     companion_of(&config.output)
         || companion_of(&config.source)
@@ -1705,6 +1732,20 @@ fn admit_source_board_with_hook(
             .map_err(BoundedReadError::into_status)?;
     let pro_path = canon_source.with_extension("kicad_pro");
     let dru_path = canon_source.with_extension("kicad_dru");
+    let table_path = canon_source.with_file_name("fp-lib-table");
+    let table_exists = || match fs::symlink_metadata(&table_path) {
+        Ok(_) => Ok(true),
+        Err(e) if e.kind() == ErrorKind::NotFound => Ok(false),
+        Err(e) => Err((
+            OperationStatus::Invalid,
+            format!("cannot inspect {}: {e}", table_path.display()),
+        )),
+    };
+    let pre_table = admit_optional_sidecar(
+        &table_path,
+        table_exists()?,
+        "project footprint library table",
+    )?;
     let pre_pro = match admit_optional_sidecar(
         &pro_path,
         sidecar_check.kicad_pro_present,
@@ -1793,6 +1834,12 @@ fn admit_source_board_with_hook(
         return Err(e);
     }
 
+    verify_sidecar_unchanged(
+        &table_path,
+        table_exists()?,
+        &pre_table,
+        "project footprint library table",
+    )?;
     let source_sha256 = sha256_hex(&source_bytes);
     result.source.source_sha256 = Some(source_sha256.clone());
     result.source.source_bytes = Some(source_bytes.len() as u64);
@@ -1811,10 +1858,7 @@ fn admit_source_board_with_hook(
         None => (None, None),
     };
     Ok(AdmittedSource {
-        source_name: canon_source
-            .file_name()
-            .expect("canonical board filename")
-            .into(),
+        source_path: canon_source,
         source_bytes,
         source_sha256,
         project_bytes,
@@ -1822,6 +1866,7 @@ fn admit_source_board_with_hook(
         project_canonical,
         dru_bytes,
         dru_sha256,
+        footprint_table: pre_table.map(|(bytes, _, _)| bytes),
     })
 }
 
@@ -1886,7 +1931,7 @@ fn phase_pre_snapshot_admission(
         for (out_p, out_lbl) in &outputs {
             if is_board_companion(config, out_p) {
                 let msg = format!(
-                    "{out_lbl} must be distinct from project and custom-rule files: {}",
+                    "{out_lbl} must be distinct from project and custom-rule files or the footprint library table: {}",
                     out_p.display()
                 );
                 return Err((OperationStatus::UsageRefused, msg));
@@ -2028,22 +2073,46 @@ fn phase_pre_snapshot_admission(
             None => None,
         };
 
+        // Relative library URIs may need different spelling at the destination.
+        // Native export prepares that table before routing. Capture whether an
+        // incumbent exists now, including the no-source-table conflict.
+        let table = config.output.with_file_name("fp-lib-table");
+        let incumbent = match fs::symlink_metadata(&table) {
+            Ok(_) if admitted_source.footprint_table.is_some() => Some(
+                read_bounded_regular(
+                    &table,
+                    MAX_REQUEST_BYTES,
+                    "destination footprint library table",
+                )
+                .map_err(|e| (OperationStatus::PublicationRefused, e.into_status().1))?,
+            ),
+            Ok(_) => None,
+            Err(e) if e.kind() == ErrorKind::NotFound => None,
+            Err(e) => {
+                return Err((
+                    OperationStatus::PublicationRefused,
+                    format!("cannot inspect {}: {e}", table.display()),
+                ))
+            }
+        };
         let destination_companions = companions::inspect(
             &config.output,
             admitted_source.project_bytes.as_deref(),
             admitted_source.dru_bytes.as_deref(),
+            incumbent.as_deref(),
             companions::Present::default(),
         )
         .map_err(|reason| (OperationStatus::PublicationRefused, reason))?;
         Ok(AdmittedInputs {
             destination_companions,
             bridge_path,
-            source_name: admitted_source.source_name,
+            source_path: admitted_source.source_path,
             source_bytes: admitted_source.source_bytes,
             source_sha256: admitted_source.source_sha256,
             rules_bytes,
             project_bytes: admitted_source.project_bytes,
             dru_bytes: admitted_source.dru_bytes,
+            footprint_table: admitted_source.footprint_table,
             limits_bytes,
         })
     })();
@@ -2118,7 +2187,12 @@ fn execute_phases(
     // public stems, separating source and output even when their names match.
     let source_dir = staging_dir.join("input");
     let staged_source = source_dir
-        .join(&admitted.source_name)
+        .join(
+            admitted
+                .source_path
+                .file_name()
+                .expect("canonical board filename"),
+        )
         .with_extension("kicad_pcb");
     let staged_rules = admitted
         .rules_bytes
@@ -2143,6 +2217,9 @@ fn execute_phases(
         private.create(&source_dir)?;
         private.create(staging_dir.join("output"))?;
         write_file_create_new(&staged_source, &admitted.source_bytes, 0o600)?;
+        if let Some(table) = &admitted.footprint_table {
+            write_file_create_new(&source_dir.join("fp-lib-table"), table, 0o600)?;
+        }
         if let (Some(rp), Some(rb)) = (&staged_rules, &admitted.rules_bytes) {
             write_file_create_new(rp, rb, 0o600)?;
         }
@@ -2368,6 +2445,20 @@ fn execute_staged_phases(
         "--original-source".into(),
         config.source.as_os_str().to_os_string(),
     ];
+    let output_table = staging_dir.join("publish-fp-lib-table");
+    let footprint_options: Vec<OsString> = if admitted.footprint_table.is_some() {
+        vec![
+            "--footprint-publication".into(),
+            parent_dir_or_dot(&admitted.source_path)
+                .as_os_str()
+                .to_owned(),
+            parent_dir_or_dot(&config.output).as_os_str().to_owned(),
+            output_table.as_os_str().to_owned(),
+        ]
+    } else {
+        Vec::new()
+    };
+    export_args.extend_from_slice(&footprint_options);
     if let Some(rp) = staged_rules {
         export_args.push("--rules".into());
         export_args.push(rp.as_os_str().to_os_string());
@@ -2418,6 +2509,39 @@ fn execute_staged_phases(
         });
         return Err((OperationStatus::ChildProcessError, m));
     }
+    let published_table = if admitted.footprint_table.is_some() {
+        let table: Result<Vec<u8>, (OperationStatus, String)> = (|| {
+            let label = "prepared footprint library table";
+            verify_regular_non_symlink(&output_table, label)
+                .map_err(|message| (OperationStatus::ChildProcessError, message))?;
+            let bytes = read_bounded_regular(&output_table, MAX_REQUEST_BYTES, label)
+                .map_err(|e| (OperationStatus::ChildProcessError, e.into_status().1))?;
+            companions::inspect(
+                &config.output,
+                admitted.project_bytes.as_deref(),
+                admitted.dru_bytes.as_deref(),
+                Some(&bytes),
+                admitted.destination_companions,
+            )
+            .map_err(|message| (OperationStatus::PublicationRefused, message))?;
+            Ok(bytes)
+        })();
+        match table {
+            Ok(bytes) => Some(bytes),
+            Err((status, reason)) => {
+                push_failed_phase(
+                    result,
+                    "native_export",
+                    t_exp.elapsed(),
+                    reason.clone(),
+                    Some(exp_outcome.record),
+                );
+                return Err((status, reason));
+            }
+        }
+    } else {
+        None
+    };
     let mut staged_request = staged_request;
     let mut request_bytes =
         match read_bounded_regular(&staged_request, MAX_REQUEST_BYTES, "exported request.json") {
@@ -2559,6 +2683,7 @@ fn execute_staged_phases(
         "--validation-report".into(),
         staged_report.as_os_str().to_os_string(),
     ];
+    apply_options.extend_from_slice(&footprint_options);
     if let Some(pct) = config.pour_area_loss {
         apply_options.push("--pour-area-loss".into());
         apply_options.push(format!("{pct}").into());
@@ -2843,11 +2968,14 @@ fn execute_staged_phases(
     }
     let project = admitted.project_bytes.as_deref();
     let rules = admitted.dru_bytes.as_deref();
+    let footprints = published_table.as_deref();
     let required = companions::Present {
+        footprints: footprints.is_some(),
         project: project.is_some(),
         rules: rules.is_some(),
     };
-    let destination_rules = || companions::inspect(&config.output, project, rules, required);
+    let destination_rules =
+        || companions::inspect(&config.output, project, rules, footprints, required);
     let refused = |reason| (OperationStatus::PublicationRefused, reason);
     let prepare = || {
         check_cancel_or_deadline(deadline)?;
@@ -2856,11 +2984,19 @@ fn execute_staged_phases(
             &config.output,
             project,
             rules,
+            footprints,
             admitted.destination_companions,
         )
         .map_err(refused)?;
-        companions::install(&pub_candidate, &config.output, project, rules, existing)
-            .map_err(|e| refused(e.to_string()))?;
+        companions::install(
+            &pub_candidate,
+            &config.output,
+            project,
+            rules,
+            footprints,
+            existing,
+        )
+        .map_err(|e| refused(e.to_string()))?;
         destination_rules().map_err(refused)?;
         check_cancel_or_deadline(deadline)
     };
@@ -4146,6 +4282,40 @@ elif cmd == "apply":
     }
 
     #[test]
+    fn unlinked_board_rolls_back_its_new_footprint_table_and_preserves_existing_table() {
+        for incumbent in [false, true] {
+            let dir = test_dir("library-rollback");
+            let output = dir.join("routed.kicad_pcb");
+            let table = dir.join("fp-lib-table");
+            let stage = dir.join("private");
+            fs::create_dir(&stage).unwrap();
+            let candidate = stage.join("routed.kicad_pcb");
+            fs::write(&candidate, b"board").unwrap();
+            let contents: &[u8] = b"(fp_lib_table (version 7))";
+            if incumbent {
+                fs::write(&table, contents).unwrap();
+            }
+            let publication =
+                companions::Publication::lock(&output, Instant::now() + Duration::from_secs(5))
+                    .unwrap();
+            let existing =
+                companions::inspect(&output, None, None, Some(contents), Default::default())
+                    .unwrap();
+            companions::install(&candidate, &output, None, None, Some(contents), existing).unwrap();
+            assert_eq!(fs::read(&table).unwrap(), contents);
+            fs::write(&output, b"incumbent board").unwrap();
+            assert_eq!(
+                fs::hard_link(&candidate, &output).unwrap_err().kind(),
+                ErrorKind::AlreadyExists
+            );
+            publication.rollback_unlinked_board(&stage).unwrap();
+            assert_eq!(fs::read(&output).unwrap(), b"incumbent board");
+            assert_eq!(table.exists(), incumbent);
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
     fn post_commit_panic_preserves_destination_and_reports_ambiguous() {
         let _guard = UNIT_SIGNAL_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let dir = test_dir("post-panic");
@@ -4302,7 +4472,8 @@ elif cmd == "apply":
         let cfg = base_config(&dir, &bridge);
         let admitted = AdmittedInputs {
             destination_companions: companions::Present::default(),
-            source_name: OsString::from("source.kicad_pcb"),
+            footprint_table: None,
+            source_path: PathBuf::from("source.kicad_pcb"),
             bridge_path: bridge,
             source_bytes: b"(kicad_pcb)".to_vec(),
             source_sha256: sha256_hex(b"(kicad_pcb)"),

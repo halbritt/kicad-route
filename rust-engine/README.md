@@ -42,9 +42,16 @@ each one beside the PCB under the output basename. For example,
 If a file already exists at either path, its contents must match the
 corresponding source file. A conflict prevents publication.
 
-Keep any project-relative footprint libraries and `fp-lib-table` at the
-locations KiCad expects in the destination. Opening the same copper without
-its library table can produce footprint-library warnings.
+The router grades and publishes the project's `fp-lib-table` when present.
+Absolute paths and installed-library references such as
+`${KICAD10_FOOTPRINT_DIR}` retain their spelling. For `${KIPRJMOD}` or
+`$(KIPRJMOD)` references, KiCad looks in the project directory. The router
+keeps these references when the destination contains the same libraries.
+Otherwise, it writes absolute paths to the source libraries in the new table.
+Keep those libraries accessible to reopen or check the saved PCB. To move the
+project independently, place equivalent libraries at the destination before
+routing. The router preserves an equivalent destination table and refuses
+publication when an existing table conflicts with the source project.
 
 Use `--nets 'SIG_[AB]'` to select `SIG_A` and `SIG_B`, or
 `--nets '!SIG_[AB]'` to exclude both. A pattern without a slash can match the
