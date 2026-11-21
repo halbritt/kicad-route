@@ -44,6 +44,14 @@ Keep project-relative footprint libraries and tables at their expected paths.
 KiCad can load different defaults when it cannot find the project. Use a
 separate directory when the same filename already belongs to another project.
 
+Use `--nets 'SIG_[AB]'` to select `SIG_A` and `SIG_B`, or
+`--nets '!SIG_[AB]'` to exclude both. A pattern without a slash can match the
+last component of a hierarchical net name. A pattern containing a slash
+matches the full name. To select the literal bus net `DATA[0]`, use
+`--nets 'DATA[[]0]'`. Use `--nets '\!RESET'` for a literal leading
+exclamation mark. Native apply checks that every proposed track and via is
+on a selected net before saving the PCB.
+
 After linking a board, saved request or operation report, the controller opens
 and syncs its containing directory. A failure after the board link preserves
 the board and its recorded digest and returns exit 8 with
