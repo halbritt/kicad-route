@@ -14,6 +14,7 @@ from decimal import Decimal, InvalidOperation
 import errno
 import fnmatch
 import hashlib
+from itertools import chain
 import json
 import math
 import os
@@ -2951,8 +2952,48 @@ def _refilled_copper(board, shift):
     return {'zones': zones, 'teardrops': teardrops}
 
 
-def _verify_saved_connectivity(saved, before_drc: dict, after_drc: dict, selected_names: set[str] | None) -> None:
-    key = lambda item: json.dumps(item, sort_keys=True)
+def _native_copper_components(board):
+    """Map each stable pad, track and via UUID to its KiCad net and connected component."""
+    items = {item_id(item): item for item in chain(board.GetPads(), board.GetTracks())
+             if item.GetNetCode() > 0}
+    net_names = {uid: item.GetNetname() for uid, item in items.items()}
+    # A zone or graphic may contain separate islands. Look up its net for
+    # DRC endpoints without using its UUID to join the islands together.
+    footprint_graphics = (item for fp in board.GetFootprints() for item in fp.GraphicalItems())
+    for item in chain(_all_board_zones(board), board.GetDrawings(), footprint_graphics):
+        if isinstance(item, pcbnew.BOARD_CONNECTED_ITEM) and item.GetNetCode() > 0:
+            net_names[item_id(item)] = item.GetNetname()
+    connectivity = board.GetConnectivity()
+    components = {}
+    for uid, item in items.items():
+        if uid in components:
+            continue
+        group = (net_names[uid], uid)
+        components[uid] = group
+        for peer in connectivity.GetConnectedItems(item, 0):
+            other = item_id(peer)
+            if other in items and net_names[other] == group[0]:
+                components[other] = group
+    return net_names, components
+
+
+def _native_opens_by_net(drc, net_names):
+    counts = Counter()
+    for finding in drc['unconnected_items']:
+        endpoints = finding.get('items') if isinstance(finding, dict) else None
+        if not isinstance(endpoints, list) or len(endpoints) != 2:
+            raise NativeValidationError('native open connection needs two endpoints')
+        if not all(isinstance(item, dict) and isinstance(item.get('uuid'), str) for item in endpoints):
+            raise NativeValidationError('native open connection is missing an endpoint UUID')
+        first, second = (net_names.get(item['uuid']) for item in endpoints)
+        if not first or first != second:
+            raise NativeValidationError('cannot identify the native net of an open connection')
+        counts[first] += 1
+    return counts
+
+
+def _verify_saved_connectivity(saved, before_board: Path, before_drc: dict, after_drc: dict,
+                               selected_names: set[str] | None) -> None:
     if selected_names is None:
         count = saved.GetConnectivity().GetUnconnectedCount(False)
         opens = after_drc['unconnected_items']
@@ -2970,39 +3011,38 @@ def _verify_saved_connectivity(saved, before_drc: dict, after_drc: dict, selecte
                 reason += '. ' + ' / '.join(pairs)
             raise NativeValidationError(reason)
         return
-    introduced_unconnected = Counter(map(key, after_drc['unconnected_items'])) - Counter(
-        map(key, before_drc['unconnected_items'])
-    )
-    if introduced_unconnected:
-        raise NativeValidationError('native DRC reports new open connections')
-    active_codes = {int(code) for code, net in saved.GetNetsByNetcode().items()
-                    if code and net.GetNetname() in selected_names}
-    if len(active_codes) != len(selected_names):
+    original = pcbnew.LoadBoard(str(before_board))
+    if original is None:
+        raise NativeValidationError('KiCad could not reload the original for scoped connectivity')
+    original.BuildConnectivity()
+    old_nets, old_groups = _native_copper_components(original)
+    new_nets, new_groups = _native_copper_components(saved)
+    before_opens = _native_opens_by_net(before_drc, old_nets)
+    after_opens = _native_opens_by_net(after_drc, new_nets)
+    saved_names = {net.GetNetname() for code, net in saved.GetNetsByNetcode().items() if code}
+    if not selected_names.issubset(saved_names):
         raise NativeValidationError('saved board is missing selected nets')
-    conn = saved.GetConnectivity()
-    pads_by_net: dict[int, list] = {}
-    for pad in saved.GetPads():
-        code = int(pad.GetNetCode())
-        if code in active_codes:
-            pads_by_net.setdefault(code, []).append(pad)
-    for code, net_pads in pads_by_net.items():
-        if len(net_pads) <= 1:
+    if any(after_opens[name] for name in selected_names):
+        raise NativeValidationError('native DRC still reports open connections on selected nets')
+    if after_opens - before_opens:
+        raise NativeValidationError('native DRC reports new open connections')
+
+    # KiCad can choose different items to represent the same ratsnest edge.
+    # Preserve every original unselected connection even when two changes on
+    # one net cancel out in its aggregate count.
+    for uid, (net, representative) in old_groups.items():
+        if net in selected_names:
             continue
-        pad_uuids = {p.m_Uuid.AsString() for p in net_pads}
-        visited = set()
-        queue = [net_pads[0]]
-        while queue:
-            cur = queue.pop()
-            cid = cur.m_Uuid.AsString()
-            if cid in visited:
-                continue
-            visited.add(cid)
-            for item in conn.GetConnectedItems(cur, 0):
-                iid = item.m_Uuid.AsString()
-                if iid not in visited:
-                    queue.append(item)
-        if not pad_uuids.issubset(visited):
-            raise NativeValidationError('native connectivity still has open connections on selected nets')
+        group = new_groups.get(uid)
+        if group is None or group[0] != net or group != new_groups.get(representative):
+            raise NativeValidationError(f'native connectivity lost an original connection on {net}')
+    selected_groups = {}
+    for pad in saved.GetPads():
+        net = pad.GetNetname()
+        if net in selected_names:
+            group = new_groups[item_id(pad)]
+            if selected_groups.setdefault(net, group) != group:
+                raise NativeValidationError('native connectivity still has open connections on selected nets')
 
 
 def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
@@ -3234,7 +3274,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         key = lambda violation: json.dumps(violation, sort_keys=True)
         introduced = Counter(map(key, after['violations'])) - Counter(map(key, before['violations']))
         try:
-            _verify_saved_connectivity(saved, before, after, selected_names)
+            _verify_saved_connectivity(saved, before_board, before, after, selected_names)
         except NativeValidationError:
             if refill_state is not None and has_copper_zones and after['unconnected_items']:
                 measured = _refilled_copper(saved, shift)
