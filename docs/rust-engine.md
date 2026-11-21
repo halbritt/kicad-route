@@ -61,6 +61,19 @@ basename. The process validates its staged copy under the original rules.
 If the output has a different basename or directory, KiCad needs those
 files at the corresponding destination to reproduce that validation.
 
+KiCad text variables such as `${PROJECTNAME}` can render different copper or
+solder-mask strokes when a PCB is staged or reopened under a different name.
+For board and footprint text graphics on these layers the adapter accepts
+literal text and a standalone `${LAYER}` with a literal layer name. On a board
+without assembly variants, a footprint text graphic can also show its literal
+`${REFERENCE}` or `${VALUE}`. Other variable expressions in this
+artwork are reported as unsupported before routing or applying edits.
+Text variables on silkscreen and fabrication layers are allowed.
+KiCad also expands variables in `.kicad_dru` before parsing rule conditions
+or removing comments. A multiline project variable in a comment can introduce
+a rule. The adapter therefore reports variables anywhere in this file as
+unsupported.
+
 `tools/rust_engine_kicad.py` uses installed `pcbnew` only to decode native KiCad
 objects and encode Rust's explicit edit list. It does not select paths, victims,
 IDs, geometry or routing costs. This is justified by KiCad's native Python

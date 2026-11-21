@@ -221,11 +221,21 @@ def _check_pro_framing(raw: bytes):
                 raise UnsupportedBoard(f'unsupported .kicad_pro meta.version {version}')
 
 
+def _text_variable_excerpt(text, start):
+    end = text.find('}', start + 2, start + 128)
+    return text[start:end + 1] if end >= 0 else text[start:start + 128]
+
+
 def _check_dru_framing(raw: bytes):
     try:
         text = raw.decode('utf-8')
     except UnicodeDecodeError as exc:
         raise ValueError(f'.kicad_dru is not valid UTF-8: {exc}') from exc
+    # KiCad expands the file before tokenizing it. A multiline variable in a
+    # comment can introduce an active rule.
+    pos = text.find('${')
+    if pos >= 0:
+        raise UnsupportedBoard(f'.kicad_dru uses unsupported KiCad text variable {_text_variable_excerpt(text, pos)!r}')
     depth = 0
     in_str = False
     esc = False
@@ -1387,6 +1397,34 @@ def _extract_npth_mask_apertures(pad, settings):
     return out
 
 
+def _check_physical_text_context(item, has_variants):
+    if not isinstance(item, pcbnew.EDA_TEXT) or not item.HasTextVars():
+        return
+    layer = item.GetLayer()
+    if not pcbnew.IsCopperLayer(layer) and layer not in (pcbnew.F_Mask, pcbnew.B_Mask):
+        return
+    # These complete substitutions read a literal property of the same board.
+    # Other expressions can resolve through the project, including recursively.
+    text = item.GetText()
+    footprint = item.GetParentFootprint()
+    value = None
+    if type(item) is pcbnew.PCB_TEXT:
+        if text == '${LAYER}':
+            value = item.GetLayerName()
+        elif footprint is not None and not has_variants:
+            if text == '${REFERENCE}':
+                value = footprint.GetReference()
+            elif text == '${VALUE}':
+                value = footprint.GetValue()
+    if value is not None and '${' not in value and item.GetShownText(False) == value:
+        return
+    # Export, private DRC and the published PCB can have different project paths.
+    variable = _text_variable_excerpt(text, max(0, text.find('${')))
+    raise UnsupportedBoard(
+        f'text {item_id(item)} on {pcbnew.LayerName(layer)} uses unsupported KiCad text variable '
+        f'{variable!r} whose shape can depend on the project or filename')
+
+
 def load_supported(path: Path, *, project_path: Path | None = None):
     resolve_sidecars(path, project_path=project_path)
     validate_native_pad_scalars(read_bounded(path))
@@ -1395,6 +1433,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
         raise ValueError(f'KiCad could not load {path}')
     cu_layers, _ = _cu_stack(board)
     cu_set = set(cu_layers)
+    has_variants = len(board.GetVariantNamesForUI()) > 1  # includes the default variant
     for zone in board.Zones():
         _validate_zone(zone, cu_set)
     if any(drawing.GetLayer() == pcbnew.Margin for drawing in board.GetDrawings()):
@@ -1407,6 +1446,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
     if len(cu_layers) >= 2 and (not settings.m_TentViasFront or not settings.m_TentViasBack):
         raise UnsupportedBoard('untented vias are not represented')
     for drawing in board.GetDrawings():
+        _check_physical_text_context(drawing, has_variants)
         layer = drawing.GetLayer()
         if layer in cu_set:
             _check_graphic_drawing(drawing, context_label='board copper', layer=layer)
@@ -1427,6 +1467,8 @@ def load_supported(path: Path, *, project_path: Path | None = None):
         if footprint.IsNetTie():
             raise UnsupportedBoard('net-tie connectivity is not represented')
         for field in footprint.GetFields():
+            if field.IsVisible():
+                _check_physical_text_context(field, has_variants)
             field_layer = field.GetLayer()
             if pcbnew.IsCopperLayer(field_layer):
                 raise UnsupportedBoard('footprint copper fields are not represented')
@@ -1437,6 +1479,7 @@ def load_supported(path: Path, *, project_path: Path | None = None):
             ):
                 raise UnsupportedBoard('footprint solder-mask fields are not represented')
         for drawing in footprint.GraphicalItems():
+            _check_physical_text_context(drawing, has_variants)
             layer = drawing.GetLayer()
             if layer == pcbnew.Margin:
                 raise UnsupportedBoard('footprint Margin geometry is not represented')
