@@ -496,27 +496,44 @@ def t5_07(ctx: DriverContext) -> dict[str, Any]:
     out_pcb = ctx.work_dir / "out" / "routed.kicad_pcb"
     out_pcb.parent.mkdir(parents=True, exist_ok=True)
     agent_src = ctx.agent_ee_driver.agent_ee_root / "src"
+    demo = ctx.repo_root / "fixtures" / "route_demo" / "route_demo.kicad_pcb"
+    scoped_out = out_pcb.with_name("selected.kicad_pcb")
     script = f"""
 import json, os, subprocess, sys
 sys.path.insert(0, {str(agent_src)!r})
 from agent_ee import routing_adapter
 child_env = {{k: v for k, v in os.environ.items() if k != "PYTHONPATH"}}
-with routing_adapter.re01_enforced():
-    done = subprocess.run(
-        [
-            {str(ctx.provenance.binary_path)!r}, "route-native",
-            {str(bundle.pcb_path)!r}, {str(out_pcb)!r},
-            "--protect", "existing", "--nets", "/SIG_A",
-        ],
-        env=child_env,
-        capture_output=True, text=True, timeout=60,
-    )
-assert done.returncode == 0, done.stderr
-print(json.dumps({{"rc": done.returncode}}))
+
+def route(source, destination, *patterns):
+    with routing_adapter.re01_enforced():
+        done = subprocess.run(
+            [{str(ctx.provenance.binary_path)!r}, "route-native", source, destination,
+             "--protect", "existing", "--nets", *patterns],
+            env=child_env, capture_output=True, text=True, timeout=60,
+        )
+    assert done.returncode == 0, done.stderr
+    return done.returncode
+
+route({str(bundle.pcb_path)!r}, {str(out_pcb)!r}, "/SIG_A")
+rc = route({str(demo)!r}, {str(scoped_out)!r}, "!SIG_[AB]")
+print(json.dumps({{"rc": rc}}))
 """
     proc = ctx.agent_ee_driver.run_python(script, str(ctx.work_dir / "t5_07"))
     assert_no_crash(proc, "T5-07")
     assert proc.returncode == 0, f"T5-07 failed:\n{proc.stderr}\n{proc.stdout}"
+    before = _pcbnew().LoadBoard(str(demo))
+    after = _pcbnew().LoadBoard(str(scoped_out))
+    excluded = {"/SIG_A", "/SIG_B"}
+
+    def excluded_copper(board):
+        return {
+            (t.m_Uuid.AsString(), t.GetNetname(), tuple(t.GetStart()), tuple(t.GetEnd()),
+             int(t.GetLayer()), int(t.GetWidth()), bool(t.IsLocked()))
+            for t in board.GetTracks() if t.GetNetname() in excluded
+        }
+
+    assert excluded_copper(after) == excluded_copper(before)
+    assert len(list(after.GetTracks())) > len(list(before.GetTracks()))
     return assert_clean_e2e(bundle.pcb_path, out_pcb, before_hashes=bh, source_dir=bundle.directory)
 
 
