@@ -2560,7 +2560,7 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
     assert!(path_b5.edges.iter().any(|e| matches!(e, PathEdge::Via(_))));
 
     // 2. Challenger 1 Probe 4: 3L board with min_via_annular_width = 1nm and
-    // (layer "B.Cu") (constraint via_drill (min 0.000044mm)) gives drill = 44nm,
+    // (layer "B.Cu") (constraint hole_size (min 0.000044mm)) gives drill = 44nm,
     // effective via diam = 46 nm, making [0,10]->[10,10] + Via@[10,10] (cost 41)
     // beat the 42-step F.Cu route [0,10]->[-418,10].
     let p4 = Input {
@@ -2717,7 +2717,7 @@ fn layer_scoped_annular_width_and_via_drill_admissible_heuristic_re02() {
             .to_string(),
         ),
         custom_rules: Some(
-            "(version 1)\n(rule \"big_bcu_drill\" (layer \"B.Cu\") (constraint via_drill (min 0.000044mm)))"
+            "(version 1)\n(rule \"big_bcu_drill\" (layer \"B.Cu\") (constraint hole_size (min 0.000044mm)))"
                 .into(),
         ),
         effective_rules: None,

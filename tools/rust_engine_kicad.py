@@ -172,6 +172,41 @@ def point(value):
     return [int(value.x), int(value.y)]
 
 
+def verify_native_rule_loading(candidate: Path, project: bytes | None, rules: bytes, timeout: float):
+    # KiCad can discard an invalid .kicad_dru with a successful exit and
+    # an empty diagnostic list. Check the same rules in a disposable native
+    # copy. The deliberate violation must name the appended rule and its track.
+    with tempfile.TemporaryDirectory(dir=candidate.parent) as probe_dir:
+        probe = Path(probe_dir) / candidate.name
+        board = pcbnew.LoadBoard(str(candidate))
+        if board is None:
+            raise NativeValidationError('cannot load board for custom-rule check')
+        marker = f'kicad_route_rule_check_{uuid.uuid4().hex}'
+        net = pcbnew.NETINFO_ITEM(board, marker)
+        board.Add(net)
+        track = pcbnew.PCB_TRACK(board)
+        track.SetNet(net)
+        track.SetLayer(pcbnew.F_Cu)
+        track.SetStart(pcbnew.VECTOR2I(0, 0))
+        track.SetEnd(pcbnew.VECTOR2I(1000000, 0))
+        track.SetWidth(250000)
+        board.Add(track)
+        if not pcbnew.SaveBoard(str(probe), board, True):
+            raise NativeValidationError('cannot save board for custom-rule check')
+        if project is not None:
+            probe.with_suffix('.kicad_pro').write_bytes(project)
+        check = f"""\n(rule "{marker}" (condition "A.NetName == '{marker}'") (constraint disallow track))\n"""
+        probe.with_suffix('.kicad_dru').write_bytes(rules + check.encode())
+        report = native_violations(probe, probe.parent / 'rules.json', timeout=timeout)
+        if not any(
+            v.get('type') == 'items_not_allowed' and v.get('severity') in ('error', 'warning')
+            and f"rule '{marker}'" in v.get('description', '')
+            and any(item.get('uuid') == item_id(track) for item in v.get('items', []))
+            for v in report['violations']
+        ):
+            raise NativeValidationError('KiCad did not load the supplied custom design rules')
+
+
 def item_id(item):
     return item.m_Uuid.AsString()
 
@@ -3205,6 +3240,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             temporary.with_suffix('.kicad_pro').write_bytes(drc_pro_bytes)
         if dru_bytes is not None:
             temporary.with_suffix('.kicad_dru').write_bytes(dru_bytes)
+            verify_native_rule_loading(temporary, drc_pro_bytes, dru_bytes, drc_timeout)
         before_dir = directory / 'before_drc'
         before_dir.mkdir()
         before_board = before_dir / Path(os.path.realpath(source)).name
