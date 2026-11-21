@@ -4826,6 +4826,40 @@ def test_route_native_layer_policy_is_applied_to_saved_four_layer_copper(
         assert all(not isinstance(t, pcbnew.PCB_VIA) for t in signal)
     assert native_board.read_bytes() == source
 
+@pytest.mark.parametrize('source_at,via_at,diameter', [
+    ((5_000_000, 16_200_000), (30_000_000, 16_000_000), 500_000),
+    ((15_800_000, 30_000_000), (16_000_000, 5_000_000), 600_000),
+])
+def test_native_track_lands_inside_the_existing_via(source_at, via_at, diameter, guarded_cli, tmp_path):
+    from tests.e2e_rust_router.kicad_verify import BoardBuilder
+
+    fixture = BoardBuilder(copper_layers=4, seed=22711)
+    fixture.set_rect_outline(0, 0, 40_000_000, 40_000_000)
+    load_at = tuple(c + 2_000_000 for c in via_at)
+    for ref, at, layer in [('SRC', source_at, pcbnew.F_Cu), ('LOAD', load_at, pcbnew.B_Cu)]:
+        footprint = fixture.add_footprint(ref, at)
+        fixture.add_pad(footprint, '1', 'N', at, size_nm=(700_000, 700_000), layers=[layer])
+    via = fixture.add_via('N', via_at, diameter, 300_000, locked=True)
+    fixture.add_track('N', via_at, load_at, 200_000, layer=pcbnew.B_Cu, locked=True)
+    fixture.set_project_rules()
+    source = fixture.save(tmp_path / 'source').pcb_path
+    assert len(run_native_drc(source).unconnected_items) == 1
+    run, _ = guarded_cli
+    output = tmp_path / 'routed.kicad_pcb'
+    run([str(_built_rust_engine(run)), 'route-native', str(source), str(output)])
+    result = run_native_drc(output, sidecar_source=source)
+    assert not result.unconnected_items and not result.violations
+
+    saved = pcbnew.LoadBoard(str(output))
+    copper = list(saved.GetTracks())
+    vias = [t for t in copper if t.GetClass() == 'PCB_VIA']
+    assert len(vias) == 1 and vias[0].m_Uuid.AsString() == via.m_Uuid.AsString()
+    ends = [p for t in copper if t.GetClass() == 'PCB_TRACK' and t.GetLayer() == pcbnew.F_Cu
+            for p in (t.GetStart(), t.GetEnd())]
+    assert any(4 * ((p.x - via_at[0]) ** 2 + (p.y - via_at[1]) ** 2) <= diameter ** 2 for p in ends), (
+        'the only route to the via ends outside its copper body', via_at, diameter, ends)
+
+
 def test_route_native_per_net_policy_refuses_through_via_crossing_excluded_inner_layers(
         native_board, guarded_cli, tmp_path):
     run, _ = guarded_cli
