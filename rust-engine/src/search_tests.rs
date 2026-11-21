@@ -37,6 +37,71 @@ fn track(n: u64, net: u32, a: Point, b: Point, w: i64) -> Track {
         locked: true,
     }
 }
+
+#[test]
+fn clipped_pad_entry_continues_the_arriving_stroke_when_the_elbow_is_clear() {
+    for obstructed in [false, true] {
+        let mut input: Input = serde_json::from_value(serde_json::json!({
+            "version": 1, "source_id": "a".repeat(64), "layer": "F.Cu",
+            "bounds": {"min": [0, 0], "max": [250, 250]},
+            "rules": {"width_nm": 10, "grid_nm": 10, "clearance_nm": 2, "edge_clearance_nm": 1},
+            "nets": [{"id": 1, "name": "terminal"}, {"id": 2, "name": "obstacle"}],
+            "pads": [], "tracks": [], "max_expansions": 1000
+        }))
+        .unwrap();
+        let target = [100, 100];
+        input.pads.push(pad(
+            1,
+            1,
+            target,
+            Shape::Rect {
+                half_size_nm: [20, 15],
+            },
+        ));
+        if obstructed {
+            input.tracks.push(track(2, 2, [127, 104], [127, 106], 4));
+        }
+        let mut engine = Engine::new(input).unwrap();
+        let pad = &engine.input.pads[0];
+        let (lo, hi) = pad.copper_bounds();
+        let points = vec![[160, 120], [120, 120], [120, 119]];
+        let edges = points
+            .windows(2)
+            .map(|p| PathEdge::Track {
+                start: p[0],
+                end: p[1],
+                layer: 0,
+            })
+            .collect();
+        let mut path = Path {
+            points,
+            edges,
+            steps: 5,
+        };
+        extend_path_into_target_pad(&engine, 1, &[vec![(Copper::Pad(pad), lo, hi)]], &mut path)
+            .unwrap();
+        engine.insert_path(1, path).unwrap();
+        let actual: Vec<_> = engine
+            .copper
+            .tracks()
+            .filter(|t| t.net == 1)
+            .map(|t| (t.start, t.end))
+            .collect();
+        let expected = if obstructed {
+            // The alternative must keep its one-nanometre piece on this tiny board.
+            vec![[160, 120], [120, 120], [120, 119], [100, 119], target]
+        } else {
+            vec![[160, 120], [120, 120], [120, 100], target]
+        };
+        assert_eq!(
+            actual,
+            expected
+                .windows(2)
+                .map(|p| (p[0], p[1]))
+                .collect::<Vec<_>>()
+        );
+    }
+}
 fn legal(i: &Input, foreign: &[Body], a: Point, b: Point) -> bool {
     let r = i.rules.width_nm + 2 * i.rules.edge_clearance_nm;
     if [a, b].iter().any(|p| {
@@ -65,7 +130,7 @@ fn oracle(
         if legal(i, foreign, *p, *p)
             && source
                 .iter()
-                .any(|s| s.contacts(Body::segment(*p, *p, i.rules.width_nm)))
+                .any(|s| s.accepts_landing(Body::segment(*p, *p, i.rules.width_nm)))
             && seen.insert(*p)
         {
             q.push_back((*p, 0));
@@ -78,7 +143,7 @@ fn oracle(
                 if legal(i, foreign, a, p)
                     && targets
                         .iter()
-                        .any(|t| t.contacts(Body::segment(p, p, i.rules.width_nm)))
+                        .any(|t| t.accepts_landing(Body::segment(p, p, i.rules.width_nm)))
                 {
                     return Some(d + 1);
                 }
@@ -245,7 +310,7 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                                     "offgrid={offgrid} width={width} clearance={clearance} kind={kind} mask={mask}");
                                 assert!(path.points.windows(2).all(|p| legal(&i, &foreign, p[0], p[1])));
                                 let last = *path.points.last().unwrap();
-                                assert!(target_body.contacts(Body::segment(last, last, width)));
+                                assert!(target_body.accepts_landing(Body::segment(last, last, width)));
                             }
                             (None, Err(e)) => {
                                 unreachable += 1;
@@ -691,7 +756,7 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
                             assert_eq!(path.steps, cost, "width={width} grid={grid} shift={shift} mask={mask}");
                             assert!(path.points.windows(2).all(|p| legal(&i, &foreign, p[0], p[1])));
                             let cap = Body::segment(*path.points.last().unwrap(), *path.points.last().unwrap(), width);
-                            assert!(Body::pad(&target_pad).contacts(cap) || Body::track(&target_track).contacts(cap));
+                            assert!(Body::pad(&target_pad).accepts_landing(cap) || Body::track(&target_track).accepts_landing(cap));
                         }
                         (None, Err(e)) => { unreachable += 1; assert_eq!(e.status, Status::Unroutable); }
                         (expected, actual) => panic!("width={width} grid={grid} shift={shift} mask={mask}: oracle={expected:?} search={actual:?}"),
@@ -5979,4 +6044,74 @@ fn only_an_imported_track_and_via_retain_their_native_fringe_connection() {
             assert_eq!(joined, (input_via && input_track) || end_x == via.at[0]);
         }
     }
+}
+
+#[test]
+fn routed_track_contacts_reach_the_trace_body_from_either_side() {
+    let stack = vec!["F.Cu".into()];
+    let work = WorkBudget::new(Limits::default());
+    let original = track(100, 1, [50, 50], [70, 50], 20);
+    let stub = Copper::Track(&original);
+    // A 6-8-10 triangle places the new endpoint on the other track's 10 nm radius.
+    assert_eq!(
+        stub.attachment([10, 58], [80, 58], 1, 20, "F.Cu", &stack, &work)
+            .unwrap(),
+        Some([44, 58])
+    );
+    for (y, new_width, joined) in [
+        (60, 20, true),
+        (61, 20, false),
+        (69, 20, false),
+        (61, 32, true),
+        (67, 32, false),
+    ] {
+        let nearby = track(101, 1, [10, y], [60, y], new_width);
+        let other = Copper::Track(&nearby);
+        assert!(geometry::tracks_connect(&original, &nearby));
+        assert_eq!(stub.touches_route(&nearby, &stack, &work).unwrap(), joined);
+        assert_eq!(
+            other.touches_route(&original, &stack, &work).unwrap(),
+            joined
+        );
+        assert!(stub.touches(other, &stack, |_, _| true));
+        assert_eq!(stub.touches(other, &stack, |_, _| false), joined);
+    }
+}
+
+#[test]
+fn a_via_beside_a_passing_trace_needs_a_junction() {
+    let stack = vec!["F.Cu".into(), "B.Cu".into()];
+    let work = WorkBudget::new(Limits::default());
+    let via = Via {
+        id: id(100),
+        net: 1,
+        at: [50, 50],
+        diameter_nm: 20,
+        drill_nm: 6,
+        start_layer: "F.Cu".into(),
+        end_layer: "B.Cu".into(),
+        kind: ViaKind::Through,
+        locked: true,
+    };
+    let passing = track(101, 1, [10, 58], [90, 58], 10);
+    let junction = track(102, 1, [10, 58], [50, 58], 10);
+    let on_axis = track(103, 1, [10, 55], [90, 55], 10);
+    for (t, anchored) in [(&passing, false), (&junction, true), (&on_axis, true)] {
+        assert!(geometry::track_connects_via(t, &via));
+        assert!(geometry::track_lands_on_via(t, &via));
+        assert_eq!(
+            Copper::Track(t).touches_via(&via, &stack, &work).unwrap(),
+            anchored
+        );
+        assert_eq!(
+            Copper::Track(t).touches(Copper::Via(&via), &stack, |_, _| false),
+            anchored
+        );
+    }
+    assert_eq!(
+        Copper::Via(&via)
+            .attachment(passing.start, passing.end, 1, 10, "F.Cu", &stack, &work)
+            .unwrap(),
+        Some([44, 58])
+    );
 }

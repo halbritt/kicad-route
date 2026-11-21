@@ -488,6 +488,22 @@ pub fn tracks_connect(a: &Track, b: &Track) -> bool {
     segments_near(a.start, a.end, b.start, b.end, gap2, true)
 }
 
+/// At a routed junction the narrower trace reaches into the wider copper
+/// by its own radius. Two barely overlapping round caps form a narrow neck.
+pub(crate) fn tracks_land_together(a: &Track, b: &Track) -> bool {
+    let ra = a.width_nm / 2;
+    let rb = b.width_nm / 2;
+    let distance = ra.max(rb).min(ra + rb - CONTACT_OVERLAP_NM);
+    segments_near(
+        a.start,
+        a.end,
+        b.start,
+        b.end,
+        2 * i128::from(distance),
+        true,
+    )
+}
+
 fn sat_convex_polys_overlap_2x_1nm(a2: &[Point], b2: &[Point]) -> bool {
     let check_edges = |poly: &[Point], other: &[Point]| -> bool {
         let n = poly.len();
@@ -1189,6 +1205,20 @@ pub(crate) fn track_lands_on_via(t: &Track, v: &Via) -> bool {
         .max(via_radius)
         .min(track_radius + via_radius - CONTACT_OVERLAP_NM);
     point_near_segment(v.at, t.start, t.end, 2 * i128::from(distance), true)
+}
+
+/// A finished junction has a track endpoint on the via or the via center
+/// on the track. A long segment can graze the via midway even when neither
+/// anchor is connected. A search prefix may cross the via before clipping.
+pub(crate) fn via_anchored_on_track(v: &Via, t: &Track) -> bool {
+    if !track_lands_on_via(t, v) {
+        return false;
+    }
+    let track_width = 2 * i128::from(t.width_nm / 2);
+    let via_diameter = 2 * i128::from(v.diameter_nm / 2);
+    point_near_segment(v.at, t.start, t.end, track_width, true)
+        || point_near_segment(t.start, v.at, v.at, via_diameter, true)
+        || point_near_segment(t.end, v.at, v.at, via_diameter, true)
 }
 
 pub fn via_connects_pad(v: &Via, p: &Pad) -> bool {

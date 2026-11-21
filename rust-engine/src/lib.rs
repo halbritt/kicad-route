@@ -2892,11 +2892,8 @@ impl Engine {
             }
         }
         let mut groups =
-            components::partition(items, &self.layer_names, &self.work, |track, via| {
-                geometry::track_lands_on_via(track, via)
-                    || (geometry::track_connects_via(track, via)
-                        && self.copper.is_input_id(&track.id)
-                        && self.copper.is_input_id(&via.id))
+            components::partition(items, &self.layer_names, &self.work, |first, second| {
+                self.copper.is_input_id(first) && self.copper.is_input_id(second)
             })?;
         if includes_refillable_fill && groups.len() > 1 {
             // Source fills supply a few seed vertices. Target fills can accept

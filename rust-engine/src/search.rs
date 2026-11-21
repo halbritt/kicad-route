@@ -2011,10 +2011,20 @@ fn extend_path_into_target_pad(
         if !geometry::point_in_pad(target, pad) {
             continue;
         }
-        for corner in [[target[0], end[1]], [end[0], target[1]]] {
+        // The clipped last step can touch the pad only with its round cap.
+        // Continue that stroke toward the pad before introducing another bend.
+        let vertical_continuation = start[0] == end[0] && (target[1] - end[1]).signum() == sign;
+        let first_axis = usize::from(vertical_continuation);
+        for bend_axis in [first_axis, 1 - first_axis] {
+            let mut corner = end;
+            corner[bend_axis] = target[bend_axis];
+            let continues = start[1 - bend_axis] == end[1 - bend_axis]
+                && (corner[bend_axis] - end[bend_axis]).signum()
+                    == (end[bend_axis] - start[bend_axis]).signum();
+            let anchor = if continues { collinear_anchor } else { end };
             if corner != end
                 && corner != target
-                && is_legal_from(end, corner)?
+                && is_legal_from(anchor, corner)?
                 && is_legal_from(corner, target)?
             {
                 result.points.push(corner);
