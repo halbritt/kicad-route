@@ -289,7 +289,7 @@ fn shortened_attachment_is_legal_even_when_full_grid_step_hits_wall() {
 }
 
 #[test]
-fn clearance_shadowed_target_joins_at_first_contact() {
+fn clearance_shadowed_target_joins_with_a_full_radius_of_copper() {
     // Fable F1: preserve the original dimensions and rules. The terminal cap
     // must overlap y6000000 by 1 nm, but cannot approach the foreign y6300000
     // centerline closer than 400000 nm. Thus y5800001..=5900000 is legal.
@@ -353,7 +353,14 @@ fn clearance_shadowed_target_joins_at_first_contact() {
     assert_eq!(o.added_tracks.len(), 1);
     let t = &o.added_tracks[0];
     assert_eq!(t.start, [5000000, 2000000]);
-    assert_eq!(t.end, [5000000, 5800001]);
+    // The old endpoint left 1 nm of copper overlap. Here the narrower
+    // track's centerline reaches the wider cap with clearance left over.
+    assert_eq!(t.end, [5000000, 5850000]);
+    assert!(contact::Body::track(&i.tracks[0]).accepts_landing(contact::Body::track(t)));
+    let mut old = t.clone();
+    old.end = [5000000, 5800001];
+    assert!(contact::Body::track(&old).contacts(contact::Body::track(&i.tracks[0])));
+    assert!(!contact::Body::track(&i.tracks[0]).accepts_landing(contact::Body::track(&old)));
     assert_copper_connected(&i, &o.added_tracks);
     assert!(!contact::Body::track(t).violates(contact::Body::track(&i.tracks[1]), 200000));
 }
