@@ -1821,6 +1821,42 @@ def _built_rust_engine(run):
     return ROOT / 'rust-engine/target/debug/kicad-route-engine'
 
 
+def test_route_native_requires_an_operation_for_pair_tuning_controls(tmp_path, guarded_cli):
+    from test_diff_pairs import pair_project
+
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    source = pair_project(tmp_path / 'source') / 'pair.kicad_pcb'
+    project = source.with_suffix('.kicad_pro')
+    settings = project.read_bytes()
+    board = pcbnew.LoadBoard(str(source))
+    far = next(fp for fp in board.GetFootprints() if fp.GetReference() == 'J2')
+    negative = next(pad for pad in far.Pads() if pad.GetNetname() == '/CAN-')
+    negative.Move(pcbnew.VECTOR2I(pcbnew.FromMM(3), 0))
+    assert pcbnew.SaveBoard(str(source), board)
+    project.write_bytes(settings)
+    for option, value in [('--length-match-tolerance', '0.01'), ('--meander-amplitude', '1')]:
+        output = tmp_path / 'unused.kicad_pcb'
+        proc = run([str(engine), 'route-native', str(source), str(output),
+                    '--diff-pairs', 'auto', option, value], check=False)
+        operation = json.loads(proc.stdout)
+        assert proc.returncode == 2 and operation['status'] == 'invalid', operation
+        assert option in operation['reason']
+        assert not output.exists()
+
+    output = tmp_path / 'matched.kicad_pcb'
+    run([str(engine), 'route-native', str(source), str(output), '--diff-pairs', 'auto',
+         '--length-match-group-json', '["/CAN+","/CAN-"]',
+         '--length-match-tolerance', '0.01', '--meander-amplitude', '1'])
+    saved = pcbnew.LoadBoard(str(output))
+    lengths = Counter()
+    for track in saved.GetTracks():
+        assert not isinstance(track, pcbnew.PCB_VIA)
+        lengths[track.GetNetname()] += track.GetLength()
+    assert set(lengths) == {'/CAN+', '/CAN-'}
+    assert abs(lengths['/CAN+'] - lengths['/CAN-']) <= 10_000
+
+
 def test_sigkill_after_board_publication_preserves_board_and_original_rules(
         tmp_path, guarded_cli):
     run, _ = guarded_cli

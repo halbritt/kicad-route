@@ -94,6 +94,13 @@ pub struct DiffPairPlan {
 }
 
 impl DiffPairPlan {
+    fn ac_pair_indices(&self) -> BTreeSet<usize> {
+        self.ac_chains
+            .iter()
+            .flat_map(|chain| chain.pair_indices.iter().copied())
+            .collect()
+    }
+
     fn pair_tolerance(&self, pair: &ResolvedDiffPair) -> Option<i64> {
         match (self.intra_match, pair.dru_skew_max_nm) {
             (true, Some(d)) => Some(self.intra_tolerance_nm.min(d)),
@@ -1749,7 +1756,7 @@ fn discover_and_validate_with_copper(
         }
     }
 
-    Ok(DiffPairPlan {
+    let plan = DiffPairPlan {
         pairs,
         length_groups,
         ac_chains,
@@ -1763,7 +1770,36 @@ fn discover_and_validate_with_copper(
         intra_match: opts.intra_match,
         intra_tolerance_nm: opts.length_match_tolerance_nm.unwrap_or(50_000),
         intra_amplitude_nm: opts.meander_amplitude_nm.unwrap_or(1_500_000),
-    })
+    };
+    if !plan.intra_match
+        && (opts.length_match_tolerance_nm.is_some() || opts.meander_amplitude_nm.is_some())
+        && !plan
+            .length_groups
+            .iter()
+            .any(|group| group.contains_diff_pairs)
+    {
+        if opts.length_match_tolerance_nm.is_some() {
+            return Err(Failure::new(
+                Status::Invalid,
+                "--length-match-tolerance requires --diff-pair-intra-match or a coupled length-match group",
+            ));
+        }
+        // A native pair skew rule supplies its own tolerance. Its meanders
+        // still use the pair amplitude, except in AC chains with their own amplitude.
+        let ac_pairs = plan.ac_pair_indices();
+        if !plan.pairs.iter().any(|p| {
+            p.dru_skew_max_nm.is_some()
+                && !ac_pairs.contains(&p.index)
+                && !plan.protected_nets.contains(&p.pos_net)
+                && !plan.protected_nets.contains(&p.neg_net)
+        }) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "--meander-amplitude requires --diff-pair-intra-match, a coupled length-match group, or a tunable pair with a native skew constraint",
+            ));
+        }
+    }
+    Ok(plan)
 }
 
 fn resolve_ac_chains(
@@ -8784,10 +8820,7 @@ pub fn apply_length_matching_in_tx(
         pair_by_net.insert(p.pos_net, idx);
         pair_by_net.insert(p.neg_net, idx);
     }
-    let mut ac_pair_indices: BTreeSet<usize> = BTreeSet::new();
-    for ch in &plan.ac_chains {
-        ac_pair_indices.extend(ch.pair_indices.iter().copied());
-    }
+    let ac_pair_indices = plan.ac_pair_indices();
 
     unwrap_tx(engine.transaction(|tx| {
         let eng = &mut *tx.engine;

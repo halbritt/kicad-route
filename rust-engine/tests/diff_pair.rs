@@ -775,6 +775,92 @@ fn delay_matching_preflight_refusals_and_tandem_inter_pair_matching() {
 }
 
 #[test]
+fn pair_tuning_controls_require_a_matching_operation() {
+    let mut input = base_diff_input(&["A_P", "A_N", "D0", "D1"]);
+    input.pads[3].at[0] += 3_000_000;
+    for (tolerance, amplitude, option) in [
+        (Some(10_000), None, "--length-match-tolerance"),
+        (None, Some(1_000_000), "--meander-amplitude"),
+    ] {
+        for group in [vec![], vec!["D0", "D1"]] {
+            let opts = input.routing_options.as_mut().unwrap();
+            opts.length_match_tolerance_nm = tolerance;
+            opts.meander_amplitude_nm = amplitude;
+            opts.length_match_groups.clear();
+            if !group.is_empty() {
+                opts.length_match_groups.push(LengthMatchGroupSpec {
+                    members: group.into_iter().map(str::to_owned).collect(),
+                    ..Default::default()
+                });
+            }
+            let out = kicad_route_engine::run(input.clone());
+            assert_eq!(out.status, Status::Invalid, "{:?}", out.reason);
+            assert!(out.reason.unwrap().contains(option));
+            assert!(out.added_tracks.is_empty() && out.added_vias.is_empty());
+            assert!(out.removed_track_ids.is_empty());
+            assert_eq!(out.expanded_states, 0);
+        }
+    }
+
+    let opts = input.routing_options.as_mut().unwrap();
+    opts.length_match_groups = vec![LengthMatchGroupSpec {
+        members: vec!["A_P".into(), "A_N".into()],
+        ..Default::default()
+    }];
+    opts.length_match_tolerance_nm = Some(10_000);
+    opts.meander_amplitude_nm = Some(1_000_000);
+    let rules = resolve_effective_rules(&mut input).unwrap();
+    let plan = discover_and_validate(&input, &rules).unwrap();
+    assert!(matches!(
+        plan.length_groups[0].mode,
+        kicad_route_engine::diff_pair::GroupTargetMode::LengthNm {
+            tolerance_nm: 10_000
+        }
+    ));
+    assert_eq!(plan.length_groups[0].amplitude_nm, 1_000_000);
+}
+
+#[test]
+fn native_pair_skew_uses_the_requested_amplitude_and_rule_tolerance() {
+    let mut input = base_diff_input(&["A_P", "A_N"]);
+    input.pads[3].at[0] += 3_000_000;
+    input.custom_rules = Some(
+        "(version 1) (rule \"A skew\" (condition \"A.inDiffPair('A')\") (constraint skew (max 0.01mm)))".into(),
+    );
+    let opts = input.routing_options.as_mut().unwrap();
+    opts.meander_amplitude_nm = Some(1_500_000);
+    let out = kicad_route_engine::run(input.clone());
+    assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+    let length = |net| -> f64 {
+        out.added_tracks
+            .iter()
+            .filter(|track| track.net == net)
+            .map(|track| {
+                ((track.end[0] - track.start[0]) as f64)
+                    .hypot((track.end[1] - track.start[1]) as f64)
+            })
+            .sum()
+    };
+    assert!(length(1) >= 30_000_000.0 && (length(1) - length(2)).abs() <= 10_000.0);
+    let mut protected = input.clone();
+    protected.tracks = out.added_tracks;
+    protected.vias = out.added_vias;
+    protected.routing_options.as_mut().unwrap().protect_mode = Some(ProtectMode::Existing);
+    let out = kicad_route_engine::run(protected);
+    assert_eq!(out.status, Status::Invalid);
+    assert!(out.reason.unwrap().contains("--meander-amplitude"));
+
+    input
+        .routing_options
+        .as_mut()
+        .unwrap()
+        .length_match_tolerance_nm = Some(1_000);
+    let out = kicad_route_engine::run(input);
+    assert_eq!(out.status, Status::Invalid);
+    assert!(out.reason.unwrap().contains("--length-match-tolerance"));
+}
+
+#[test]
 fn option_b_and_coupled_group_preflight_refusals() {
     use kicad_route_engine::model::Status;
 
@@ -5277,6 +5363,15 @@ fn ac_chain_three_pair_multipass_under_dru_skew_cap() {
             ac_meander_amplitude_nm: Some(3_000_000),
             ..Default::default()
         });
+        let mut unused = inp.clone();
+        unused
+            .routing_options
+            .as_mut()
+            .unwrap()
+            .meander_amplitude_nm = Some(500_000);
+        let rejected = kicad_route_engine::run(unused);
+        assert_eq!(rejected.status, Status::Invalid);
+        assert!(rejected.reason.unwrap().contains("--meander-amplitude"));
         let out = kicad_route_engine::run(inp.clone());
         assert_eq!(
             out.status,

@@ -106,6 +106,14 @@ pair explicitly, for example `--diff-pairs 'D_P1,D_N1'`. Other selected nets
 then route as ordinary signals. Use the names from the PCB, including any
 sheet prefix.
 
+Use `--diff-pair-intra-match` to tune the lengths of a pair's two legs.
+A coupled `--length-match-group` can also use `--length-match-tolerance`
+and `--meander-amplitude`. Single-ended groups have their own
+`--group-*` controls. A native skew rule on a tunable pair supplies its own
+tolerance and accepts `--meander-amplitude`. AC chains use
+`--ac-meander-amplitude`. The router rejects a pair tolerance or amplitude
+when the request has no matching operation that uses it.
+
 ### Signal layer policy
 
 Pass `--layer-policy-json` to `route-native`, or supply the same object in
