@@ -1,3 +1,4 @@
+mod companions;
 #[cfg(target_os = "linux")]
 mod lifetime;
 mod refill;
@@ -497,6 +498,7 @@ fn compute_binary_identity() -> BinaryIdentity {
 
 struct OwnedTempDir {
     path: Option<PathBuf>,
+    publication: Option<companions::Publication>,
     #[cfg(target_os = "linux")]
     inode: Option<File>,
     #[cfg(target_os = "linux")]
@@ -507,9 +509,32 @@ impl OwnedTempDir {
     fn create_in(parent: &Path, prefix: &str, op_id: &str) -> std::io::Result<Self> {
         #[cfg(target_os = "linux")]
         if lifetime::enabled() {
-            return lifetime::create_directory(parent, prefix, op_id);
+            return lifetime::create_directory(parent, prefix, op_id, None);
         }
         Self::create_local(parent, prefix, op_id)
+    }
+    fn for_board(
+        output: &Path,
+        op_id: &str,
+        deadline: Instant,
+    ) -> Result<Self, (OperationStatus, String)> {
+        let publication = companions::Publication::lock(output, deadline)?;
+        let parent = parent_dir_or_dot(output);
+        let prefix = ".kicad-route-pub-";
+        let error = |e: std::io::Error| {
+            (
+                OperationStatus::PublicationRefused,
+                format!("cannot stage board publication: {e}"),
+            )
+        };
+        #[cfg(target_os = "linux")]
+        if lifetime::enabled() {
+            return lifetime::create_directory(parent, prefix, op_id, Some(publication))
+                .map_err(error);
+        }
+        let mut stage = Self::create_local(parent, prefix, op_id).map_err(error)?;
+        stage.publication = Some(publication);
+        Ok(stage)
     }
     fn create_local(parent: &Path, prefix: &str, op_id: &str) -> std::io::Result<Self> {
         for attempt in 0..64u32 {
@@ -525,6 +550,7 @@ impl OwnedTempDir {
             match builder.create(&candidate) {
                 Ok(()) => {
                     return Ok(Self {
+                        publication: None,
                         #[cfg(target_os = "linux")]
                         inode: Some(File::open(&candidate).inspect_err(|_| {
                             let _ = fs::remove_dir(&candidate);
@@ -568,6 +594,25 @@ impl OwnedTempDir {
                         return Ok(());
                     }
                 }
+            }
+            if let Some(board) = &self.publication {
+                #[cfg(target_os = "linux")]
+                let stage = {
+                    use std::os::fd::AsRawFd;
+                    let inode = self
+                        .inode
+                        .as_ref()
+                        .ok_or("missing publication staging directory")?;
+                    PathBuf::from(format!("/proc/self/fd/{}", inode.as_raw_fd()))
+                };
+                #[cfg(not(target_os = "linux"))]
+                let stage = dir.clone();
+                board
+                    .rollback_unlinked_board(&stage)
+                    .map_err(|e| format!("cannot clean up publication companions: {e}"))?;
+            }
+            #[cfg(target_os = "linux")]
+            {
                 if let Some(inode) = self.inode.take() {
                     return lifetime::remove_owned(&dir, &inode)
                         .map_err(|e| format!("failed to clean up {}: {e}", dir.display()));
@@ -586,7 +631,9 @@ impl OwnedTempDir {
 
 impl Drop for OwnedTempDir {
     fn drop(&mut self) {
-        let _ = self.cleanup();
+        if let Err(e) = self.cleanup() {
+            eprintln!("native staging cleanup: {e}");
+        }
     }
 }
 
@@ -888,7 +935,11 @@ fn read_bounded_regular_with_meta(
             path.display()
         )));
     }
-    let file = File::open(path).map_err(|e| {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(target_os = "linux")]
+    options.custom_flags(libc::O_NONBLOCK); // A FIFO replacing the file must not stall admission.
+    let file = options.open(path).map_err(|e| {
         BoundedReadError::Io(format!("cannot open {label} {}: {e}", path.display()))
     })?;
     let open_meta = file.metadata().map_err(|e| {
@@ -1472,6 +1523,7 @@ struct AdmittedInputs {
     rules_bytes: Option<Vec<u8>>,
     project_bytes: Option<Vec<u8>>,
     dru_bytes: Option<Vec<u8>>,
+    destination_companions: companions::Present,
     limits_bytes: Option<Vec<u8>>,
 }
 
@@ -1514,11 +1566,24 @@ fn check_output_preflight(path: &Path, label: &str) -> Result<(), (OperationStat
     }
 }
 
+fn is_board_companion(config: &OperationConfig, path: &Path) -> bool {
+    let companion_of = |board: &Path| {
+        ["kicad_pro", "kicad_dru"]
+            .iter()
+            .any(|ext| paths_may_alias(path, &board.with_extension(ext)))
+    };
+    companion_of(&config.output)
+        || companion_of(&config.source)
+        || fs::canonicalize(&config.source).is_ok_and(|board| companion_of(&board))
+}
+
 fn check_operation_result_preflight(config: &OperationConfig, bridge_path: Option<&Path>) -> bool {
     let Some(op_result_path) = &config.operation_result else {
         return false;
     };
-    if check_output_preflight(op_result_path, "operation-result").is_err() {
+    if is_board_companion(config, op_result_path)
+        || check_output_preflight(op_result_path, "operation-result").is_err()
+    {
         return false;
     }
     let mut others: Vec<&Path> = vec![&config.source, &config.output, &config.python];
@@ -1819,6 +1884,13 @@ fn phase_pre_snapshot_admission(
             outputs.push((save_req, "save-request"));
         }
         for (out_p, out_lbl) in &outputs {
+            if is_board_companion(config, out_p) {
+                let msg = format!(
+                    "{out_lbl} must be distinct from project and custom-rule files: {}",
+                    out_p.display()
+                );
+                return Err((OperationStatus::UsageRefused, msg));
+            }
             for (in_p, in_lbl) in &inputs {
                 if paths_may_alias(out_p, in_p) {
                     return Err((
@@ -1956,7 +2028,15 @@ fn phase_pre_snapshot_admission(
             None => None,
         };
 
+        let destination_companions = companions::inspect(
+            &config.output,
+            admitted_source.project_bytes.as_deref(),
+            admitted_source.dru_bytes.as_deref(),
+            companions::Present::default(),
+        )
+        .map_err(|reason| (OperationStatus::PublicationRefused, reason))?;
         Ok(AdmittedInputs {
+            destination_companions,
             bridge_path,
             source_name: admitted_source.source_name,
             source_bytes: admitted_source.source_bytes,
@@ -2722,7 +2802,6 @@ fn execute_staged_phases(
         return Err(err);
     }
     let t_pub = Instant::now();
-    let dest_parent = parent_dir_or_dot(&config.output);
     let dest_name = match config.output.file_name() {
         Some(name) => name,
         None => {
@@ -2732,16 +2811,14 @@ fn execute_staged_phases(
         }
     };
     let mut pub_dir =
-        OwnedTempDir::create_in(dest_parent, ".kicad-route-pub-", op_id).map_err(|e| {
-            let msg = format!("cannot create publication staging dir: {e}");
-            result.phases.push(PhaseRecord {
-                phase: "final_publish".to_owned(),
-                status: "failed".to_owned(),
-                elapsed_ms: t_pub.elapsed().as_millis() as u64,
-                detail: Some(msg.clone()),
-                child: None,
-            });
-            (OperationStatus::PublicationRefused, msg)
+        OwnedTempDir::for_board(&config.output, op_id, deadline).inspect_err(|(_, reason)| {
+            push_failed_phase(
+                result,
+                "final_publish",
+                t_pub.elapsed(),
+                reason.clone(),
+                None,
+            );
         })?;
     let pub_candidate = pub_dir
         .path()
@@ -2764,17 +2841,39 @@ fn execute_staged_phases(
             before();
         }
     }
-    if let Err(err) = check_cancel_or_deadline(deadline) {
-        result.phases.push(PhaseRecord {
-            phase: "final_publish".to_owned(),
-            status: "failed".to_owned(),
-            elapsed_ms: t_pub.elapsed().as_millis() as u64,
-            detail: Some(err.1.clone()),
-            child: None,
-        });
-        return Err(err);
+    let project = admitted.project_bytes.as_deref();
+    let rules = admitted.dru_bytes.as_deref();
+    let required = companions::Present {
+        project: project.is_some(),
+        rules: rules.is_some(),
+    };
+    let destination_rules = || companions::inspect(&config.output, project, rules, required);
+    let refused = |reason| (OperationStatus::PublicationRefused, reason);
+    let prepare = || {
+        check_cancel_or_deadline(deadline)?;
+        check_output_preflight(&config.output, "output")?;
+        let existing = companions::inspect(
+            &config.output,
+            project,
+            rules,
+            admitted.destination_companions,
+        )
+        .map_err(refused)?;
+        companions::install(&pub_candidate, &config.output, project, rules, existing)
+            .map_err(|e| refused(e.to_string()))?;
+        destination_rules().map_err(refused)?;
+        check_cancel_or_deadline(deadline)
+    };
+    if let Err((status, reason)) = prepare() {
+        push_failed_phase(
+            result,
+            "final_publish",
+            t_pub.elapsed(),
+            reason.clone(),
+            None,
+        );
+        return Err((status, reason));
     }
-
     match fs::hard_link(&pub_candidate, &config.output) {
         Ok(()) => {
             result.publication.commit_point_reached = true;
@@ -2788,7 +2887,6 @@ fn execute_staged_phases(
                 push_failed_phase(result, "final_publish", t_pub.elapsed(), note.clone(), None);
                 return Err((OperationStatus::AmbiguousTermination, note));
             }
-            let _ = pub_dir.cleanup();
         }
         Err(e) if e.kind() == ErrorKind::AlreadyExists => {
             result.publication.published = false;
@@ -2842,6 +2940,18 @@ fn execute_staged_phases(
         return Err((OperationStatus::AmbiguousTermination, note));
     }
 
+    let finish = destination_rules()
+        .map_err(|e| format!("destination rule context changed: {e}"))
+        .and_then(|_| pub_dir.cleanup());
+    if let Err(reason) = finish {
+        let note = format!("board was published: {reason}");
+        result.publication.ambiguous_termination = true;
+        result.publication.reconciliation_note = Some(note.clone());
+        push_failed_phase(result, "final_publish", t_pub.elapsed(), note.clone(), None);
+        return Err((OperationStatus::AmbiguousTermination, note));
+    }
+
+    drop(pub_dir);
     if let Some(save_req) = &config.save_request {
         if let Err(e) = atomic_hard_link_publish(save_req, &request_bytes, op_id, 0o644, || {
             result.request.saved_request_path = Some(save_req.display().to_string());
@@ -3989,6 +4099,53 @@ elif cmd == "apply":
     }
 
     #[test]
+    fn destination_companions_are_checked_on_both_sides_of_publication() {
+        let _guard = UNIT_SIGNAL_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+        for (case, after_commit, remove_matching) in [
+            ("rules-appeared", false, false),
+            ("project-removed", false, true),
+            ("rules-changed-after-link", true, false),
+        ] {
+            let dir = test_dir(case);
+            let cfg = base_config(&dir, &make_stub_bridge(&dir));
+            let dest_project = cfg.output.with_extension("kicad_pro");
+            if remove_matching {
+                let project = br#"{"meta":{"version":3}}"#;
+                fs::write(cfg.source.with_extension("kicad_pro"), project).unwrap();
+                fs::write(&dest_project, project).unwrap();
+            }
+            let change = || {
+                if remove_matching {
+                    fs::remove_file(&dest_project).unwrap();
+                } else {
+                    fs::write(&dest_project, b"{}").unwrap();
+                }
+            };
+            let mut hooks = CommitHooks {
+                before_commit: None,
+                after_commit: None,
+            };
+            if after_commit {
+                hooks.after_commit = Some(Box::new(change));
+            } else {
+                hooks.before_commit = Some(Box::new(change));
+            }
+            let res = run_native_with_hooks(&cfg, Some(hooks));
+            let expected = if after_commit {
+                OperationStatus::AmbiguousTermination
+            } else {
+                OperationStatus::PublicationRefused
+            };
+            assert_eq!(res.status, expected, "{case}: {:?}", res.reason);
+            assert_eq!(res.publication.published, after_commit);
+            assert_eq!(res.publication.ambiguous_termination, after_commit);
+            assert_eq!(cfg.output.exists(), after_commit);
+            assert!(res.reason.unwrap().contains("destination companion"));
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+
+    #[test]
     fn post_commit_panic_preserves_destination_and_reports_ambiguous() {
         let _guard = UNIT_SIGNAL_LOCK.lock().unwrap_or_else(|p| p.into_inner());
         let dir = test_dir("post-panic");
@@ -4144,6 +4301,7 @@ elif cmd == "apply":
         let bridge = make_stub_bridge(&dir);
         let cfg = base_config(&dir, &bridge);
         let admitted = AdmittedInputs {
+            destination_companions: companions::Present::default(),
             source_name: OsString::from("source.kicad_pcb"),
             bridge_path: bridge,
             source_bytes: b"(kicad_pcb)".to_vec(),

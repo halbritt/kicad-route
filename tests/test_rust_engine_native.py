@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import time
 import subprocess
 import sys
 from unittest.mock import patch
@@ -1923,10 +1924,15 @@ def test_native_publication_reports_directory_sync_errors(tmp_path, guarded_cli,
     watched = destinations[failed_directory or 'board'].parent
     command = ['strace', '-y', '-o', str(trace), '-P', str(watched), '-e', f'trace={syscall}']
     if failed_directory:
-        command += ['-e', f'inject={syscall}:error=EIO']
+        # The board directory is opened first to lock publication, then to sync the link.
+        occurrence = ':when=2' if failed_directory == 'board' and syscall == 'openat' else ''
+        command += ['-e', f'inject={syscall}:error=EIO{occurrence}']
     result = run([*command, str(engine), 'route-native', str(source), str(output),
                   '--save-request', str(request), '--operation-result', str(report)], check=False)
     syncs = [line for line in trace.read_text().splitlines() if line.startswith(f'{syscall}(')]
+    if failed_directory == "board" and syscall == "openat":
+        assert len(syncs) == 2 and str(watched) in syncs[0] and "EIO" not in syncs[0], syncs
+        syncs = syncs[1:]
     assert len(syncs) == 1 and str(watched) in syncs[0], syncs
     assert ('EIO' in syncs[0]) == bool(failed_directory), syncs
     assert result.returncode == (8 if failed_directory else 0), result.stderr
@@ -1954,6 +1960,52 @@ def test_native_publication_reports_directory_sync_errors(tmp_path, guarded_cli,
         assert saved == final
     phase = next(p for p in final['phases'] if p['phase'] == 'final_publish')
     assert phase['status'] == ('failed' if failed_directory in ('board', 'request') else 'ok')
+
+
+@pytest.mark.parametrize("incumbent_project", [False, True])
+def test_killed_board_link_rolls_back_only_new_companions(guarded_cli, tmp_path, incumbent_project):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    source = ROOT / "fixtures/route_demo/route_demo.kicad_pcb"
+    output = tmp_path / "interrupted.kicad_pcb"
+    project = output.with_suffix(".kicad_pro")
+    rules = output.with_suffix(".kicad_dru")
+    if incumbent_project:
+        shutil.copyfile(source.with_suffix(".kicad_pro"), project)
+        original_inode = project.stat().st_ino
+
+    # The rule files are already in place when linking the board. Prevent that
+    # syscall from succeeding and kill the publisher before it can unwind.
+    proc = run(["strace", "-o", str(tmp_path / "trace"), "-P", str(output),
+                "-e", "trace=link,linkat", "-e", "inject=link,linkat:error=EIO:signal=SIGKILL",
+                str(engine), "route-native", str(source), str(output)], check=False)
+    assert proc.returncode == -signal.SIGKILL, proc.stderr
+    deadline = time.monotonic() + 5
+    while any(tmp_path.glob(".kicad-route-pub-*")) and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert not any(tmp_path.glob(".kicad-route-pub-*"))
+    assert not rules.exists() and not output.exists()
+    assert project.exists() == incumbent_project
+    if incumbent_project:
+        assert project.stat().st_ino == original_inode
+        assert project.read_bytes() == source.with_suffix(".kicad_pro").read_bytes()
+
+
+def test_competing_board_publishers_preserve_winning_project(guarded_cli, tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    source = ROOT / "fixtures/route_demo/route_demo.kicad_pcb"
+    output = tmp_path / "racing.kicad_pcb"
+    args = [str(engine), "route-native", str(source), str(output)]
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        futures = [workers.submit(run, args, check=False) for _ in range(2)]
+        results = [json.loads(f.result().stdout) for f in futures]
+    assert sorted(op["status"] for op in results) == ["complete", "destination_exists"]
+    for suffix in (".kicad_pro", ".kicad_dru"):
+        assert output.with_suffix(suffix).read_bytes() == source.with_suffix(suffix).read_bytes()
+    assert not run_native_drc(output, refill_zones=True).unconnected_items
 
 
 def test_native_route_preserves_stencil_only_smd_apertures(native_board, guarded_cli):
@@ -2241,6 +2293,82 @@ def test_route_native_rejects_invalid_or_unresolved_sparse_project(
     op = json.loads(result.stdout)
     assert result.returncode != 0 and reason in op['reason'], op
     assert not output.exists()
+
+
+@pytest.mark.parametrize("case", [
+    "matched", "matched_project_only", "matched_rule_link", "bare", "different_rules", "different_project", "missing_rules",
+    "missing_project", "extra_rules", "dangling_rules",
+])
+def test_route_native_checks_destination_rule_files(tmp_path, guarded_cli, case):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    source = tmp_path / "source" / "route_demo.kicad_pcb"
+    shutil.copytree(ROOT / "fixtures/route_demo", source.parent)
+    output = tmp_path / "final.kicad_pcb"
+    project = output.with_suffix(".kicad_pro")
+    rules = output.with_suffix(".kicad_dru")
+    source_project = source.with_suffix(".kicad_pro")
+    source_rules = source.with_suffix(".kicad_dru")
+    if case not in ("bare", "missing_project"):
+        shutil.copyfile(source_project, project)
+    if case not in ("bare", "missing_rules", "dangling_rules"):
+        shutil.copyfile(source_rules, rules)
+    if case == "matched_project_only":
+        rules.unlink()
+        source_rules.unlink()
+    elif case == "matched_rule_link":
+        rules.unlink()
+        rules.symlink_to(source_rules)
+    elif case == "different_rules":
+        rules.write_text('(version 1)\n(rule "Wide" (constraint track_width (min 0.9mm)))')
+    elif case == "different_project":
+        settings = json.loads(project.read_bytes())
+        settings["board"]["design_settings"]["rules"]["min_track_width"] = 0.9
+        project.write_text(json.dumps(settings))
+    elif case == "extra_rules":
+        source_rules.unlink()
+    elif case == "dangling_rules":
+        rules.symlink_to(tmp_path / "absent-rules")
+    companions = {path: path.read_bytes() for path in (source, source_project, source_rules,
+                                                        project, rules) if path.is_file()}
+
+    result = run([str(engine), "route-native", str(source), str(output), "--project",
+                  str(source_project)], check=False)
+    op = json.loads(result.stdout)
+    assert all(path.read_bytes() == content for path, content in companions.items())
+    if case in ("matched", "matched_project_only", "matched_rule_link", "bare", "missing_rules", "missing_project"):
+        assert result.returncode == 0 and op["status"] == "complete", op
+        assert op["routing"]["added_track_count"] > 0 and output.is_file()
+        assert project.read_bytes() == source_project.read_bytes()
+        assert rules.exists() == source_rules.exists()
+        if source_rules.exists():
+            assert rules.read_bytes() == source_rules.read_bytes()
+        report = run_native_drc(output, refill_zones=True)
+        assert not report.unconnected_items
+        assert all(item["type"] != "track_width" for item in report.violations)
+    else:
+        assert result.returncode == 8 and op["status"] == "publication_refused", op
+        assert "destination companion" in op["reason"]
+        assert not op["publication"]["published"] and not output.exists()
+        assert op["staging"]["dir"] is None
+        if case == "dangling_rules":
+            assert rules.is_symlink()
+
+
+@pytest.mark.parametrize("flag", ["--operation-result", "--save-request"])
+def test_route_native_cannot_publish_json_as_destination_rules(native_board, guarded_cli, tmp_path, flag):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    alias = tmp_path / "output-alias"
+    alias.symlink_to(tmp_path, target_is_directory=True)
+    output = tmp_path / "final.kicad_pcb"
+    companion = alias / "final.kicad_dru"
+    result = run([str(engine), "route-native", str(native_board), str(output), flag, str(companion)],
+                 check=False)
+    op = json.loads(result.stdout)
+    assert result.returncode == 8 and op["status"] == "usage_refused", op
+    assert "project and custom-rule files" in op["reason"]
+    assert not output.exists() and not companion.exists()
 
 
 def test_route_native_accepts_explicit_matching_project_flag(

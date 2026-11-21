@@ -1,6 +1,6 @@
 //! Linux ownership of a standalone route-native operation's children and staging.
 //! A pipe's final writer disappears even if its process is killed without unwinding.
-use super::{unix_sys, OwnedTempDir};
+use super::{companions, unix_sys, OwnedTempDir};
 use std::os::unix::process::CommandExt;
 use std::{
     ffi::{c_int, OsString},
@@ -42,13 +42,34 @@ pub(super) fn initialize(args: &[OsString]) -> Option<u8> {
     None
 }
 
-pub(super) fn create_directory(parent: &Path, prefix: &str, id: &str) -> io::Result<OwnedTempDir> {
-    let mut child = Command::new(EXECUTABLE.get().expect("enabled for standalone native CLI"))
+pub(super) fn create_directory(
+    parent: &Path,
+    prefix: &str,
+    id: &str,
+    publication: Option<companions::Publication>,
+) -> io::Result<OwnedTempDir> {
+    let mut command = Command::new(EXECUTABLE.get().expect("enabled for standalone native CLI"));
+    command
         .process_group(0)
         .arg(DIRECTORY_HELPER)
         .arg(parent)
         .arg(prefix)
-        .arg(id)
+        .arg(id);
+    if let Some(board) = publication.as_ref() {
+        let fd = board.directory.as_raw_fd();
+        command.arg(&board.name).arg(fd.to_string());
+        // Inherit the same open file description: a dead parent's lock stays
+        // held until the helper has either seen the board or removed its links.
+        unsafe {
+            command.pre_exec(move || {
+                if libc::fcntl(fd, libc::F_SETFD, 0) < 0 {
+                    return Err(io::Error::last_os_error());
+                }
+                Ok(())
+            });
+        }
+    }
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -91,6 +112,7 @@ pub(super) fn create_directory(parent: &Path, prefix: &str, id: &str) -> io::Res
             path: Some(path),
             inode: Some(inode),
             keeper: Some(child),
+            publication,
         }),
         Err(e) => {
             child.stdin.take();
@@ -101,7 +123,7 @@ pub(super) fn create_directory(parent: &Path, prefix: &str, id: &str) -> io::Res
 }
 
 fn run_directory_helper(args: &[OsString]) -> io::Result<()> {
-    let [parent, prefix, id] = args else {
+    let [parent, prefix, id, rest @ ..] = args else {
         return Err(io::Error::other("invalid staging owner arguments"));
     };
     let prefix = prefix.to_str().unwrap_or("");
@@ -114,6 +136,32 @@ fn run_directory_helper(args: &[OsString]) -> io::Result<()> {
         return Err(io::Error::other("invalid native staging name"));
     }
     let mut staging = OwnedTempDir::create_local(Path::new(parent), prefix, id)?;
+    match rest {
+        [] => (),
+        [name, lock]
+            if prefix == ".kicad-route-pub-"
+                && Path::new(name).file_name() == Some(name.as_os_str()) =>
+        {
+            let fd = lock
+                .to_str()
+                .and_then(|s| s.parse::<c_int>().ok())
+                .filter(|n| *n >= 3)
+                .ok_or_else(|| io::Error::other("invalid publication directory descriptor"))?;
+            // The inherited locked descriptor remains open for the helper's
+            // lifetime. An independent handle provides anchored cleanup paths.
+            let directory = fs::File::open(format!("/proc/self/fd/{fd}"))?;
+            let actual = fs::metadata(parent)?;
+            let held = directory.metadata()?;
+            if !actual.is_dir() || (actual.dev(), actual.ino()) != (held.dev(), held.ino()) {
+                return Err(io::Error::other("publication directory changed"));
+            }
+            staging.publication = Some(companions::Publication {
+                name: name.clone(),
+                directory,
+            });
+        }
+        _ => return Err(io::Error::other("invalid publication owner arguments")),
+    }
     let basename = staging
         .path()
         .and_then(|p| p.file_name())

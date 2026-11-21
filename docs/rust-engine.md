@@ -54,22 +54,33 @@ resulting edits and publishes the board after native checks.
 
 ## Native compatibility interface
 
-A successful standalone `route-native` operation publishes the routed PCB.
-When opening the output in KiCad or running DRC later, keep a copy of its
-original `.kicad_pro` and any `.kicad_dru` next to the PCB under the same
-basename. Native DRC uses the source and output basenames in separate private
+A successful standalone `route-native` operation publishes the routed PCB
+with its original native rules. It installs the admitted `.kicad_pro` and
+`.kicad_dru`, when present, under the output basename before it links the
+PCB. Existing byte-identical copies are reused. A conflicting or extra
+companion causes `publication_refused` (exit 8) before the board is linked.
+A matching partial set is completed. A source without either file produces
+only a PCB. The request and operation-report paths must be distinct from
+both boards' companion paths.
+
+Native DRC uses the source and output basenames in separate private
 directories. Each PCB has the admitted custom rules and project settings.
 The bridge clears saved DRC exclusions in both private project copies so it
-can compare the underlying findings.
-For an input symlink, the canonical board supplies the source basename and
-sidecar files. If the input has no project, the operation uses KiCad's defaults
-and omits `request.project_path` from its result. Supply the original
-project when the board relies on its net classes or design minima.
-If the output has a different basename or directory, KiCad needs those
-files at the corresponding destination to reproduce that validation.
-The router publishes the PCB alone. Its private DRC copies use installed
-KiCad libraries and settings. For project library checks when reopening the
-PCB, supply the original library tables and the libraries they reference.
+can compare the underlying findings. For an input symlink, the canonical
+board supplies the source basename and companions. If the input has no
+project, the operation uses KiCad's defaults and omits `request.project_path`
+from its result. For project library checks when reopening the PCB, supply
+the original library tables and the libraries they reference.
+
+The PCB's atomic link is the commit point. Readers may briefly see the rule
+files first. The Linux publisher locks the destination directory for the
+short commit section. If interrupted before it links the PCB, the staging
+owner removes the companion links created by this operation. It preserves
+existing files. If the host stops or both the publisher and its cleanup helper
+are killed, private staging files or matching companions can remain. A retry
+can complete a matching partial set. A rule-file change detected after the PCB link returns
+`ambiguous_termination` (exit 8) and preserves the board. Keep the
+destination project stable while opening or regrading the result.
 
 KiCad text variables such as `${PROJECTNAME}` can render different copper or
 solder-mask strokes when a PCB is staged or reopened under a different name.
