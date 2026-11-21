@@ -1633,12 +1633,21 @@ impl Input {
                     return Err(invalid("zone layer_fill layer is not in zone layers"));
                 }
                 for poly in &lf.polygons {
+                    fill_verts = poly.holes.iter().fold(
+                        fill_verts.saturating_add(poly.outer.len()),
+                        |count, hole| count.saturating_add(hole.len()),
+                    );
+                    if fill_verts > 1_000_000 {
+                        return Err(Failure::new(
+                            Status::AdmissionExceeded,
+                            "zone layer_fills vertex limit exceeded",
+                        ));
+                    }
                     if !poly.outer.iter().all(|p| bounded_pt(*p))
                         || !crate::geometry::is_valid_closed_ring(&poly.outer)
                     {
                         return Err(invalid("zone layer_fill outer polygon is invalid"));
                     }
-                    fill_verts = fill_verts.saturating_add(poly.outer.len());
                     for hole in &poly.holes {
                         if !hole.iter().all(|p| bounded_pt(*p))
                             || !crate::geometry::is_valid_closed_ring(hole)
@@ -1646,13 +1655,6 @@ impl Input {
                         {
                             return Err(invalid("zone layer_fill hole polygon is invalid"));
                         }
-                        fill_verts = fill_verts.saturating_add(hole.len());
-                    }
-                    if fill_verts > 1_000_000 {
-                        return Err(Failure::new(
-                            Status::AdmissionExceeded,
-                            "zone layer_fills vertex limit exceeded",
-                        ));
                     }
                 }
             }

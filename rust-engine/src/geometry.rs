@@ -193,6 +193,7 @@ pub(crate) fn is_valid_closed_ring(ring: &[Point]) -> bool {
         return false;
     }
     let mut area2: i128 = 0;
+    let mut spans = Vec::with_capacity(n);
     for i in 0..n {
         let a = ring[i];
         let b = ring[(i + 1) % n];
@@ -200,8 +201,29 @@ pub(crate) fn is_valid_closed_ring(ring: &[Point]) -> bool {
             return false;
         }
         area2 += i128::from(a[0]) * i128::from(b[1]) - i128::from(b[0]) * i128::from(a[1]);
+        let [dx, dy] = sub(b, a);
+        let divisor = gcd_u128(dx.unsigned_abs(), dy.unsigned_abs()) as i128;
+        let direction = [dx / divisor, dy / divisor];
+        let offset = cross(direction, [i128::from(a[0]), i128::from(a[1])]);
+        let axis = usize::from(dx == 0);
+        spans.push((
+            (direction, offset),
+            a[axis].min(b[axis]),
+            a[axis].max(b[axis]),
+        ));
     }
-    area2 != 0
+    if area2 == 0 {
+        return false;
+    }
+    // KiCad can fracture holes with an out-and-back cut. Its two directions
+    // cancel in the point-in-polygon test. Traversing a perimeter twice in
+    // the same direction can erase an entire copper island in that test.
+    spans.sort_unstable();
+    spans.windows(2).all(|pair| {
+        let (line, _, end) = pair[0];
+        let (next_line, start, _) = pair[1];
+        line != next_line || end <= start
+    })
 }
 pub(crate) fn is_valid_simple_ring(ring: &[Point]) -> bool {
     let n = ring.len();
