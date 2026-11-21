@@ -4866,3 +4866,127 @@ def test_layer_policy_probe_measures_saved_track_and_rule_bytes_without_changing
     assert facts['sidecars']['.kicad_dru'] == hashlib.sha256(rules.read_bytes()).hexdigest()
     assert facts['pour'] == {'area_loss_limit_pct': 0.5, 'layers': []}
     assert board.read_bytes() == data
+
+
+def test_native_apply_limits_every_copper_edit_to_the_selected_nets(tmp_path, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    source = ROOT / 'fixtures/route_demo/route_demo.kicad_pcb'
+    request = tmp_path / 'selected.json'
+    routed = tmp_path / 'selected.kicad_pcb'
+    run([str(engine), 'route-native', str(source), str(routed), '--nets', '!SIG_A', '!SIG_B',
+         '--protect', 'existing', '--save-request', str(request)])
+    result = tmp_path / 'result.json'
+    run([str(engine), str(request), str(result)])
+    plan = json.loads(result.read_bytes())
+    options = json.loads(request.read_bytes())
+    codes = {net['name']: net['id'] for net in options['nets']}
+    excluded = {codes['/SIG_A'], codes['/SIG_B']}
+    assert plan['added_tracks'] and not any(t['net'] in excluded for t in plan['added_tracks'])
+
+    # Rebind only the equivalent selection spelling. The standalone adapter
+    # must enforce the native board's net names on every proposed edit.
+    options['routing_options']['net_filters'] = ['!SIG_[AB]']
+    request.write_text(json.dumps(options))
+    plan['request_sha256'] = hashlib.sha256(request.read_bytes()).hexdigest()
+    result.write_text(json.dumps(plan))
+    target = tmp_path / 'applied.kicad_pcb'
+    command = ['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
+               str(source), str(result), str(target), '--request', str(request)]
+    run(command)
+    original = pcbnew.LoadBoard(str(source))
+    saved = pcbnew.LoadBoard(str(target))
+    def copper(board):
+        records = {}
+        for item in board.GetTracks():
+            if isinstance(item, pcbnew.PCB_VIA):
+                geometry = (tuple(item.GetPosition()), item.TopLayer(), item.BottomLayer(),
+                            item.GetWidth(item.TopLayer()), item.GetDrillValue(), item.GetViaType())
+            else:
+                geometry = (tuple(item.GetStart()), tuple(item.GetEnd()), item.GetLayer(), item.GetWidth())
+            records[bridge.item_id(item)] = (item.GetNetCode(), item.IsLocked(), geometry)
+        return records
+
+    old, new = copper(original), copper(saved)
+    assert old and all(new[key] == geometry for key, geometry in old.items())
+    assert new.keys() - old.keys()
+    assert all(new[key][0] not in excluded for key in new.keys() - old.keys())
+    target.unlink()
+
+    track = dict(plan['added_tracks'][0], id=str(uuid.uuid4()), net=codes['/SIG_A'])
+    via = dict(id=str(uuid.uuid4()), net=codes['/SIG_B'], at=[1_000_000, 1_000_000],
+               diameter_nm=600_000, drill_nm=300_000, start_layer='F.Cu', end_layer='B.Cu',
+               kind='through', locked=False)
+    allowed = plan['added_tracks'][0]['net']
+    name = next(name for name, code in codes.items() if code == allowed)
+    pair = {'pos_net': allowed, 'pos_name': name, 'neg_net': codes['/SIG_A'], 'neg_name': '/SIG_A'}
+    for field, edits, message in [
+            ('added_tracks', [*plan['added_tracks'], track], 'outside --nets selection'),
+            ('added_vias', [via], 'outside --nets selection'),
+            ('diff_pairs', [pair], 'outside --nets selection'),
+            ('bus_groups', [[allowed, codes['/SIG_B']]], 'outside --nets selection'),
+            ('removed_track_ids', [next(iter(old))], 'cannot remove input copper'),
+            ('removed_via_ids', [via['id']], 'unsupported fields')]:
+        result.write_text(json.dumps({**plan, field: edits}))
+        refused = run(command, check=False)
+        assert refused.returncode == 2 and message in refused.stderr
+        assert not target.exists()
+
+    # Unchanged global open counts do not prove the selected groups were joined.
+    result.write_text(json.dumps({**plan, 'added_tracks': [], 'added_vias': []}))
+    refused = run(command, check=False)
+    assert refused.returncode == 2 and 'open connections on selected nets' in refused.stderr
+    assert not target.exists()
+
+    for malformed, reason in [({'net_filters': '!SIG_[AB]'}, 'list of patterns'),
+                              ({'net_filters': [True]}, 'nonempty patterns'),
+                              ({'protect_mode': 'unknown'}, 'invalid protect_mode')]:
+        options['routing_options'] = malformed
+        request.write_text(json.dumps(options))
+        result.write_text(json.dumps({**plan, 'request_sha256': hashlib.sha256(request.read_bytes()).hexdigest()}))
+        refused = run(command, check=False)
+        assert refused.returncode == 2 and reason in refused.stderr
+        assert not target.exists()
+
+
+def test_native_scope_resolves_literal_bus_lanes_and_active_low_sheet_names():
+    names = {1: '/bank/D[0]', 2: '/bank/D0', 3: '/bank/!RESET', 4: '/other/D1'}
+    assert bridge._selected_net_codes(names, {'net_filters': ['D[[]0]']}) == {1}
+    assert bridge._selected_net_codes(names, {'net_filters': ['D[01]', '!/other/*']}) == {2}
+    assert bridge._selected_net_codes(names, {'net_filters': [r'\!RESET']}) == {3}
+    assert bridge._selected_net_codes(names, {'net_filters': [r'!\!RESET']}) == {1, 2, 4}
+    for invalid in [None, [''], ['!'], [True], ['!RESET'], ['missing']]:
+        with pytest.raises(ValueError):
+            bridge._selected_net_codes(names, {'net_filters': invalid})
+
+
+def test_native_apply_distinguishes_bus_lane_from_bracket_class(native_board, guarded_cli):
+    run, _ = guarded_cli
+    # Only the literal bus lane has unjoined terminals. The other net owns
+    # the barrier already present in this board.
+    doc = native_board.read_text().replace('"SIGNAL"', '"/bank/D[0]"').replace('"OBSTACLE"', '"/bank/D0"')
+    native_board.write_text(doc)
+    expected = bridge.export_board(native_board, RULES, 100000)
+    lane = next(n['id'] for n in expected['nets'] if n['name'] == '/bank/D[0]')
+    req = native_board.with_name('request.json')
+    plan = native_board.with_name('plan.json')
+    out = native_board.with_name('literal-lane.kicad_pcb')
+    cmd = ['/usr/bin/python3', str(ROOT / 'tools/rust_engine_kicad.py'), 'apply',
+           str(native_board), str(plan), str(out), '--request', str(req)]
+    tracks = [dict(t, net=lane) for t in connection_tracks()]
+    for pattern in ('D[0]', 'D[[]0]'):
+        expected['routing_options'] = {'net_filters': [pattern]}
+        req.write_text(json.dumps(expected))
+        plan.write_text(json.dumps({'version': 3, 'status': 'complete', 'source_id': expected['source_id'],
+                                    'request_sha256': hashlib.sha256(req.read_bytes()).hexdigest(),
+                                    'added_tracks': tracks, 'removed_track_ids': [],
+                                    'expanded_states': 0, 'work_used': 0}))
+        result = run(cmd, check=False)
+        if pattern == 'D[0]':
+            assert result.returncode == 2 and 'outside --nets selection' in result.stderr
+            assert not out.exists()
+        else:
+            assert result.returncode == 0, result.stderr
+            saved = pcbnew.LoadBoard(str(out))
+            assert {bridge.item_id(t) for t in saved.GetTracks() if t.GetNetname() == '/bank/D[0]'} == {
+                t['id'] for t in tracks}

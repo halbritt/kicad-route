@@ -66,8 +66,12 @@ objects and encode Rust's explicit edit list. It does not select paths, victims,
 IDs, geometry or routing costs. This is justified by KiCad's native Python
 bindings; a Rust KiCad-format reader can replace it later without moving engine
 policy. Applying a plan independently validates the saved native board before
-publishing it: zero native open connections, no new native DRC violations and
-added widths at least the native minimum. A missing or failed DRC command also
+publishing it. New tracks and vias must belong to the nets selected by the
+retained request, and any reported pair or bus must stay inside that selection.
+For a partial route, the saved board must connect the selected terminal pads
+without introducing new open connections. Full-board routing requires zero
+open connections. Both paths require no new native DRC violations and added
+widths at least the native minimum. A missing or failed DRC command also
 refuses publication. Validation failures have a `native_validation_failed`
 CLI result on stderr and exit 2. Expected non-native failures also exit 2 with
 JSON on the final stderr line: `invalid` for malformed/stale requests,

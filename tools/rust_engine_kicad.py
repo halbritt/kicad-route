@@ -2718,19 +2718,69 @@ def _net_matches_filter_token(pattern: str, net_name: str) -> bool:
     return False
 
 
-def _filter_active_net_codes(board, net_filters: list[str]) -> set[int]:
-    pos = [pat for pat in net_filters if not pat.startswith('!')]
-    neg = [pat[1:] for pat in net_filters if pat.startswith('!')]
-    active = set()
-    for code, net in board.GetNetsByNetcode().items():
-        if int(code) == 0:
-            continue
-        name = net.GetNetname()
-        pos_ok = not pos or any(_net_matches_filter_token(p, name) for p in pos)
-        neg_hit = any(_net_matches_filter_token(p, name) for p in neg)
-        if pos_ok and not neg_hit:
-            active.add(int(code))
+def _selected_net_codes(names: dict[int, str], options) -> set[int] | None:
+    if options is None:
+        return None
+    if not isinstance(options, dict):
+        raise ValueError('expected request routing_options must be an object')
+    if options.get('protect_mode') not in (None, 'none', 'existing', 'human', 'locked'):
+        raise ValueError('expected request has an invalid protect_mode')
+    filters = options.get('net_filters', [])
+    if not isinstance(filters, list):
+        raise ValueError('expected request net_filters must be a list of patterns')
+    if not filters:
+        return None
+    positive, negative = set(), set()
+    has_inclusion = False
+    for token in filters:
+        if not isinstance(token, str) or token in ('', '!'):
+            raise ValueError('expected request net_filters requires nonempty patterns')
+        excludes = token.startswith('!')
+        body = token[1:] if excludes else token
+        pattern = body[1:] if body.startswith('\\!') else body
+        matches = {code for code, name in names.items() if _net_matches_filter_token(pattern, name)}
+        if excludes:
+            if not matches and any(_net_matches_filter_token(token, name) for name in names.values()):
+                raise ValueError(f'ambiguous --nets exclusion {token!r}; escape the literal leading !')
+            negative.update(matches)
+        else:
+            has_inclusion = True
+            positive.update(matches)
+    active = (positive if has_inclusion else names.keys()) - negative
+    if not active:
+        raise ValueError('--nets selection matched zero native nets')
     return active
+
+
+def _check_edit_net(code, names: dict[int, str], selected: set[int] | None, label: str):
+    if type(code) is not int or code not in names:
+        raise ValueError(f'Rust output {label} requires a known nonzero integer net')
+    if selected is not None and code not in selected:
+        raise NativeValidationError(f'Rust output {label} references net {names[code]!r} outside --nets selection')
+
+
+def _check_result_groups(plan, names, selected):
+    pairs = plan.get('diff_pairs', [])
+    buses = plan.get('bus_groups', [])
+    if not isinstance(pairs, list) or not isinstance(buses, list):
+        raise ValueError('Rust output diff_pairs and bus_groups must be lists')
+    for pair in pairs:
+        if not isinstance(pair, dict):
+            raise ValueError('Rust output diff_pairs entries must be objects')
+        for role in ('pos', 'neg'):
+            code = pair.get(f'{role}_net')
+            _check_edit_net(code, names, selected, 'differential pair')
+            if pair.get(f'{role}_name') != names[code]:
+                raise ValueError('Rust output differential pair name and native net disagree')
+        if pair['pos_net'] == pair['neg_net']:
+            raise ValueError('Rust output differential pair requires two distinct nets')
+    for group in buses:
+        if not isinstance(group, list) or len(group) < 2:
+            raise ValueError('Rust output bus group requires at least two nets')
+        for code in group:
+            _check_edit_net(code, names, selected, 'bus group')
+        if len(set(group)) != len(group):
+            raise ValueError('Rust output bus group contains duplicate lanes')
 
 
 def _refilled_copper(board, shift):
@@ -2765,9 +2815,9 @@ def _refilled_copper(board, shift):
     return {'zones': zones, 'teardrops': teardrops}
 
 
-def _verify_saved_connectivity(saved, before_drc: dict, after_drc: dict, net_filters: list[str]) -> None:
+def _verify_saved_connectivity(saved, before_drc: dict, after_drc: dict, selected_names: set[str] | None) -> None:
     key = lambda item: json.dumps(item, sort_keys=True)
-    if not net_filters:
+    if selected_names is None:
         count = saved.GetConnectivity().GetUnconnectedCount(False)
         opens = after_drc['unconnected_items']
         if count or opens:
@@ -2789,9 +2839,10 @@ def _verify_saved_connectivity(saved, before_drc: dict, after_drc: dict, net_fil
     )
     if introduced_unconnected:
         raise NativeValidationError('native DRC reports new open connections')
-    active_codes = _filter_active_net_codes(saved, net_filters)
-    if not active_codes:
-        return
+    active_codes = {int(code) for code, net in saved.GetNetsByNetcode().items()
+                    if code and net.GetNetname() in selected_names}
+    if len(active_codes) != len(selected_names):
+        raise NativeValidationError('saved board is missing selected nets')
     conn = saved.GetConnectivity()
     pads_by_net: dict[int, list] = {}
     for pad in saved.GetPads():
@@ -2833,6 +2884,11 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         raise FileExistsError(f'validation report already exists: {validation_report}')
     if not isinstance(plan, dict) or type(plan.get('version')) is not int or plan.get('version') != RESULT_VERSION or plan.get('status') != 'complete':
         raise ValueError('only a complete version3 Rust result can be written')
+    allowed_fields = {'version', 'source_id', 'request_sha256', 'status', 'added_tracks', 'added_vias',
+                      'removed_track_ids', 'expanded_states', 'work_used', 'diff_pairs', 'bus_groups', 'reason'}
+    unexpected = set(plan) - allowed_fields
+    if unexpected:
+        raise ValueError(f'Rust result has unsupported fields: {sorted(unexpected)!r}')
     if not isinstance(expected_request, bytes):
         raise ValueError('expected request must be the exact request bytes')
     if len(expected_request) > MAX_DOCUMENT_BYTES:
@@ -2844,8 +2900,8 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     if plan.get('request_sha256') != request_digest:
         raise ValueError('Rust plan request_sha256 does not match the expected request')
     try:
-        req_doc = json.loads(expected_request.decode('utf-8'))
-    except (UnicodeDecodeError, ValueError) as error:
+        req_doc = _parse_object(expected_request.decode('utf-8'))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError('expected request must be valid JSON') from error
     req_bounds = req_doc.get('bounds') if isinstance(req_doc, dict) else None
     if (
@@ -2907,7 +2963,10 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
     has_copper_zones = any(not z.GetIsRuleArea() and not z.IsTeardropArea() for z in all_zones)
     has_teardrops = _board_has_teardrops(board, all_zones)
     needs_refill = has_copper_zones or has_teardrops
-    nets = set(board.GetNetsByNetcode())
+    names = {int(code): net.GetNetname() for code, net in board.GetNetsByNetcode().items() if code}
+    selected = _selected_net_codes(names, req_doc.get('routing_options'))
+    selected_names = None if selected is None else {names[code] for code in selected}
+    _check_result_groups(plan, names, selected)
     allowed_track_keys = {'id', 'net', 'layer', 'start', 'end', 'width_nm', 'locked'}
     required_track_keys = {'id', 'net', 'start', 'end', 'width_nm', 'locked'}
     for item in additions:
@@ -2919,8 +2978,9 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         ident = item['id']
         if not isinstance(ident, str) or str(uuid.UUID(ident)) != ident or uuid.UUID(ident).int == 0 or ident in used_ids:
             raise ValueError('Rust output item identity must be canonical, nonzero and unique')
-        if type(item['net']) is not int or item['net'] not in nets or item['net'] == 0 or type(item['width_nm']) is not int or not 0 < item['width_nm'] <= 1_000_000_000:
-            raise ValueError('Rust output track requires a known integer net and width within the supported native range')
+        _check_edit_net(item['net'], names, selected, 'track')
+        if type(item['width_nm']) is not int or not 0 < item['width_nm'] <= 1_000_000_000:
+            raise ValueError('Rust output track width must be an integer within the supported native range')
         if type(item['locked']) is not bool:
             raise ValueError('Rust output lock flag must be boolean')
         if item['width_nm'] < board.GetDesignSettings().m_TrackMinWidth:
@@ -2950,8 +3010,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         ident = v['id']
         if not isinstance(ident, str) or str(uuid.UUID(ident)) != ident or uuid.UUID(ident).int == 0 or ident in used_ids:
             raise ValueError('Rust output via identity must be canonical, nonzero and unique')
-        if type(v['net']) is not int or v['net'] not in nets or v['net'] == 0:
-            raise ValueError('Rust output via requires a known nonzero integer net')
+        _check_edit_net(v['net'], names, selected, 'via')
         if type(v['diameter_nm']) is not int or type(v['drill_nm']) is not int or v['drill_nm'] <= 0 or v['diameter_nm'] < v['drill_nm'] or v['diameter_nm'] > 1_000_000_000:
             raise ValueError('Rust output via diameter and drill must be positive with diameter >= drill')
         if v['start_layer'] not in layer_idx_by_name or v['end_layer'] not in layer_idx_by_name:
@@ -3034,14 +3093,10 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             saved.BuildConnectivity()
             before = native_violations(before_board, directory / 'before-drc.json', timeout=drc_timeout)
             after = native_violations(temporary, directory / 'after-drc.json', timeout=drc_timeout)
-        ro_doc = req_doc.get('routing_options') if isinstance(req_doc, dict) else None
-        net_filters = ro_doc.get('net_filters', []) if isinstance(ro_doc, dict) else []
-        if not isinstance(net_filters, list):
-            net_filters = []
         key = lambda violation: json.dumps(violation, sort_keys=True)
         introduced = Counter(map(key, after['violations'])) - Counter(map(key, before['violations']))
         try:
-            _verify_saved_connectivity(saved, before, after, [str(x) for x in net_filters])
+            _verify_saved_connectivity(saved, before, after, selected_names)
         except NativeValidationError:
             if refill_state is not None and has_copper_zones and after['unconnected_items']:
                 measured = _refilled_copper(saved, shift)
@@ -3106,7 +3161,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             write_request(report_payload, validation_report)
 
 
-def read_object(path: Path):
+def _parse_object(data):
     def unique_keys(pairs):
         result = {}
         for key, value in pairs:
@@ -3116,12 +3171,16 @@ def read_object(path: Path):
         return result
 
     try:
-        result = json.loads(read_bounded(path), object_pairs_hook=unique_keys)
+        result = json.loads(data, object_pairs_hook=unique_keys)
     except RecursionError as error:
         raise ValueError('JSON input exceeds parser nesting capacity') from error
     if not isinstance(result, dict):
         raise ValueError('JSON input must be an object')
     return result
+
+
+def read_object(path: Path):
+    return _parse_object(read_bounded(path))
 
 
 def write_request(result: dict, destination: Path):
