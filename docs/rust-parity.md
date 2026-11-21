@@ -133,6 +133,22 @@ zero DRC findings, 13 vias and 745.389 mm of track in 98,214 expansions. On
 the variant with open connector exits, `f64719d` already closed all twelve
 opens in 70,482 expansions with 16 vias and 674.101 mm of track.
 
+### Track-to-via junctions
+
+For a new track-to-via connection, the router requires the copper outlines
+to overlap by at least the radius of the narrower item. It applies the same
+rule when a search starts at a via, ends at a via or restores a generated
+branch. Imported tracks and vias keep their native connectivity.
+
+On T4-04 at `ff64243`, both the router and KiCad reported zero opens,
+although an inner-layer track overlapped a via by only 1.75 nm. A separate
+native DRC run with a 0.100 mm minimum connection width reported 0.0348 mm
+at that junction. At `f2cbc06`, the saved track overlapped the via by
+0.100 mm. Both the original project checks and the separate width check
+reported zero findings. The board closed all 48 opens with 58 vias and
+2,611.939 mm of track, using 187,502 expansions and 48,082,617 work units
+under the same limits.
+
 ### Native phase costs
 
 One additional release run at `04e9386` measured each public operation
