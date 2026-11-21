@@ -1994,3 +1994,40 @@ fn constrained_surface_terminal_gets_its_exit_before_a_flexible_crossing() {
         assert_eq!(units[0].id, RouteUnitId::SingleNet(1));
     }
 }
+
+#[test]
+fn full_expansion_budget_can_be_followed_by_an_already_connected_unit() {
+    let mut i = base_input([120, 120], Vec::new());
+    i.nets = vec![
+        Net {
+            id: 1,
+            name: "NEW".into(),
+        },
+        Net {
+            id: 2,
+            name: "ROUTED".into(),
+        },
+    ];
+    i.pads = vec![
+        pad(1, 1, [20, 20]),
+        pad(2, 1, [40, 20]),
+        pad(3, 2, [20, 60]),
+        pad(4, 2, [90, 60]),
+    ];
+    i.tracks = vec![wire(9, 2, [20, 60], [90, 60])];
+    i.rules.grid_nm = 5;
+    let full = run(i.clone());
+    assert_eq!(full.status, Status::Complete);
+    assert!(full.expanded_states > 1 && !full.added_tracks.is_empty());
+    assert!(full.added_tracks.iter().all(|t| t.net == 1));
+    i.max_expansions = full.expanded_states;
+    let exact = run(i.clone());
+    assert_eq!(exact.status, Status::Complete);
+    assert_eq!(exact.expanded_states, full.expanded_states);
+    assert_eq!(exact.added_tracks, full.added_tracks);
+    i.max_expansions -= 1;
+    let exhausted = run(i);
+    assert_eq!(exhausted.status, Status::BudgetExhausted);
+    assert_eq!(exhausted.expanded_states + 1, full.expanded_states);
+    assert!(exhausted.added_tracks.is_empty() && exhausted.added_vias.is_empty());
+}
