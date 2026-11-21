@@ -286,27 +286,28 @@ pub(crate) fn is_valid_arc(start: Point, mid: Point, end: Point) -> bool {
     }
     orientation(start, mid, end) != 0 || dot(sub(mid, start), sub(end, mid)) > 0
 }
-pub(crate) fn is_ultra_large_major_arc(start: Point, mid: Point, end: Point) -> bool {
-    if start == end || start == mid || mid == end {
-        return false;
-    }
-    let m = sub(mid, start);
-    let b = sub(end, start);
-    let cross_mb = cross(m, b);
-    if cross_mb == 0 {
-        return false;
-    }
-    let d = 2 * cross_mb;
+
+const MAX_ARC_CENTER_OFFSET_NM: i128 = 100_000_000_000_000;
+
+/// Numerators and common signed denominator of the circumcenter, relative to start.
+fn arc_center(m: [i128; 2], b: [i128; 2]) -> ([i128; 2], i128) {
     let m2 = dot(m, m);
     let b2 = dot(b, b);
-    let ux = m2 * b[1] - b2 * m[1];
-    let uy = b2 * m[0] - m2 * b[0];
-    let cx_rel = ux / d;
-    let cy_rel = uy / d;
-    const MAX_ARC_RADIUS_NM: i128 = 100_000_000_000_000;
-    (cx_rel.abs() > MAX_ARC_RADIUS_NM || cy_rel.abs() > MAX_ARC_RADIUS_NM)
-        && dot(sub(start, mid), sub(end, mid)) >= 0
+    (
+        [m2 * b[1] - b2 * m[1], b2 * m[0] - m2 * b[0]],
+        2 * cross(m, b),
+    )
 }
+
+pub(crate) fn is_ultra_large_major_arc(start: Point, mid: Point, end: Point) -> bool {
+    if dot(sub(start, mid), sub(end, mid)) < 0 {
+        return false;
+    }
+    let (start, end) = (start.min(end), start.max(end));
+    let ([x, y], d) = arc_center(sub(mid, start), sub(end, start));
+    d != 0 && x.abs().max(y.abs()) / d.abs() > MAX_ARC_CENTER_OFFSET_NM
+}
+
 pub fn point_in_simple_polygon(p: Point, verts: &[Point]) -> bool {
     let n = verts.len();
     if n < 3 {
@@ -763,101 +764,112 @@ pub fn arc_to_conservative_chords(start: Point, mid: Point, end: Point) -> (Vec<
     if start == end || start == mid || mid == end {
         return (vec![start, end], 0);
     }
+    // Subdivide the same way in both directions, including rounding at exact half nanometres.
+    if start > end {
+        let (mut points, sag) = arc_to_conservative_chords(end, mid, start);
+        points.reverse();
+        return (points, sag);
+    }
     let m = sub(mid, start);
-    let b = sub(end, start);
-    let cross_mb = cross(m, b);
-    if cross_mb == 0 {
+    let ([ux, uy], d) = arc_center(m, sub(end, start));
+    if d == 0 {
         return (vec![start, end], 0);
     }
-    let ccw = cross_mb > 0;
-    let d = 2 * cross_mb;
-    let m2 = dot(m, m);
-    let b2 = dot(b, b);
-    let ux = m2 * b[1] - b2 * m[1];
-    let uy = b2 * m[0] - m2 * b[0];
-    let cx_rel = ux / d;
-    let cy_rel = uy / d;
-
-    const MAX_ARC_RADIUS_NM: i128 = 100_000_000_000_000; // 100 km
-    if cx_rel.abs() > MAX_ARC_RADIUS_NM || cy_rel.abs() > MAX_ARC_RADIUS_NM {
-        // Ultra-flat minor arc (`R > 10^14` nm): `[start, mid, end]` has sagitta <= L^2 / (8 R) + 2.
-        let l1_2 = dot(m, m);
+    let center_offset = ux.abs().max(uy.abs()) / d.abs();
+    if center_offset > MAX_ARC_CENTER_OFFSET_NM {
+        // Validation rejects major arcs at this extent. For half-chord h and
+        // radius R the minor sagitta is h²/(R + sqrt(R²-h²)) <= h²/(2R-h).
+        // Use a lower bound on R without squaring an ultra-large radius.
         let em = sub(end, mid);
-        let l2_2 = dot(em, em);
-        let max_l2 = l1_2.max(l2_2) as u128;
-        let sag = (max_l2 / (8 * MAX_ARC_RADIUS_NM as u128)) as i64 + 3;
-        return (vec![start, mid, end], sag);
+        let h2 = (dot(m, m).max(dot(em, em)) as u128).div_ceil(4);
+        let h_upper = isqrt_u128(h2) + 1;
+        let sag = h2.div_ceil(2 * center_offset as u128 - h_upper);
+        return (vec![start, mid, end], sag as i64);
     }
 
-    let c = [i128::from(start[0]) + cx_rel, i128::from(start[1]) + cy_rel];
-    let r2 = (cx_rel * cx_rel + cy_rel * cy_rel) as u128;
-    let r = isqrt_u128(r2) as i128;
-    if r == 0 {
-        return (vec![start, mid, end], 2);
-    }
-
-    fn subdivide(
-        p: Point,
-        q: Point,
-        c: [i128; 2],
-        r: i128,
-        ccw: bool,
-        depth: u8,
-        out: &mut Vec<Point>,
-    ) {
-        let dpq = sub(q, p);
-        if depth == 0 || dot(dpq, dpq) <= 4 {
-            out.push(q);
-            return;
-        }
-        let mid_c = [
-            (i128::from(p[0]) + i128::from(q[0])) / 2,
-            (i128::from(p[1]) + i128::from(q[1])) / 2,
-        ];
-        let arc_out = if ccw {
-            [dpq[1], -dpq[0]]
+    // Retain fractional nanometres while constructing angular bisectors. Within
+    // the supported radius, squared lengths and the scaled circumcenter fit i128.
+    const S: i128 = 4096;
+    let center = [ux * S / d, uy * S / d];
+    let radius = isqrt_u128(dot(center, center) as u128) as i128;
+    let radial = |p| {
+        let v = sub(p, start);
+        [v[0] * S - center[0], v[1] * S - center[1]]
+    };
+    let normal = |v: [i128; 2]| {
+        if d > 0 {
+            [v[1], -v[0]]
         } else {
-            [-dpq[1], dpq[0]]
-        };
-        let mut dir = [mid_c[0] - c[0], mid_c[1] - c[1]];
-        let d_out = dir[0] * arc_out[0] + dir[1] * arc_out[1];
-        if d_out == 0 {
-            dir = arc_out;
-        } else if d_out < 0 {
-            dir = [-dir[0], -dir[1]];
+            [-v[1], v[0]]
         }
-        let dir2 = (dir[0] * dir[0] + dir[1] * dir[1]) as u128;
-        let len = isqrt_u128(dir2) as i128;
-        if len == 0 {
-            out.push(q);
-            return;
+    };
+    let on_circle = |v: [i128; 2]| {
+        // Normalize *after* scaling, even for a one-nanometre chord. The
+        // floored square root then has relative error below 2^-59.
+        let bits = v[0].abs().max(v[1].abs()).ilog2();
+        let shift = 59u32.saturating_sub(bits);
+        let v = [v[0] << shift, v[1] << shift];
+        let len = isqrt_u128(dot(v, v) as u128) as i128;
+        [radius * v[0] / len, radius * v[1] / len]
+    };
+    let vertex = |v: [i128; 2]| -> Point {
+        std::array::from_fn(|k| {
+            let coord = center[k] + v[k];
+            start[k] + ((coord + coord.signum() * (S / 2)) / S) as i64
+        })
+    };
+
+    let mut points = vec![start];
+    for (p, q) in [(start, mid), (mid, end)] {
+        // The oriented chord normal is the exact radial direction of the
+        // arc midpoint, including a major arc with almost coincident ends.
+        let mut rays = [[0; 2]; 33];
+        rays[0] = radial(p);
+        rays[16] = on_circle(normal(sub(q, p)));
+        rays[32] = radial(q);
+        for half in [8, 4, 2, 1] {
+            for j in (half..32).step_by(2 * half) {
+                let a = rays[j - half];
+                let b = rays[j + half];
+                // All remaining subarcs are minor. Choose a well-conditioned
+                // bisector: neither the sum near zero sweep nor the rotated
+                // difference near a half turn can cancel.
+                let dir = if dot(a, b) >= 0 {
+                    [a[0] + b[0], a[1] + b[1]]
+                } else {
+                    normal([b[0] - a[0], b[1] - a[1]])
+                };
+                rays[j] = on_circle(dir);
+            }
         }
-        let next = [
-            (c[0] + dir[0] * r / len) as i64,
-            (c[1] + dir[1] * r / len) as i64,
-        ];
-        subdivide(p, next, c, r, ccw, depth - 1, out);
-        subdivide(next, q, c, r, ccw, depth - 1, out);
+        points.extend(rays[1..32].iter().map(|&v| vertex(v)));
+        points.push(q);
     }
+    points.dedup();
 
-    let mut pts = vec![start];
-    subdivide(start, mid, c, r, ccw, 5, &mut pts);
-    subdivide(mid, end, c, r, ccw, 5, &mut pts);
-
-    let mut max_sag = 2i64;
-    let r_sq = (r as u128) * (r as u128);
-    for w in pts.windows(2) {
-        let d = sub(w[1], w[0]);
-        let l2 = dot(d, d) as u128;
-        let q = l2.div_ceil(4);
-        let sag = if q >= r_sq {
-            r as i64
-        } else {
-            (r as u128 - isqrt_u128(r_sq - q)) as i64
-        };
-        max_sag = max_sag.max(sag + 2);
-    }
-    (pts, max_sag)
+    // Each constructed vertex is within 1 nm of its exact angular position:
+    // center/radius truncation and four stable bisectors contribute < 0.1 nm
+    // before nearest-nm rounding (at most sqrt(1/2) nm). Hence the ideal
+    // chord is at most 2 nm longer. Its sagitta plus the 1 nm vertex error
+    // bounds distances in both directions between each chord and its arc.
+    let longest2 = points
+        .windows(2)
+        .map(|w| {
+            let v = sub(w[1], w[0]);
+            dot(v, v) as u128
+        })
+        .max()
+        .unwrap();
+    let l = isqrt_u128(longest2) + 3;
+    let q = (l * l).div_ceil(4);
+    let r = (radius / S).saturating_sub(1).max(0) as u128;
+    let sag = if q >= r * r {
+        // Even for a tiny radius each ideal final subarc is minor.
+        (radius / S + 2) as u128
+    } else {
+        r - isqrt_u128(r * r - q)
+    };
+    (points, (sag + 1) as i64)
 }
 
 #[inline]

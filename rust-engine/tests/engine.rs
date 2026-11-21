@@ -73,6 +73,78 @@ fn base() -> Input {
     }
 }
 #[test]
+fn nearly_complete_arc_keeps_foreign_clearance_and_cannot_bridge_an_air_gap() {
+    let mut input = base();
+    input.bounds = Bounds {
+        min: [-5_000_000; 2],
+        max: [5_000_000; 2],
+    };
+    input.rules.grid_nm = 100_000;
+    input.rules.width_nm = 200_000;
+    input.rules.clearance_nm = 200_000;
+    let start = [1_999_326, 343];
+    let mid = [-2_000_674, 1158];
+    let end = [1_999_325, -1287];
+    input.nets.push(Net {
+        id: 2,
+        name: "arc".into(),
+    });
+    input.graphics.push(CopperGraphic {
+        id: id(3),
+        net: 2,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Arc {
+            start,
+            mid,
+            end,
+            width_nm: 200_000,
+        },
+    });
+    let eng = Engine::new(input.clone()).unwrap();
+    // The two copper gaps (172 and 293 um) straddle the required 200 um.
+    assert!(!eng
+        .legal_edge(1, [375_194, 1_584_771], [375_195, 1_584_771])
+        .unwrap());
+    assert!(eng
+        .legal_edge(1, [375_194, 1_460_000], [375_195, 1_460_000])
+        .unwrap());
+
+    input.rules.width_nm = 100_000;
+    input.rules.clearance_nm = 100_000;
+    input.graphics[0].net = 1;
+    input.graphics[0].shape = GraphicShape::Arc {
+        start,
+        mid,
+        end,
+        width_nm: 20_000,
+    };
+    let old_spike = [499_326, 2_000_753];
+    input.pads[0].at = start;
+    input.pads[0].shape = Shape::Circle { radius_nm: 100_000 };
+    input.pads[1].at = old_spike;
+    input.pads[1].shape = Shape::Circle { radius_nm: 20_000 };
+    let track = Track {
+        id: id(4),
+        net: 1,
+        layer: "F.Cu".into(),
+        start: old_spike,
+        end: [old_spike[0] + 1, old_spike[1]],
+        width_nm: 20_000,
+        locked: false,
+    };
+    assert!(!track_connects_graphic(&track, &input.graphics[0]));
+    // Here the true arc-to-pad gap is 31,551 nm.
+    assert!(!graphic_connects_pad(&input.graphics[0], &input.pads[1]));
+    let routed = run(input.clone());
+    assert_eq!(routed.status, Status::Complete, "{:?}", routed.reason);
+    assert!(!routed.added_tracks.is_empty());
+    input.pads[1].at = mid;
+    let connected = run(input);
+    assert_eq!(connected.status, Status::Complete);
+    assert!(connected.added_tracks.is_empty());
+}
+
+#[test]
 fn sparse_project_requires_resolved_consistent_electrical_settings() {
     use kicad_route_engine::rules::{resolve_effective_rules, BoardDesignSettings, NetClassDef};
     let mut input = base();

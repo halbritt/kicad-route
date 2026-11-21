@@ -526,6 +526,84 @@ fn arc_to_conservative_chords_strictly_encloses_true_circular_arc() {
 }
 
 #[test]
+fn arc_chords_follow_the_intended_sweep_in_both_directions() {
+    const TAU: f64 = std::f64::consts::TAU;
+    // Integer points on x² + y² = 65². The middle point can be anywhere
+    // on the specified arc, including next to an endpoint of a major arc.
+    let quadrant = [
+        [65, 0],
+        [63, 16],
+        [60, 25],
+        [56, 33],
+        [52, 39],
+        [39, 52],
+        [33, 56],
+        [25, 60],
+        [16, 63],
+    ];
+    let mut ring = Vec::new();
+    for turns in 0..4 {
+        for mut p in quadrant {
+            for _ in 0..turns {
+                p = [-p[1], p[0]];
+            }
+            ring.push(p);
+        }
+    }
+    for scale in [1i64, 27, 1_000_003] {
+        let point = |i: usize| ring[i % ring.len()].map(|k| k * scale);
+        let r = (65 * scale) as f64;
+        for i in [0, 4, 13] {
+            for (j, k) in [(1, 2), (1, 18), (4, 23), (1, 35), (34, 35)] {
+                let (a, m, b) = (point(i), point(i + j), point(i + k));
+                let (chords, sag) = arc_to_conservative_chords(a, m, b);
+                let (mut reversed, reverse_sag) = arc_to_conservative_chords(b, m, a);
+                reversed.reverse();
+                assert_eq!((&chords, sag), (&reversed, reverse_sag));
+                assert!(chords.len() <= 65 && chords.contains(&m));
+                assert_eq!((chords[0], chords[chords.len() - 1]), (a, b));
+                let angle = |p: Point| (p[1] as f64).atan2(p[0] as f64);
+                let start = angle(a);
+                let sweep = (angle(b) - start).rem_euclid(TAU);
+                for p in &chords {
+                    let radial_error = ((p[0] as f64).hypot(p[1] as f64) - r).abs();
+                    assert!(
+                        radial_error <= 1.0,
+                        "off-circle vertex {p:?}: {radial_error}"
+                    );
+                }
+                for sample in 0..=256 {
+                    let t = start + sweep * (sample as f64 / 256.0);
+                    let (x, y) = (r * t.cos(), r * t.sin());
+                    let distance = chords
+                        .windows(2)
+                        .map(|w| {
+                            let [px, py] = w[0].map(|n| n as f64);
+                            let dx = (w[1][0] - w[0][0]) as f64;
+                            let dy = (w[1][1] - w[0][1]) as f64;
+                            let u = (((x - px) * dx + (y - py) * dy) / (dx * dx + dy * dy))
+                                .clamp(0., 1.);
+                            (x - px - u * dx).hypot(y - py - u * dy)
+                        })
+                        .fold(f64::INFINITY, f64::min);
+                    assert!(
+                        distance <= sag as f64,
+                        "{a:?} {m:?} {b:?}: {distance} > {sag}"
+                    );
+                }
+            }
+        }
+    }
+    // Radius 4.05e15 nm. Even the full span departs from its chord by just 1 nm.
+    let flat = [[-90_000_000, 0], [0, 1], [90_000_000, 0]];
+    let (chords, sag) = arc_to_conservative_chords(flat[0], flat[1], flat[2]);
+    assert_eq!(chords, flat);
+    assert_eq!(sag, 1);
+    let (tiny, bound) = arc_to_conservative_chords([0, 0], [1, 1], [0, 1]);
+    assert!(tiny.contains(&[1, 1]) && (1..=4).contains(&bound));
+}
+
+#[test]
 fn simple_polygon_drill_and_mask_exact_boundaries() {
     let l_shape = vec![[0, 0], [30, 0], [30, 15], [15, 15], [15, 30], [0, 30]];
     assert!(point_in_simple_polygon([5, 5], &l_shape));
