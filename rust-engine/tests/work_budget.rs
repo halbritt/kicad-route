@@ -755,7 +755,9 @@ fn route_insertion_charges_spatial_index_mutation_work() {
     // for generated_spatial[0].mutation_work() at empty tree before insert, under
     // PathEdge-based walk_multilayer/insert_path with target-AABB prefilter).
     // The final three-item connectivity check costs 24 units and runs once.
-    const EXACT_1STEP_WORK: u64 = 102;
+    // Checking the one-edge candidate against its two pad terminals adds
+    // two edge visits and two primitive contact tests.
+    const EXACT_1STEP_WORK: u64 = 102 + 4;
 
     i.limits.max_work = EXACT_1STEP_WORK - 1;
     let mut cutoff = Engine::new(i.clone()).unwrap();
@@ -1020,14 +1022,18 @@ fn generated_uniform_net_and_net0_work_accounting() {
     // eight-item partitions cost 99 and 123 units respectively. At the five
     // generated insertions the junction queries cost 0, 2, 3, 4 and 5 units.
     // Each nonempty query visits all prior nodes and checks one candidate.
-    const MULTI_GEN_ROUTE_WORK: u64 = 1414 + 2 + 3 + 4 + 5;
+    // Testing the six-edge first join and three-edge second join against
+    // their source and target islands charges 19 and 12 units, respectively.
+    const FIRST_LANDING_WORK: u64 = 19;
+    const MULTI_GEN_ROUTE_WORK: u64 = 1414 + 2 + 3 + 4 + 5 + FIRST_LANDING_WORK + 12;
     let mut probe = Engine::new(multi.clone()).unwrap();
     probe.route(1, 1000).unwrap();
     assert_eq!(probe.work_used(), MULTI_GEN_ROUTE_WORK);
     assert_eq!(probe.copper().generated().count(), 5);
     // After inserting the first four tracks, three separate spatial queries
     // bulk-charge three remaining nodes. Stop one or two nodes into each.
-    for limit in [960u64, 961, 973, 974, 981, 982] {
+    for prior_limit in [960u64, 961, 973, 974, 981, 982] {
+        let limit = prior_limit + FIRST_LANDING_WORK;
         multi.limits.max_work = limit;
         let mut em = Engine::new(multi.clone()).unwrap();
         let err = em.route(1, 1000).unwrap_err();

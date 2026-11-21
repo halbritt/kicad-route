@@ -458,19 +458,47 @@ fn track_near_pad_shape(
 pub(crate) const CONTACT_OVERLAP_NM: i64 = 1;
 
 pub fn track_connects_pad(t: &Track, p: &Pad) -> bool {
-    track_connects_pad_shape(t, p.geometry())
+    track_contacts_pad_shape(t, p.geometry(), CONTACT_OVERLAP_NM)
 }
 
-fn track_connects_pad_shape(t: &Track, p: PadGeometry<'_>) -> bool {
+/// A wide route can land on a narrower pad without engulfing the entire pad.
+fn pad_landing_depth(part: PadGeometry<'_>, route_radius: i64) -> i64 {
+    let pad_radius = match part.shape {
+        Shape::Circle { radius_nm } => *radius_nm,
+        Shape::Rect { half_size_nm: h }
+        | Shape::RoundRect {
+            half_size_nm: h, ..
+        } => h[0].min(h[1]),
+        Shape::BoxExact {
+            half_size_2x: h, ..
+        } => h[0].min(h[1]) / 2,
+        Shape::Capsule { width_nm, .. } => width_nm / 2,
+        Shape::ConvexPolygon { .. } => {
+            // The smaller axial extent bounds the polygon's intrinsic width from above.
+            let (lo, hi) = part.copper_bounds();
+            ((hi[0] - lo[0]).min(hi[1] - lo[1]) + 1) / 2
+        }
+        Shape::Union { .. } => unreachable!("landing depth applies to a single copper primitive"),
+    };
+    route_radius.min(pad_radius).max(CONTACT_OVERLAP_NM)
+}
+
+pub(crate) fn track_lands_on_pad(t: &Track, p: &Pad) -> bool {
+    p.geometry()
+        .parts()
+        .any(|part| track_contacts_pad_shape(t, part, pad_landing_depth(part, t.width_nm / 2)))
+}
+
+fn track_contacts_pad_shape(t: &Track, p: PadGeometry<'_>, depth: i64) -> bool {
     let w = (t.width_nm / 2) * 2;
     match p.shape {
-        Shape::Union { .. } => p.parts().any(|part| track_connects_pad_shape(t, part)),
+        Shape::Union { .. } => p
+            .parts()
+            .any(|part| track_contacts_pad_shape(t, part, depth)),
         Shape::Circle { .. }
         | Shape::Rect { .. }
         | Shape::RoundRect { .. }
-        | Shape::ConvexPolygon { .. } => {
-            track_near_pad_shape(t.start, t.end, w, -CONTACT_OVERLAP_NM, p, true)
-        }
+        | Shape::ConvexPolygon { .. } => track_near_pad_shape(t.start, t.end, w, -depth, p, true),
         Shape::BoxExact {
             center_2x,
             half_size_2x,
@@ -485,7 +513,7 @@ fn track_connects_pad_shape(t: &Track, p: PadGeometry<'_>) -> bool {
                 t.start,
                 t.end,
                 w,
-                -CONTACT_OVERLAP_NM,
+                -depth,
                 [center_2x[0] - half2[0], center_2x[1] - half2[1]],
                 [center_2x[0] + half2[0], center_2x[1] + half2[1]],
                 r2,
@@ -497,8 +525,7 @@ fn track_connects_pad_shape(t: &Track, p: PadGeometry<'_>) -> bool {
             end_nm,
             width_nm,
         } => {
-            let gap2 =
-                i128::from(w) + i128::from((width_nm / 2) * 2) - 2 * i128::from(CONTACT_OVERLAP_NM);
+            let gap2 = i128::from(w) + i128::from((width_nm / 2) * 2) - 2 * i128::from(depth);
             segments_near(t.start, t.end, *start_nm, *end_nm, gap2, true)
         }
     }
@@ -1059,33 +1086,47 @@ fn track_within_arc(
 }
 
 pub(crate) fn track_lands_on_graphic(t: &Track, g: &CopperGraphic) -> bool {
-    if let GraphicShape::Arc {
-        start,
-        mid,
-        end,
-        width_nm,
-    } = g.shape
-    {
-        let track_radius = t.width_nm / 2;
-        let arc_radius = width_nm / 2;
-        let overlap = track_radius + arc_radius - CONTACT_OVERLAP_NM;
-        // Either an original arc endpoint is on the generated stroke, or
-        // the generated centerline enters the arc stroke along its sweep.
-        let body = arc_radius.min(overlap);
-        return track_within_arc(
-            t,
-            start,
-            mid,
-            end,
-            body,
-            track_radius.min(overlap).max(body),
-        );
-    }
-    track_connects_graphic(t, g)
+    track_contacts_graphic(t, g, true)
 }
 
 pub fn track_connects_graphic(t: &Track, g: &CopperGraphic) -> bool {
-    let wt = (t.width_nm / 2) * 2;
+    track_contacts_graphic(t, g, false)
+}
+
+fn track_contacts_graphic(t: &Track, g: &CopperGraphic, routed: bool) -> bool {
+    // An unfilled zero-width graphic has no copper to receive a new trace.
+    if routed
+        && matches!(
+            g.shape,
+            GraphicShape::Segment { width_nm: 0, .. }
+                | GraphicShape::Arc { width_nm: 0, .. }
+                | GraphicShape::Circle {
+                    width_nm: 0,
+                    filled: false,
+                    ..
+                }
+                | GraphicShape::Polygon {
+                    width_nm: 0,
+                    filled: false,
+                    ..
+                }
+        )
+    {
+        return false;
+    }
+    let rt = t.width_nm / 2;
+    let wt = 2 * rt;
+    // A stroke-to-stroke junction overlaps by the smaller radius. For a
+    // filled surface the new centerline reaches the actual copper boundary.
+    let depth = |stroke_width: i64, filled: bool| {
+        if routed && filled {
+            rt.max(CONTACT_OVERLAP_NM)
+        } else if routed {
+            rt.min(stroke_width / 2).max(CONTACT_OVERLAP_NM)
+        } else {
+            CONTACT_OVERLAP_NM
+        }
+    };
     match &g.shape {
         GraphicShape::Segment {
             start,
@@ -1093,7 +1134,7 @@ pub fn track_connects_graphic(t: &Track, g: &CopperGraphic) -> bool {
             width_nm,
         } => {
             let gap2 = i128::from(wt) + i128::from((width_nm / 2) * 2)
-                - 2 * i128::from(CONTACT_OVERLAP_NM);
+                - 2 * i128::from(depth(*width_nm, false));
             segments_near(t.start, t.end, *start, *end, gap2, true)
         }
         GraphicShape::Arc {
@@ -1103,7 +1144,12 @@ pub fn track_connects_graphic(t: &Track, g: &CopperGraphic) -> bool {
             width_nm,
         } => {
             let distance = t.width_nm / 2 + width_nm / 2 - CONTACT_OVERLAP_NM;
-            track_within_arc(t, *start, *mid, *end, distance, distance)
+            if routed {
+                let body = (width_nm / 2).min(distance);
+                track_within_arc(t, *start, *mid, *end, body, rt.min(distance).max(body))
+            } else {
+                track_within_arc(t, *start, *mid, *end, distance, distance)
+            }
         }
         GraphicShape::Circle {
             center,
@@ -1114,7 +1160,7 @@ pub fn track_connects_graphic(t: &Track, g: &CopperGraphic) -> bool {
             t.start,
             t.end,
             wt,
-            -CONTACT_OVERLAP_NM,
+            -depth(*width_nm, *filled),
             *center,
             *radius_nm,
             (*width_nm / 2) * 2,
@@ -1135,7 +1181,7 @@ pub fn track_connects_graphic(t: &Track, g: &CopperGraphic) -> bool {
                 return true;
             }
             let gap2 = i128::from(wt) + i128::from((width_nm / 2) * 2)
-                - 2 * i128::from(CONTACT_OVERLAP_NM);
+                - 2 * i128::from(depth(*width_nm, *filled));
             let check_ring = |ring: &[Point]| {
                 let n = ring.len();
                 (0..n)
@@ -1296,6 +1342,19 @@ pub(crate) fn via_anchored_on_track(v: &Via, t: &Track) -> bool {
     if !track_lands_on_via(t, v) {
         return false;
     }
+    // Copper wholly inside the drilled opening cannot join the land. Check
+    // the farthest trace cap as well as the outer-circle contact above.
+    let bore = (v.drill_nm + 1) / 2;
+    let wall = v.diameter_nm / 2 - bore;
+    let track_radius = t.width_nm / 2;
+    let outside = bore + track_radius.min((wall + 1) / 2).max(CONTACT_OVERLAP_NM) - track_radius;
+    if outside > 0
+        && [t.start, t.end]
+            .iter()
+            .all(|p| point_near_segment(*p, v.at, v.at, 2 * i128::from(outside), false))
+    {
+        return false;
+    }
     let track_width = 2 * i128::from(t.width_nm / 2);
     let via_diameter = 2 * i128::from(v.diameter_nm / 2);
     point_near_segment(v.at, t.start, t.end, track_width, true)
@@ -1303,30 +1362,93 @@ pub(crate) fn via_anchored_on_track(v: &Via, t: &Track) -> bool {
         || point_near_segment(t.end, v.at, v.at, via_diameter, true)
 }
 
-pub fn via_connects_pad(v: &Via, p: &Pad) -> bool {
-    let synth = Track {
+/// The geometry of the outer via land is a round cap. Layer spans are
+/// checked by the caller before applying a planar contact predicate.
+fn via_land(v: &Via) -> Track {
+    Track {
         id: String::new(),
         net: v.net,
         start: v.at,
         end: v.at,
         width_nm: v.diameter_nm,
         locked: false,
-        layer: v.start_layer.clone(),
-    };
-    track_connects_pad(&synth, p)
+        layer: String::new(),
+    }
+}
+
+pub fn via_connects_pad(v: &Via, p: &Pad) -> bool {
+    track_connects_pad(&via_land(v), p)
 }
 
 pub fn via_connects_graphic(v: &Via, g: &CopperGraphic) -> bool {
-    let synth = Track {
+    track_connects_graphic(&via_land(v), g)
+}
+
+/// A surface must reach copper on the via wall as well as the outer land.
+fn via_ring_radius(v: &Via) -> i64 {
+    (v.diameter_nm + v.drill_nm + 2) / 4
+}
+
+fn via_ring(v: &Via) -> CopperGraphic {
+    CopperGraphic {
         id: String::new(),
         net: v.net,
-        start: v.at,
-        end: v.at,
-        width_nm: v.diameter_nm,
-        locked: false,
-        layer: v.start_layer.clone(),
-    };
-    track_connects_graphic(&synth, g)
+        layer: String::new(),
+        shape: GraphicShape::Circle {
+            center: v.at,
+            radius_nm: via_ring_radius(v),
+            // The native overlap predicate subtracts a nanometre from this
+            // stroke radius, leaving its centerline as the witness.
+            width_nm: 2 * CONTACT_OVERLAP_NM,
+            filled: false,
+        },
+    }
+}
+
+pub(crate) fn via_lands_on_pad(v: &Via, p: &Pad) -> bool {
+    // A connected union may cover the bore with one primitive and reach the
+    // annulus with another. Both witnesses are on the same admitted pad.
+    let bore = (v.drill_nm + 1) / 2;
+    let wall = v.diameter_nm / 2 - bore;
+    wall >= CONTACT_OVERLAP_NM
+        && track_lands_on_pad(&via_land(v), p)
+        && p.geometry().parts().any(|part| {
+            // A narrow pad can land anywhere across a wide annulus. The pad
+            // must extend beyond the bore by its own radius or half the wall.
+            let outside = bore + pad_landing_depth(part, (wall + 1) / 2);
+            let (core, round2) = ConnCore2x::from_primitive(part);
+            let required2 = 2 * outside - round2;
+            let center2 = v.at.map(|q| 2 * q);
+            required2 <= 0
+                || core.vertices().iter().any(|&q| {
+                    let delta = sub(q, center2);
+                    dot(delta, delta) >= sq(i128::from(required2))
+                })
+        })
+}
+
+pub(crate) fn via_lands_on_graphic(v: &Via, g: &CopperGraphic) -> bool {
+    track_lands_on_graphic(&via_land(v), g) && graphics_connect(&via_ring(v), g)
+}
+
+pub(crate) fn via_lands_on_filled_polygon(v: &Via, outer: &[Point], holes: &[Vec<Point>]) -> bool {
+    track_lands_on_filled_polygon(&via_land(v), outer, holes)
+        && graphic_connects_filled_polygon(&via_ring(v), outer, holes)
+}
+
+pub(crate) fn vias_land_together(a: &Via, b: &Via) -> bool {
+    if !track_lands_on_via(&via_land(a), b) {
+        return false;
+    }
+    let outer_a = a.diameter_nm / 2;
+    let outer_b = b.diameter_nm / 2;
+    let bore_a = (a.drill_nm + 1) / 2;
+    let bore_b = (b.drill_nm + 1) / 2;
+    let depth = ((outer_a - bore_a).min(outer_b - bore_b) + 1) / 2;
+    let inner_gap = (bore_a + depth - outer_b).max(bore_b + depth - outer_a);
+    depth >= CONTACT_OVERLAP_NM
+        && (inner_gap <= 0
+            || !point_near_segment(a.at, b.at, b.at, 2 * i128::from(inner_gap), false))
 }
 
 pub fn vias_connect(a: &Via, b: &Via) -> bool {
@@ -1753,7 +1875,13 @@ fn zone_fill_connects_pad_shape(outer: &[Point], holes: &[Vec<Point>], p: PadGeo
     };
     let check_edges_zero = |ring: &[Point]| {
         let n = ring.len();
-        (0..n).any(|i| track_connects_pad_shape(&as_zero_track(ring[i], ring[(i + 1) % n]), p))
+        (0..n).any(|i| {
+            track_contacts_pad_shape(
+                &as_zero_track(ring[i], ring[(i + 1) % n]),
+                p,
+                CONTACT_OVERLAP_NM,
+            )
+        })
     };
     match p.shape {
         Shape::Union { .. } => p
@@ -1889,17 +2017,17 @@ pub fn track_connects_filled_polygon(t: &Track, outer: &[Point], holes: &[Vec<Po
     track_near_polygon_rings(t.start, t.end, wt, -CONTACT_OVERLAP_NM, outer, holes, true)
 }
 
+pub(crate) fn track_lands_on_filled_polygon(
+    t: &Track,
+    outer: &[Point],
+    holes: &[Vec<Point>],
+) -> bool {
+    t.width_nm >= 2 * CONTACT_OVERLAP_NM
+        && track_near_filled_polygon(t.start, t.end, 0, 0, outer, holes, true)
+}
+
 pub fn via_connects_filled_polygon(v: &Via, outer: &[Point], holes: &[Vec<Point>]) -> bool {
-    let synth = Track {
-        id: String::new(),
-        net: v.net,
-        start: v.at,
-        end: v.at,
-        width_nm: v.diameter_nm,
-        locked: false,
-        layer: v.start_layer.clone(),
-    };
-    track_connects_filled_polygon(&synth, outer, holes)
+    track_connects_filled_polygon(&via_land(v), outer, holes)
 }
 
 pub fn graphic_connects_filled_polygon(

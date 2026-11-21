@@ -457,7 +457,9 @@ fn two_pad_shadowed_center_rect_routes_via_edge_attachment() {
     assert_eq!(o.added_tracks.len(), 1);
     let t = &o.added_tracks[0];
     assert_eq!(t.start, [5000000, 2000000]);
-    assert_eq!(t.end, [5000000, 5800001]);
+    // The 150 µm trace cap extends 50 µm into the 100 µm tall pad.
+    assert_eq!(t.end, [5000000, 5850000]);
+    assert!(contact::Body::pad(&i.pads[1]).accepts_landing(contact::Body::track(t)));
     assert_copper_connected(&i, &o.added_tracks);
     assert!(!contact::Body::track(t).violates(contact::Body::track(&i.tracks[0]), 200000));
 }

@@ -2419,8 +2419,8 @@ impl Engine {
                                 kind,
                                 locked: false,
                             };
-                            if Copper::Pad(pad).touches_via(
-                                &synth,
+                            if Copper::Pad(pad).native_contact(
+                                Copper::Via(&synth),
                                 &self.layer_names,
                                 &self.work,
                             )? {
@@ -2441,8 +2441,11 @@ impl Engine {
                             kind,
                             locked: false,
                         };
-                        if !Copper::Pad(pad).touches_via(&synth, &self.layer_names, &self.work)?
-                            && check_core(drill, r.same_net_hole_clearance_nm)?
+                        if !Copper::Pad(pad).native_contact(
+                            Copper::Via(&synth),
+                            &self.layer_names,
+                            &self.work,
+                        )? && check_core(drill, r.same_net_hole_clearance_nm)?
                         {
                             return Ok(ControlFlow::Break(()));
                         }
@@ -2707,7 +2710,11 @@ impl Engine {
                                 kind,
                                 locked: false,
                             };
-                            Copper::Pad(pad).touches_via(&synth, &self.layer_names, &self.work)?
+                            Copper::Pad(pad).native_contact(
+                                Copper::Via(&synth),
+                                &self.layer_names,
+                                &self.work,
+                            )?
                         }
                         None => false,
                     };
@@ -2820,25 +2827,27 @@ impl Engine {
                         kind,
                         locked: false,
                     };
-                    if !Copper::Via(ev).touches_via(&synth, &self.layer_names, &self.work)?
-                        && (geometry::point_near_segment(
-                            at,
-                            ev.at,
-                            ev.at,
-                            i128::from(diam)
-                                + i128::from(ev.drill_nm)
-                                + 2 * i128::from(r.same_net_hole_clearance_nm),
-                            false,
-                        ) || geometry::point_near_segment(
-                            at,
-                            ev.at,
-                            ev.at,
-                            i128::from(drill)
-                                + i128::from(ev.diameter_nm)
-                                + 2 * i128::from(r.same_net_hole_clearance_nm),
-                            false,
-                        ))
-                    {
+                    if !Copper::Via(ev).native_contact(
+                        Copper::Via(&synth),
+                        &self.layer_names,
+                        &self.work,
+                    )? && (geometry::point_near_segment(
+                        at,
+                        ev.at,
+                        ev.at,
+                        i128::from(diam)
+                            + i128::from(ev.drill_nm)
+                            + 2 * i128::from(r.same_net_hole_clearance_nm),
+                        false,
+                    ) || geometry::point_near_segment(
+                        at,
+                        ev.at,
+                        ev.at,
+                        i128::from(drill)
+                            + i128::from(ev.diameter_nm)
+                            + 2 * i128::from(r.same_net_hole_clearance_nm),
+                        false,
+                    )) {
                         return Ok(ControlFlow::Break(()));
                     }
                 }

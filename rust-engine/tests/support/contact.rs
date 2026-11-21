@@ -70,15 +70,28 @@ impl Body {
         let radius2 = 2 * (self.radius2 / 2 + other.radius2 / 2 - 1);
         radius2 >= 0 && self.distance4(other) <= radius2 * radius2
     }
-    /// The native overlap still applies to a routed join. At least one
-    /// track axis must also lie inside the other capsule. For an axis-aligned
-    /// pair our independent box-distance calculation measures this exactly.
+    /// For a rounded box, the minimum total span equals the shorter
+    /// core dimension plus the diameter. The cap must penetrate by the
+    /// smaller feature radius. All distances below are doubled.
     pub fn accepts_landing(self, cap: Self) -> bool {
         let distance4 = self.distance4(cap);
         let own = 2 * (self.radius2 / 2);
         let incoming = 2 * (cap.radius2 / 2);
-        self.contacts(cap)
-            && (!self.is_track || distance4 <= own * own || distance4 <= incoming * incoming)
+        let span = if self.is_track {
+            0
+        } else {
+            (self.hi[0] - self.lo[0]).min(self.hi[1] - self.lo[1])
+        };
+        let required = (own + span).min(incoming).max(2);
+        let reach = own + incoming - required;
+        reach >= 0 && distance4 <= reach * reach && self.contacts(cap)
+    }
+    pub fn accepts_clipped(self, cap: Self) -> bool {
+        if self.is_track {
+            self.accepts_landing(cap)
+        } else {
+            self.contacts(cap)
+        }
     }
     pub fn violates(self, other: Self, clearance: i64) -> bool {
         let radius2 = self.radius2 + other.radius2 + 2 * clearance;
