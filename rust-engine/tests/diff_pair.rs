@@ -5551,6 +5551,29 @@ fn small_delta_single_ended_input(delta: i64) -> Input {
     inp
 }
 
+#[test]
+fn raw_oversized_meander_ceiling_matches_board_diagonal() {
+    let mut input = small_delta_single_ended_input(25_000);
+    let width = (input.bounds.max[0] - input.bounds.min[0]) as f64;
+    let height = (input.bounds.max[1] - input.bounds.min[1]) as f64;
+    let run = |input: &Input| kicad_route_engine::run_json(&serde_json::to_vec(input).unwrap());
+    input.routing_options.as_mut().unwrap().length_match_groups[0].meander_amplitude_nm =
+        Some(width.hypot(height).ceil() as i64);
+    let reference = run(&input);
+    assert_eq!(reference.status, Status::Complete, "{:?}", reference.reason);
+    assert!(!reference.added_tracks.is_empty());
+    input.routing_options.as_mut().unwrap().length_match_groups[0].meander_amplitude_nm =
+        Some(i64::MAX);
+    let result = run(&input);
+    assert_eq!(result.status, reference.status);
+    assert_eq!(result.added_tracks, reference.added_tracks);
+    assert_eq!(result.added_vias, reference.added_vias);
+    assert_eq!(
+        (result.expanded_states, result.work_used),
+        (reference.expanded_states, reference.work_used)
+    );
+}
+
 fn small_delta_coupled_input(delta: i64) -> Input {
     let mut inp = base_diff_input(&["D1_P", "D1_N", "D2_P", "D2_N"]);
     inp.pads[0].at = [5_000_000, 10_000_000];

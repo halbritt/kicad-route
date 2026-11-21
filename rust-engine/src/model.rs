@@ -169,6 +169,29 @@ impl Rules {
             solder_mask_to_copper_clearance_nm: 0,
         }
     }
+    pub(crate) fn validate_dimensions(&self) -> Result<(), Failure> {
+        if ![self.width_nm, self.grid_nm]
+            .iter()
+            .all(|v| (1..=MAX_NM).contains(v))
+            || ![
+                self.clearance_nm,
+                self.edge_clearance_nm,
+                self.hole_clearance_nm,
+                self.same_net_hole_clearance_nm,
+                self.solder_mask_expansion_nm,
+                self.solder_mask_min_width_nm,
+                self.solder_mask_to_copper_clearance_nm,
+            ]
+            .iter()
+            .all(|v| (0..=MAX_NM).contains(v))
+        {
+            return Err(Failure::new(
+                Status::Invalid,
+                "width/grid must be positive; clearances nonnegative; all <=100000000 nm",
+            ));
+        }
+        Ok(())
+    }
     pub(crate) fn is_omitted(&self) -> bool {
         self.width_nm == i64::MIN && self.grid_nm == i64::MIN
     }
@@ -1099,6 +1122,9 @@ impl Input {
     }
 
     pub fn validate(&self) -> Result<(), Failure> {
+        if let Some(settings) = &self.board_design_settings {
+            settings.validate_dimensions()?;
+        }
         self.validate_with_work(&crate::budget::WorkBudget::new(self.limits))
     }
 
@@ -1196,26 +1222,7 @@ impl Input {
                 "bounds must have positive spans within +/-100000000 nm",
             ));
         }
-        let r = self.rules;
-        if ![r.width_nm, r.grid_nm]
-            .iter()
-            .all(|v| (1..=MAX_NM).contains(v))
-            || ![
-                r.clearance_nm,
-                r.edge_clearance_nm,
-                r.hole_clearance_nm,
-                r.same_net_hole_clearance_nm,
-                r.solder_mask_expansion_nm,
-                r.solder_mask_min_width_nm,
-                r.solder_mask_to_copper_clearance_nm,
-            ]
-            .iter()
-            .all(|v| (0..=MAX_NM).contains(v))
-        {
-            return Err(invalid(
-                "width/grid must be positive; clearances nonnegative; all <=100000000 nm",
-            ));
-        }
+        self.rules.validate_dimensions()?;
         if self.max_expansions == 0 || self.max_expansions > MAX_EXPANSIONS {
             return Err(invalid("max_expansions must be 1..=1000000"));
         }
@@ -1295,10 +1302,14 @@ impl Input {
             if !(-3_600_000..=3_600_000).contains(&p.orientation_mdeg) {
                 return Err(invalid("pad orientation_mdeg is out of bounds"));
             }
-            for pl in &p.layers {
-                if layer_idx_of(pl).is_none() {
-                    return Err(unsupported("pad layer is not in active board stackup"));
+            let mut pad_layers = 0_u32;
+            for layer in &p.layers {
+                let index = layer_idx_of(layer)
+                    .ok_or_else(|| unsupported("pad layer is not in active board stackup"))?;
+                if pad_layers & (1 << index) != 0 {
+                    return Err(invalid("pad contains a duplicate copper layer"));
                 }
+                pad_layers |= 1 << index;
             }
             if let Shape::Union { shapes } = &p.shape {
                 if !(2..=MAX_PAD_PRIMITIVES).contains(&shapes.len()) {
