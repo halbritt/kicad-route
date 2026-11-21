@@ -161,6 +161,115 @@ fn base_diff_input(net_names: &[&str]) -> Input {
 }
 
 #[test]
+fn route_all_only_edits_nets_selected_by_the_native_pattern() {
+    let base = base_diff_input(&[
+        "/SIG_A",
+        "/block/SIG_B",
+        "/SIG_C",
+        "/block/D[0]",
+        "/block/D0",
+        "!RESET",
+        "/sub/!RESET",
+        "/sig_a",
+        "SIG_A",
+    ]);
+    let cases: &[(&[&str], &[u32])] = &[
+        (&["!SIG_[AB]"], &[3, 4, 5, 6, 7, 8]),
+        (&["SIG_[AB]"], &[1, 2, 9]),
+        (&["/SIG_[AB]"], &[1]),
+        (&["SIG_[A-C]", "!/block/*", "!/SIG_C"], &[1, 9]),
+        (&["/block/D[[]0]"], &[4]),
+        (&["D[0]"], &[5]),
+        (&["SIG_[!AB]"], &[3]),
+        (&[r"\!RESET"], &[6, 7]),
+        (&[r"!\!RESET"], &[1, 2, 3, 4, 5, 8, 9]),
+        (&["sig_a"], &[8]),
+    ];
+    for &(filters, expected) in cases {
+        let mut input = base.clone();
+        input.routing_options = Some(RoutingOptions {
+            net_filters: filters.iter().map(|s| (*s).to_owned()).collect(),
+            ..Default::default()
+        });
+        let mut engine = Engine::new(input).unwrap();
+        engine.route_all().unwrap();
+        let changed = engine
+            .copper()
+            .generated()
+            .map(|t| t.net)
+            .chain(engine.copper().generated_vias().map(|v| v.net))
+            .collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(
+            changed.into_iter().collect::<Vec<_>>(),
+            expected,
+            "{filters:?}"
+        );
+    }
+    for (filter, reason) in [
+        ("!RESET", "active-low"),
+        ("XYZ[AB]", "zero nets"),
+        ("!", "cannot be empty"),
+        ("", "cannot be empty"),
+    ] {
+        let mut input = base.clone();
+        input.routing_options = Some(RoutingOptions {
+            net_filters: vec![filter.to_owned()],
+            ..Default::default()
+        });
+        let mut engine = Engine::new(input).unwrap();
+        let err = engine.route_all().unwrap_err();
+        assert_eq!(err.status, Status::Invalid);
+        assert!(err.reason.contains(reason), "{err:?}");
+        assert_eq!(engine.copper().generated().count(), 0);
+        assert_eq!(engine.copper().generated_vias().count(), 0);
+    }
+}
+
+#[test]
+fn denied_explicit_routes_preserve_existing_copper_and_next_id() {
+    let mut input = base_diff_input(&["/SIG_A", "/SIG_B", "/SIG_C"]);
+    input.routing_options = Some(RoutingOptions {
+        net_filters: vec!["!SIG_[B]".to_owned()],
+        ..Default::default()
+    });
+    input.tracks.push(Track {
+        id: uuid(50),
+        net: 2,
+        start: [10_000_000, 11_500_000],
+        end: [15_000_000, 11_500_000],
+        width_nm: 250_000,
+        locked: false,
+        layer: "F.Cu".into(),
+    });
+    let mut control = Engine::new(input.clone()).unwrap();
+    let mut engine = Engine::new(input).unwrap();
+    for e in [&mut control, &mut engine] {
+        e.route(1, 1_000).unwrap();
+    }
+    let before = engine.copper().tracks().cloned().collect::<Vec<_>>();
+    assert_eq!(before.len(), 2);
+    assert_eq!(engine.route(2, 1_000).unwrap_err().status, Status::Invalid);
+    assert_eq!(
+        engine.reroute(2, 1_000).unwrap_err().status,
+        Status::Invalid
+    );
+    engine
+        .transaction(|tx| {
+            assert_eq!(tx.route(2, 1_000).unwrap_err().status, Status::Invalid);
+            assert_eq!(tx.reroute(2, 1_000).unwrap_err().status, Status::Invalid);
+            assert_eq!(tx.copper().tracks().cloned().collect::<Vec<_>>(), before);
+            tx.route(3, 1_000)
+        })
+        .unwrap();
+    control.route(3, 1_000).unwrap();
+    assert_eq!(
+        engine.copper().tracks().collect::<Vec<_>>(),
+        control.copper().tracks().collect::<Vec<_>>()
+    );
+    assert!(engine.copper().index_consistent());
+}
+
+#[test]
 fn pair_discovery_supports_conventions_sheet_paths_and_refuses_invalid_preflight() {
     // 1. Bare P/N alone (VIN) stays ordinary; TXP+TXN, _P/_N, +/- with sheet prefix are discovered.
     let mut input = base_diff_input(&["VIN", "TXP", "TXN", "/CAN+", "/CAN-", "/S/D_P", "/S/D_N"]);

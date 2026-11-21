@@ -9,6 +9,7 @@ pub mod geometry;
 mod layer_policy;
 pub mod model;
 pub mod negotiate;
+mod net_scope;
 pub mod orchestration;
 pub mod rules;
 pub mod search;
@@ -3500,6 +3501,12 @@ impl Engine {
                 return Err(Failure::new(
                     Status::Invalid,
                     "routing needs a known nonzero net and budget 1..=1000000",
+                ));
+            }
+            if net_scope::active_nets(&engine.input)?.is_some_and(|active| !active.contains(&net)) {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!("net {net} is outside the --nets scope"),
                 ));
             }
             if replace {

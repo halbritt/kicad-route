@@ -129,89 +129,6 @@ fn unwrap_tx<T>(res: Result<T, TransactionError<Failure>>) -> Result<T, Failure>
     }
 }
 
-fn glob_match(pattern: &str, text: &str) -> bool {
-    let p: Vec<char> = pattern.chars().collect();
-    let t: Vec<char> = text.chars().collect();
-    let mut dp = vec![vec![false; t.len() + 1]; p.len() + 1];
-    dp[0][0] = true;
-    for i in 1..=p.len() {
-        if p[i - 1] == '*' {
-            dp[i][0] = dp[i - 1][0];
-        }
-    }
-    for i in 1..=p.len() {
-        for j in 1..=t.len() {
-            if p[i - 1] == '*' {
-                dp[i][j] = dp[i - 1][j] || dp[i][j - 1];
-            } else if p[i - 1] == '?' || p[i - 1] == t[j - 1] {
-                dp[i][j] = dp[i - 1][j - 1];
-            }
-        }
-    }
-    dp[p.len()][t.len()]
-}
-
-fn net_matches_filter_token(pattern: &str, net_name: &str) -> bool {
-    if glob_match(pattern, net_name) {
-        return true;
-    }
-    if !pattern.contains('/') {
-        let leaf = net_name.rsplit('/').next().unwrap_or(net_name);
-        if glob_match(pattern, leaf) {
-            return true;
-        }
-    }
-    false
-}
-
-fn compute_active_nets(
-    input: &Input,
-    opts: &RoutingOptions,
-) -> Result<Option<BTreeSet<u32>>, Failure> {
-    if opts.net_filters.is_empty() {
-        return Ok(None);
-    }
-    let mut pos = Vec::new();
-    let mut neg = Vec::new();
-    for raw in &opts.net_filters {
-        if let Some(pat) = raw.strip_prefix('!') {
-            if pat.is_empty() {
-                return Err(Failure::new(
-                    Status::Invalid,
-                    "--nets exclusion pattern cannot be empty",
-                ));
-            }
-            neg.push(pat);
-        } else {
-            if raw.is_empty() {
-                return Err(Failure::new(
-                    Status::Invalid,
-                    "--nets filter pattern cannot be empty",
-                ));
-            }
-            pos.push(raw.as_str());
-        }
-    }
-    let mut out = BTreeSet::new();
-    for n in &input.nets {
-        if n.id == 0 {
-            continue;
-        }
-        let pos_ok = pos.is_empty() || pos.iter().any(|p| net_matches_filter_token(p, &n.name));
-        let neg_hit = neg.iter().any(|p| net_matches_filter_token(p, &n.name));
-        if pos_ok && !neg_hit {
-            out.insert(n.id);
-        }
-    }
-    if out.is_empty() {
-        return Err(Failure::new(
-            Status::Invalid,
-            "--nets filter matched zero nets",
-        ));
-    }
-    Ok(Some(out))
-}
-
 fn compute_protected_nets(tracks: &[Track], vias: &[Via], mode: ProtectMode) -> BTreeSet<u32> {
     let mut out = BTreeSet::new();
     match mode {
@@ -1071,7 +988,7 @@ fn discover_and_validate_with_copper(
 ) -> Result<DiffPairPlan, Failure> {
     let empty_opts = RoutingOptions::default();
     let opts = input.routing_options.as_ref().unwrap_or(&empty_opts);
-    let active_nets = compute_active_nets(input, opts)?;
+    let active_nets = crate::net_scope::active_nets(input)?;
     let protect_mode = opts.protect_mode.unwrap_or(ProtectMode::None);
     let protected_nets = compute_protected_nets(copper_tracks, copper_vias, protect_mode);
 
