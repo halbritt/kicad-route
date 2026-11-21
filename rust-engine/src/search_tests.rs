@@ -5980,3 +5980,34 @@ fn only_an_imported_track_and_via_retain_their_native_fringe_connection() {
         }
     }
 }
+
+#[test]
+fn routed_track_contacts_reach_the_trace_body_from_either_side() {
+    let stack = vec!["F.Cu".into()];
+    let work = WorkBudget::new(Limits::default());
+    let original = track(100, 1, [50, 50], [70, 50], 20);
+    let stub = Copper::Track(&original);
+    // A 6-8-10 triangle places the new endpoint on the other track's 10 nm radius.
+    assert_eq!(
+        stub.attachment([10, 58], [80, 58], 1, 20, "F.Cu", &stack, &work)
+            .unwrap(),
+        Some([44, 58])
+    );
+    for (y, new_width, joined) in [
+        (60, 20, true),
+        (61, 20, false),
+        (69, 20, false),
+        (61, 32, false),
+    ] {
+        let nearby = track(101, 1, [10, y], [60, y], new_width);
+        let other = Copper::Track(&nearby);
+        assert!(geometry::tracks_connect(&original, &nearby));
+        assert_eq!(stub.touches_route(&nearby, &stack, &work).unwrap(), joined);
+        assert_eq!(
+            other.touches_route(&original, &stack, &work).unwrap(),
+            joined
+        );
+        assert!(stub.touches(other, &stack, |_, _| true));
+        assert_eq!(stub.touches(other, &stack, |_, _| false), joined);
+    }
+}
