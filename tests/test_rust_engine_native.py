@@ -3668,6 +3668,41 @@ def test_solder_mask_zero_to_copper_shape_and_text_detour_and_drc(tmp_path, guar
     assert drc['unconnected_items'] == [] and drc['violations'] == [], (case, drc)
 
 
+@pytest.mark.parametrize('layer', [pcbnew.F_Cu, pcbnew.F_Mask], ids=['copper', 'mask'])
+def test_native_nearly_complete_arc_detours_and_reopens(tmp_path, guarded_cli, layer):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    src = _make_mask_probe_board(tmp_path / 'arc.kicad_pcb', mask_min_width=0, mask_to_copper=0)
+    board = pcbnew.LoadBoard(str(src))
+    arc = pcbnew.PCB_SHAPE(board)
+    arc.SetLayer(layer)
+    arc.SetShape(pcbnew.SHAPE_T_ARC)
+    arc.SetArcGeometry(pcbnew.VECTOR2I(11_600_000, 10_900_300),
+                       pcbnew.VECTOR2I(8_400_000, 10_900_900),
+                       pcbnew.VECTOR2I(11_599_999, 10_899_000))
+    arc.SetWidth(200_000)
+    if layer == pcbnew.F_Cu:
+        arc.SetNetCode(board.FindNet('GND').GetNetCode())
+    board.Add(arc)
+    assert pcbnew.SaveBoard(str(src), board)
+    rules = {'width_nm': 250_000, 'clearance_nm': 250_000, 'grid_nm': 250_000,
+             'edge_clearance_nm': 500_000}
+    key = 'graphics' if layer == pcbnew.F_Cu else 'mask_apertures'
+    snapshot = bridge.export_board(src, rules, 100000)
+    assert any(item['shape']['kind'] == 'arc' for item in snapshot[key])
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(rules))
+    before = run_native_drc(src, sidecar_source=src).raw
+    assert len(before['unconnected_items']) == 1 and before['violations'] == []
+    out = tmp_path / 'routed.kicad_pcb'
+    done = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
+    assert done.returncode == 0, (done.stdout, done.stderr)
+    saved = pcbnew.LoadBoard(str(out))
+    assert any(track.GetStart().y != track.GetEnd().y for track in saved.GetTracks())
+    after = run_native_drc(out, sidecar_source=src).raw
+    assert after['unconnected_items'] == [] and after['violations'] == []
+
+
 def test_solder_mask_expansion_zero_to_copper_detour_and_drc(tmp_path, guarded_cli):
     run, _ = guarded_cli
     engine = _built_rust_engine(run)

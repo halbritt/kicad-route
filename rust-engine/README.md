@@ -141,6 +141,12 @@ An obstacle or a branch can take the route outside the preferred lane.
 The Rust detector uses geometry, so nearby unrelated signals with matching
 banks can qualify and wide fan-outs can be missed.
 
+The engine represents a copper or solder-mask arc by its start point, a point on
+the sweep and its end point. For clearance it widens the chord strokes by a
+bound on their deviation from the circle. For connectivity it narrows them by
+the same bound. Subdivision retains all three supplied points and uses at most
+64 chords for a clockwise or counterclockwise sweep.
+
 ## Original single-layer JSON routing subset
 
 The following geometry, search and validation description documents the
