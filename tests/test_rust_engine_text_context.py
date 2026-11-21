@@ -65,11 +65,38 @@ def test_public_route_project_named_copper(tmp_path, guarded_cli, dynamic, renam
         assert all(s in reason for s in (text_id, '${PROJECTNAME}', 'F.Cu'))
     else:
         assert (result.returncode, report['status']) == (0, 'complete'), result.stderr
-        assert report['publication']['commit_point_reached'] and list(output_dir.iterdir()) == [output]
+        assert report['publication']['commit_point_reached']
+        companions = {output.with_suffix(ext): inputs[source.with_suffix(ext).name]
+                      for ext in ('.kicad_pro', '.kicad_dru')}
+        assert set(output_dir.iterdir()) == {output, *companions}
+        assert {p: p.read_bytes() for p in companions} == companions
         saved = pcbnew.LoadBoard(str(output))
         assert next(d for d in saved.GetDrawings() if d.m_Uuid.AsString() == text_id).GetText() == content
         after = run_native_drc(output, sidecar_source=source, refill_zones=True)
         assert not after.unconnected_items and not after.violations
+
+        # Reopen the actual output without supplying the source's library tables.
+        # Give unrouted copper the same basename and directory-local library context.
+        baseline = tmp_path / 'baseline' / output.name
+        baseline.parent.mkdir()
+        shutil.copyfile(source, baseline)
+        for companion, data in companions.items():
+            baseline.with_suffix(companion.suffix).write_bytes(data)
+
+        def drc_at_path(path):
+            report_path = tmp_path / (path.parent.name + '-drc.json')
+            run(['kicad-cli', 'pcb', 'drc', '--format', 'json', '--severity-all', '--all-track-errors',
+                 '--refill-zones', '--units', 'mm', '-o', str(report_path), str(path)])
+            return json.loads(report_path.read_bytes())
+
+        baseline_drc = drc_at_path(baseline)
+        published_drc = drc_at_path(output)
+        assert len(baseline_drc['unconnected_items']) == 6 and not published_drc['unconnected_items']
+        assert all((v['type'], v['severity']) == ('lib_footprint_issues', 'warning')
+                   for v in baseline_drc['violations'])
+        assert sorted(json.dumps(v, sort_keys=True) for v in published_drc['violations']) == sorted(
+            json.dumps(v, sort_keys=True) for v in baseline_drc['violations'])
+        assert {p: p.read_bytes() for p in companions} == companions
 
 
 @pytest.mark.parametrize(('owner', 'layer', 'content', 'mask_bridges'), [
