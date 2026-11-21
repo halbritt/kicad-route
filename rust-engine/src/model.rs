@@ -1416,6 +1416,16 @@ impl Input {
                 validate_drill(drill)?;
             }
         }
+        if let Some(settings) = &self.board_design_settings {
+            compound_work.charge(settings.pad_to_die_length_nm.len() as u64)?;
+            for (id, length) in &settings.pad_to_die_length_nm {
+                if *length < 0 || !ids.contains(id) {
+                    return Err(invalid(
+                        "pad-to-die length must be nonnegative and belong to a board pad",
+                    ));
+                }
+            }
+        }
         for h in &self.holes {
             if !canonical_uuid(&h.id)
                 || !ids.insert(&h.id)

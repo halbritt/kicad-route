@@ -207,3 +207,46 @@ def test_comma_in_native_class_name_preserves_distinct_constituent_assignments(t
     for name, width in [('/SIG_A', 550000), ('/SIG_B_OUT', 320000)]:
         code = board.FindNet(name).GetNetCode()
         assert {item['width_nm'] for item in plan['added_tracks'] if item['net'] == code} == {width}
+
+
+def test_native_pattern_width_and_pad_to_die_length_on_saved_copper(native_board, tmp_path, guarded_cli):
+    board = pcbnew.LoadBoard(str(native_board))
+    for track in list(board.GetTracks()):
+        board.Remove(track)
+    for footprint in board.GetFootprints():
+        next(iter(footprint.Pads())).SetPadToDieLength(200000)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    native_board.with_suffix('.kicad_pro').write_text(json.dumps({
+        'meta': {'version': 1}, 'net_settings': {'meta': {'version': 5},
+        'classes': [{'name': 'Default', 'track_width': 0.2, 'clearance': 0.2,
+                     'via_diameter': 0.6, 'via_drill': 0.3},
+                    {'name': 'Wide', 'priority': 0, 'track_width': 0.5}],
+        'netclass_patterns': [{'pattern': 'SIGNAL?', 'netclass': 'Wide'}]}}))
+    with bridge.source_snapshot(native_board) as snapshot:
+        native = pcbnew.LoadBoard(str(snapshot))
+        settings = native.GetDesignSettings().m_NetSettings
+        assert settings.GetEffectiveNetClass('SIGNAL').GetTrackWidth() == 500000
+    dru = native_board.with_suffix('.kicad_dru')
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    for suffix, maximum, succeeds in [('equal', '14.4', True), ('short', '14.399999', False)]:
+        dru.write_text(f'''(version 1)
+(rule "SIGNAL limit" (condition "A.NetName == 'SIGNAL'") (constraint length (max {maximum}mm)))
+''')
+        directory = tmp_path / suffix
+        directory.mkdir()
+        saved = directory / native_board.name
+        result = run([str(engine), 'route-native', str(native_board), str(saved)], check=False)
+        op = json.loads(result.stdout)
+        if succeeds:
+            assert result.returncode == 0, op
+            reopened = pcbnew.LoadBoard(str(saved))
+            tracks = list(reopened.GetTracks())
+            assert tracks and {t.GetWidth() for t in tracks} == {500000}
+            assert sum(t.GetLength() for t in tracks) == 14000000
+            assert sum(p.GetPadToDieLength() for fp in reopened.GetFootprints()
+                       for p in fp.Pads()) == 400000
+        else:
+            assert op['routing']['status'] == 'unroutable', op
+            assert '14400000 nm' in op['reason']
+            assert not saved.exists()
