@@ -2152,6 +2152,9 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             aliases[canonical] = display
     if aliases:
         bds['layer_aliases'] = aliases
+    pro_bytes, dru_bytes = resolve_sidecars(path)
+    pro_text = pro_bytes.decode('utf-8') if pro_bytes is not None else None
+    pro_doc = json.loads(pro_text) if pro_text is not None else {}
     net_settings = getattr(settings, 'm_NetSettings', None)
     default_nc = net_settings.GetDefaultNetclass() if net_settings is not None else None
     if default_nc is not None:
@@ -2192,8 +2195,20 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
         if nc_items:
             bds['netclasses'] = nc_items
         nc_assign = {}
-        members_by_name = {}
-        comma_names = [name for name in seen_nc if ',' in name]
+        comma_names = {name for name in seen_nc if ',' in name}
+        # Implicit class labels need not have a class definition. Include their literal
+        # names as candidates without interpreting either patterns or net assignments here.
+        project_nets = pro_doc.get('net_settings') or {}
+        if isinstance(project_nets, dict):
+            labels = project_nets.get('netclass_assignments')
+            if isinstance(labels, dict):
+                for value in labels.values():
+                    labels_for_net = value if isinstance(value, list) else [value]
+                    comma_names.update(name for name in labels_for_net if isinstance(name, str) and ',' in name)
+            patterns = project_nets.get('netclass_patterns')
+            if isinstance(patterns, list):
+                comma_names.update(p['netclass'] for p in patterns if isinstance(p, dict)
+                                   and isinstance(p.get('netclass'), str) and ',' in p['netclass'])
         for code, net in board.GetNetsByNetcode().items():
             if code > 0:
                 nc_name = net.GetNetClassName()
@@ -2201,14 +2216,14 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                     if ',' not in nc_name:
                         nc_assign[net.GetNetname()] = [nc_name]
                         continue
-                    if nc_name not in members_by_name:
-                        effective = net_settings.GetEffectiveNetClass(net.GetNetname())
-                        # A comma may belong to a real class name. Verify each possible
-                        # member against the native constituent list before exporting it.
-                        candidates = set(nc_name.split(',')) | {name for name in comma_names if name in nc_name}
-                        members_by_name[nc_name] = [name for name in sorted(candidates)
-                                                    if effective.ContainsNetclassWithName(name)]
-                    nc_assign[net.GetNetname()] = members_by_name[nc_name] or [nc_name]
+                    # Different nets can render the same comma-separated name even when
+                    # their real constituent lists differ. Query this net's effective class.
+                    effective = net_settings.GetEffectiveNetClass(net.GetNetname())
+                    candidates = set(nc_name.split(',')) | {name for name in comma_names if name in nc_name}
+                    members = [name for name in sorted(candidates) if effective.ContainsNetclassWithName(name)]
+                    if sum(map(len, members)) + len(members) - 1 != len(nc_name):
+                        raise UnsupportedBoard(f'cannot identify native netclass constituents on {net.GetNetname()!r}')
+                    nc_assign[net.GetNetname()] = members
         if nc_assign:
             bds['netclass_assignments'] = nc_assign
     if hasattr(settings, 'm_UseHeightForLengthCalcs'):
@@ -2221,13 +2236,10 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             (10_000 if enabled_layers.Contains(pcbnew.F_Mask) else 0)
             + (10_000 if enabled_layers.Contains(pcbnew.B_Mask) else 0)
         )
-    pro_bytes, dru_bytes = resolve_sidecars(path)
-    pro_text = pro_bytes.decode('utf-8') if pro_bytes is not None else None
     pro_min_spokes = None
     pro_use_height = None
     if pro_text is not None:
         # resolve_sidecars validated JSON and project metadata on these same bytes.
-        pro_doc = json.loads(pro_text)
         if 'version' not in pro_doc.get('meta', {}) and (
                 default_nc is None or default_nc.GetTrackWidth() <= 0
                 or default_nc.GetClearance() < 0 or default_nc.GetViaDrill() <= 0
@@ -2845,13 +2857,14 @@ def _verify_added_copper_sizes(saved, added_ids, pairs, options):
         return
     pair_nets = set()
     for pair in pairs:
-        pos, neg = pair['pos_net'], pair['neg_net']
-        if [pair['pos_name'], pair['neg_name']] in options.get('explicit_pairs', []):
+        # KiCad files persist net names. Numeric codes belong to the individual board load.
+        pos, neg = pair['pos_name'], pair['neg_name']
+        if [pos, neg] in options.get('explicit_pairs', []):
             pair_nets.update((pos, neg))
         elif options.get('diff_pairs_mode') == 'auto':
             # The result alone cannot authorize a smaller differential width.
             partner = saved.DpCoupledNet(saved.FindNet(pos))
-            if partner and partner.GetNetCode() == neg:
+            if partner and partner.GetNetname() == neg:
                 pair_nets.update((pos, neg))
 
     seen = set()
@@ -2876,7 +2889,7 @@ def _verify_added_copper_sizes(saved, added_ids, pairs, options):
             measurements = [('via diameter', min(item.GetWidth(layer) for layer in span), diameter),
                             ('via drill', item.GetDrillValue(), drill)]
         else:
-            width = nc.GetDiffPairWidth() if item.GetNetCode() in pair_nets else nc.GetTrackWidth()
+            width = nc.GetDiffPairWidth() if item.GetNetname() in pair_nets else nc.GetTrackWidth()
             measurements = [('track width', item.GetWidth(), width)]
         for label, actual, floor in measurements:
             if floor <= 0:

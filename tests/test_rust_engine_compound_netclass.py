@@ -151,8 +151,8 @@ def test_saved_differential_width_and_microvia_use_their_own_class_dimensions(tm
             'via_diameter': 0.8, 'via_drill': 0.35, 'microvia_diameter': 0.3, 'microvia_drill': 0.1}]}}))
     with bridge.source_snapshot(source) as snapshot:
         saved = pcbnew.LoadBoard(str(snapshot))
-    pos, neg = (saved.FindNet(name).GetNetCode() for name in ('USB_P', 'USB_N'))
-    pairs = [dict(pos_net=pos, neg_net=neg, pos_name='USB_P', neg_name='USB_N')]
+    # These are source-snapshot codes; renamed/reopened boards resolve the verified names again.
+    pairs = [dict(pos_net=101, neg_net=102, pos_name='USB_P', neg_name='USB_N')]
     ids = {bridge.item_id(t) for t in saved.GetTracks()}
     assert len(ids) == 3
     for options in ({'diff_pairs_mode': 'auto'}, {'explicit_pairs': [['USB_P', 'USB_N']]}):
@@ -163,3 +163,47 @@ def test_saved_differential_width_and_microvia_use_their_own_class_dimensions(tm
     micro.SetDrill(90000)
     with pytest.raises(bridge.NativeValidationError, match='via drill.*100000'):
         bridge._verify_added_copper_sizes(saved, {bridge.item_id(micro)}, [], {})
+
+
+def test_comma_in_native_class_name_preserves_distinct_constituent_assignments(tmp_path, guarded_cli):
+    source = tmp_path / 'source'
+    shutil.copytree(ROOT / 'fixtures/route_demo', source)
+    project = source / 'route_demo.kicad_pro'
+    data = json.loads(project.read_text())
+    ns = data['net_settings']
+    default = ns['classes'][0]
+    ns.update(meta={'version': 5}, netclass_patterns=[],
+              netclass_assignments={'/SIG_A': ['A,B'], '/SIG_B_OUT': ['A', 'B'], '/VIN': ['Tag,only']})
+    ns['classes'] = [default] + [
+        dict(default, name=name, priority=priority, track_width=width)
+        for priority, (name, width) in enumerate([('A', 0.25), ('B', 0.6), ('A,B', 0.35)])]
+    project.write_text(json.dumps(data))
+    source.joinpath('route_demo.kicad_dru').write_text('''(version 1)
+(rule "literal comma" (condition "A.hasNetclass('A,B')") (constraint track_width (min 0.55mm)))
+(rule "constituent" (condition "A.hasNetclass('A')") (constraint track_width (min 0.32mm)))
+''')
+    path = source / 'route_demo.kicad_pcb'
+    board = pcbnew.LoadBoard(str(path))
+    settings = board.GetDesignSettings().m_NetSettings
+    for name, members in [('/SIG_A', ['A,B']), ('/SIG_B_OUT', ['A', 'B'])]:
+        native = settings.GetEffectiveNetClass(name)
+        assert native.GetName() == 'A,B'
+        assert [k for k in ('A', 'B', 'A,B') if native.ContainsNetclassWithName(k)] == members
+    request = bridge.export_board(path)
+    assignments = request['board_design_settings']['netclass_assignments']
+    assert assignments['/SIG_A'] == ['A,B']
+    assert assignments['/SIG_B_OUT'] == ['A', 'B']
+    assert settings.GetEffectiveNetClass('/VIN').GetName() == 'Tag,only,Default'
+    assert assignments['/VIN'] == ['Default', 'Tag,only']
+    # Exercise the snapshot's native assignments directly, independently of the raw project parser.
+    del request['project_rules']
+    request['routing_options'] = {'net_filters': ['/SIG_A', '/SIG_B_OUT']}
+    req, out = tmp_path / 'request.json', tmp_path / 'result.json'
+    bridge.write_request(request, req)
+    run, _ = guarded_cli
+    run([str(_built_rust_engine(run)), str(req), str(out)])
+    plan = json.loads(out.read_text())
+    assert plan['status'] == 'complete'
+    for name, width in [('/SIG_A', 550000), ('/SIG_B_OUT', 320000)]:
+        code = board.FindNet(name).GetNetCode()
+        assert {item['width_nm'] for item in plan['added_tracks'] if item['net'] == code} == {width}
