@@ -90,6 +90,9 @@ struct State {
     via_history: u32,
     via_count: u16,
     track_via_blocked: u32,
+    // Coordinate along the direction of the current straight track. The other
+    // coordinate is shared with `at`. Unused for roots, vias and zero clearance.
+    run_origin_nm: i64,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -3215,8 +3218,18 @@ fn walk_multilayer(
     let mut tv_arena = TrackViaBlockedArena::new();
     let mut queue = BinaryHeap::new();
     let mut best: HashMap<State, u64> = HashMap::new();
-    let mut settled_by_pos: HashMap<(Point, u8, u8, bool, bool, bool), Vec<(u32, u32, u16, u64)>> =
-        HashMap::new();
+    let track_run_origin = net != 0 && engine.input.rules.same_net_hole_clearance_nm > 0;
+    // Compare the subset histories and via counts within each group. All
+    // other fields must match, including the origin of a run whose copper
+    // contact can exempt its continuation from same-net hole clearance.
+    let settled_key = |s: State| State {
+        via_history: 0,
+        track_via_blocked: 0,
+        via_count: 0,
+        ..s
+    };
+    type Settled = HashMap<State, Vec<(u32, u32, u16, u64)>>;
+    let mut settled_by_pos = Settled::new();
     let mut parent: HashMap<State, (State, PathEdge)> = HashMap::new();
     let can_cache_vias = frontier.is_some() && l_count >= 2;
     let only_through_vias =
@@ -3238,6 +3251,7 @@ fn walk_multilayer(
             via_history: 0,
             via_count: 0,
             track_via_blocked: 0,
+            run_origin_nm: 0,
         };
         let h = heuristic(at, layer as usize)?;
         queue.push(Reverse((
@@ -3252,35 +3266,27 @@ fn walk_multilayer(
         best.insert(initial, 0u64);
     }
 
-    let is_dominated_by_settled =
-        |settled: &HashMap<(Point, u8, u8, bool, bool, bool), Vec<(u32, u32, u16, u64)>>,
-         arena: &ViaHistoryArena,
-         tv_arena: &TrackViaBlockedArena,
-         cand: State,
-         cand_g: u64,
-         work: &WorkBudget|
-         -> Result<bool, Failure> {
-            if let Some(list) = settled.get(&(
-                cand.at,
-                cand.layer,
-                cand.direction,
-                cand.arrived_by_via,
-                cand.is_via_goal,
-                cand.via_only,
-            )) {
-                for &(v1, tvb1, vc1, g1) in list {
-                    work.charge(1)?;
-                    if g1 <= cand_g
-                        && vc1 <= cand.via_count
-                        && arena.is_subset(v1, cand.via_history)
-                        && tv_arena.is_subset(tvb1, cand.track_via_blocked)
-                    {
-                        return Ok(true);
-                    }
+    let is_dominated_by_settled = |settled: &Settled,
+                                   arena: &ViaHistoryArena,
+                                   tv_arena: &TrackViaBlockedArena,
+                                   cand: State,
+                                   cand_g: u64,
+                                   work: &WorkBudget|
+     -> Result<bool, Failure> {
+        if let Some(list) = settled.get(&settled_key(cand)) {
+            for &(v1, tvb1, vc1, g1) in list {
+                work.charge(1)?;
+                if g1 <= cand_g
+                    && vc1 <= cand.via_count
+                    && arena.is_subset(v1, cand.via_history)
+                    && tv_arena.is_subset(tvb1, cand.track_via_blocked)
+                {
+                    return Ok(true);
                 }
             }
-            Ok(false)
-        };
+        }
+        Ok(false)
+    };
 
     fn reconstruct_path(
         parent: &HashMap<State, (State, PathEdge)>,
@@ -3459,22 +3465,12 @@ fn walk_multilayer(
                 }
             }
         }
-        settled_by_pos
-            .entry((
-                state.at,
-                state.layer,
-                state.direction,
-                state.arrived_by_via,
-                state.is_via_goal,
-                state.via_only,
-            ))
-            .or_default()
-            .push((
-                state.via_history,
-                state.track_via_blocked,
-                state.via_count,
-                cost,
-            ));
+        settled_by_pos.entry(settled_key(state)).or_default().push((
+            state.via_history,
+            state.track_via_blocked,
+            state.via_count,
+            cost,
+        ));
 
         if state.is_via_goal
             || (!state.via_only
@@ -3490,26 +3486,11 @@ fn walk_multilayer(
             return reconstruct_path(&parent, &engine.work, state, cost);
         }
 
-        let state_run_start =
-            if engine.input.rules.same_net_hole_clearance_nm > 0 && state.direction < 4 {
-                let mut s = state;
-                while let Some((prev, _)) = parent.get(&s) {
-                    engine.work.charge(1)?;
-                    if prev.layer != state.layer
-                        || (prev.direction != state.direction && prev.direction != 4)
-                    {
-                        s = *prev;
-                        break;
-                    }
-                    s = *prev;
-                    if prev.direction == 4 {
-                        break;
-                    }
-                }
-                Some(s.at)
-            } else {
-                None
-            };
+        let state_run_start = (track_run_origin && state.direction < 4).then(|| {
+            let mut start = state.at;
+            start[usize::from(state.direction % 2)] = state.run_origin_nm;
+            start
+        });
         let base_turned_blocked = if !track_via_conflicts.is_empty() && net != 0 {
             if let Some(rs) = state_run_start {
                 let mut add: Vec<u16> = Vec::new();
@@ -3631,6 +3612,11 @@ fn walk_multilayer(
                     via_history: state.via_history,
                     via_count: state.via_count,
                     track_via_blocked: next_tvb,
+                    run_origin_nm: if track_run_origin {
+                        run_start.unwrap_or(state.at)[direction % 2]
+                    } else {
+                        0
+                    },
                 };
                 let step_penalty = match history {
                     Some(hist) if !hist.is_empty() => {
@@ -3790,6 +3776,7 @@ fn walk_multilayer(
                     via_history: next_vh,
                     via_count: next_vc,
                     track_via_blocked: base_turned_blocked,
+                    run_origin_nm: 0,
                 };
                 let v_penalty = match history {
                     Some(hist) if !hist.is_empty() => {
@@ -3932,6 +3919,7 @@ fn reconstruct_bi_path(
                 via_history: 0,
                 via_count: 0,
                 track_via_blocked: 0,
+                run_origin_nm: 0,
             };
             points.push(s.at);
             while let Some((previous, edge)) = parent_fwd.get(&s) {
@@ -4614,6 +4602,7 @@ fn walk_multilayer_bidirectional(
             via_history: 0,
             via_count: 0,
             track_via_blocked: 0,
+            run_origin_nm: 0,
         };
         let h = heuristic(at, layer as usize)?;
         q_fwd.push(Reverse((
@@ -5197,6 +5186,7 @@ fn walk_multilayer_bidirectional(
                         via_history: 0,
                         via_count: 0,
                         track_via_blocked: 0,
+                        run_origin_nm: 0,
                     };
                     let step_penalty = match history {
                         Some(hist) if !hist.is_empty() => {
@@ -5360,6 +5350,7 @@ fn walk_multilayer_bidirectional(
                         via_history: 0,
                         via_count: 0,
                         track_via_blocked: 0,
+                        run_origin_nm: 0,
                     };
                     let v_penalty = match history {
                         Some(hist) if !hist.is_empty() => {

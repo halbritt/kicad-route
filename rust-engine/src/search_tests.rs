@@ -3629,6 +3629,114 @@ fn moat_detour_0_20_to_20_0_and_scenario_a1_re02() {
 }
 
 #[test]
+fn drilled_pad_clearance_depends_on_straight_run_origin() {
+    // The source trace launches at x=0 and x=30. Board margins keep both
+    // on y=0. The guard blocks arrivals from the drilled pad's other rows.
+    fn row_oracle(clearance: i64) -> u64 {
+        let legal = |a: i64, b: i64| {
+            let (lo, hi) = (a.min(b), a.max(b));
+            // The capsule slopes away from the row. Its centerline comes
+            // within the 2 nm contact radius at the smaller x coordinate.
+            let contact = (lo * 8).pow(2) <= 4 * (60 * 60 + 8 * 8);
+            let dx = 60 - 60_i64.clamp(lo, hi);
+            contact || dx * dx + 8 * 8 >= (clearance + 2).pow(2)
+        };
+        let mut queue = VecDeque::from([(0_i64, 0_i64, 0), (30, 30, 0)]);
+        let mut seen = BTreeSet::new();
+        while let Some((at, origin, steps)) = queue.pop_front() {
+            if at == 80 {
+                return steps;
+            }
+            if !seen.insert((at, origin)) {
+                continue;
+            }
+            for end in [at - 10, at + 10] {
+                if !(0..=80).contains(&end) {
+                    continue;
+                }
+                let start = if (at - origin).signum() == (end - at).signum() {
+                    origin
+                } else {
+                    at
+                };
+                if legal(at, end) || legal(start, end) {
+                    queue.push_back((end, start, steps + 1));
+                }
+            }
+        }
+        panic!("the long launch has a legal straight path");
+    }
+
+    for clearance in [0, 14] {
+        let expected = row_oracle(clearance);
+        assert_eq!(expected, if clearance == 0 { 5 } else { 8 });
+        for transpose in [false, true] {
+            let xy = |x, y| if transpose { [y, x] } else { [x, y] };
+            let mut input: Input = serde_json::from_value(serde_json::json!({
+                "version": 1, "source_id": "a".repeat(64), "layer": "F.Cu",
+                "bounds": {"min": xy(-2, -2), "max": xy(83, 10)},
+                "rules": {"width_nm": 2, "clearance_nm": 1, "edge_clearance_nm": 0,
+                          "grid_nm": 10, "same_net_hole_clearance_nm": clearance},
+                "nets": [{"id":1, "name":"signal"}, {"id":2, "name":"guard"}],
+                "pads":[], "tracks":[], "max_expansions": 1000
+            }))
+            .unwrap();
+            let mut drilled = pad(
+                1,
+                1,
+                xy(60, 8),
+                Shape::Capsule {
+                    start_nm: xy(0, 0),
+                    end_nm: xy(60, 8),
+                    width_nm: 4,
+                },
+            );
+            drilled.drill = Some(DrillShape::Circle { diameter_nm: 2 });
+            input.pads = vec![
+                drilled,
+                pad(2, 1, xy(80, 0), Shape::Circle { radius_nm: 1 }),
+            ];
+            input.tracks = vec![
+                track(3, 1, xy(0, 0), xy(30, 0), 2),
+                track(4, 2, xy(65, 4), xy(81, 4), 2),
+            ];
+            let mut engine = Engine::new(input).unwrap();
+            // Both eastbound runs reach x=40. Continuing to x=50 requires
+            // the pad contact only the run from x=0 has made.
+            for origin in [0, 30] {
+                assert!(engine
+                    .legal_edge_on(1, 0, xy(origin, 0), xy(40, 0))
+                    .unwrap());
+                assert_eq!(
+                    engine
+                        .legal_edge_on(1, 0, xy(origin, 0), xy(50, 0))
+                        .unwrap(),
+                    clearance == 0 || origin == 0
+                );
+            }
+            let path = join_components(
+                &engine,
+                1,
+                &[
+                    Copper::Pad(&engine.input.pads[0]),
+                    Copper::Track(&engine.copper.input()[0]),
+                ],
+                &[vec![Copper::Pad(&engine.input.pads[1])]],
+                1000,
+                &mut 0,
+            )
+            .unwrap();
+            assert_eq!(
+                path.steps, expected,
+                "clearance={clearance}, transpose={transpose}"
+            );
+            engine.insert_path(1, path).unwrap();
+            assert_eq!(engine.components(1).unwrap().len(), 1);
+        }
+    }
+}
+
+#[test]
 fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
     use std::cmp::Reverse;
     use std::collections::{BinaryHeap, HashMap};
