@@ -425,6 +425,8 @@ impl Engine {
         }
         let layer_names = input.active_layers();
         let layer_policy = layer_policy::ResolvedLayerPolicy::resolve(&input, &layer_names, &work)?;
+        // All lower bounds and shortcuts use the same fixed-point via cost.
+        layer_policy.via_step(effective_rules.via_cost.max(1), 0)?;
         work.carry_setup_into_first_scope();
         let layer_count = layer_names.len();
         let base_items = input.item_count();

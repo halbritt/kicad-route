@@ -3896,6 +3896,65 @@ fn m3_2_dru_max_bounds_only_disallow_violating_layers_and_via_spans() {
 }
 
 #[test]
+fn unrepresentable_via_and_frontier_costs_return_invalid_without_edits() {
+    let mut input = base();
+    input.bounds.max = [1_200_000, 1_400_000];
+    input.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    input.rules.width_nm = 60_000;
+    input.rules.clearance_nm = 30_000;
+    input.rules.grid_nm = 200_000;
+    input.pads = vec![pad(1, 1, [800_000, 800_000]), pad(2, 1, [600_000, 400_000])];
+    for pad in &mut input.pads {
+        pad.layers = vec!["F.Cu".into()];
+        pad.shape = Shape::Circle { radius_nm: 40_000 };
+    }
+    input.nets.push(Net {
+        id: 0,
+        name: String::new(),
+    });
+    // This short obstacle makes a same-layer detour compete with a two-via path.
+    input.tracks.push(Track {
+        id: id(3),
+        net: 0,
+        layer: "F.Cu".into(),
+        start: [700_000, 600_000],
+        end: [700_000, 1_200_000],
+        width_nm: 20_000,
+        locked: true,
+    });
+    let mut rules =
+        kicad_route_engine::rules::EffectiveRules::from_uniform_rules(input.rules, &input.nets);
+    for net in rules.net_rules.values_mut() {
+        net.via_diameter_nm = 300_000;
+        net.via_drill_nm = 150_000;
+    }
+    rules.max_via_diameter_nm = 300_000;
+    for (cost, fractional, expected) in [
+        (4, false, Status::Complete),
+        (i64::MAX as u64, false, Status::Invalid),
+        (u64::MAX, true, Status::Invalid),
+    ] {
+        rules.via_cost = cost;
+        input.effective_rules = Some(rules.clone());
+        input.routing_options = fractional.then(|| RoutingOptions {
+            layer_policy: Some(LayerPolicy {
+                signal_layers: input.layers.clone(),
+                layer_costs: vec![1.0, 1.5],
+                per_net_signal_layers: BTreeMap::new(),
+            }),
+            ..RoutingOptions::default()
+        });
+        let output = run_json(&serde_json::to_vec(&input).unwrap());
+        assert_eq!(output.status, expected, "{:?}", output.reason);
+        if expected == Status::Invalid {
+            assert!(output.reason.as_deref().unwrap().contains("cost"));
+            assert!(output.added_tracks.is_empty() && output.added_vias.is_empty());
+            assert!(output.removed_track_ids.is_empty());
+        }
+    }
+}
+
+#[test]
 fn m3_2_effective_rules_invalid_via_and_microvia_dims_rejected() {
     let mut base_inp = base();
     base_inp.layers = vec![

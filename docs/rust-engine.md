@@ -33,6 +33,16 @@ dominate a prefix with different via exclusions or approach constraints. Tiny
 independent exact-search oracles cover the supported state model. Exhaustion,
 work-budget exhaustion, unsupported input and invalid input remain distinct.
 
+Raw requests express `effective_rules.via_cost` in grid steps. Fractional
+layer weights use one million ticks per step. A via cost that overflows when
+scaled, or an A* priority that exceeds the unsigned 64-bit range, returns
+`invalid` with an empty edit plan.
+
+The multi-net search divides its expansion budget among joins and repair
+attempts. Replaying a route requires its original limits. A completed run's
+`expanded_states` records how much work that run spent on expansions.
+Supplying that count as a new limit can change the route or exhaust the budget.
+
 The Rust board-level controller joins connected components on each net, chooses
 a deterministic net order, and can rip up generated copper to reroute competing
 nets. When two single-ended nets with at least four pads use the same footprint

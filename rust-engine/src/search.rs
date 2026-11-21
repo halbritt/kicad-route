@@ -29,6 +29,15 @@ use contact_bound::TargetBounds;
 use std::cmp::Reverse;
 use std::collections::{BTreeSet, BinaryHeap, HashMap};
 
+fn add_search_cost(left: u64, right: u64) -> Result<u64, Failure> {
+    left.checked_add(right).ok_or_else(|| {
+        Failure::new(
+            Status::Invalid,
+            "routing cost exceeds the supported 64-bit range",
+        )
+    })
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) struct PlacedViaKey {
     pub at: Point,
@@ -3430,7 +3439,7 @@ fn walk_multilayer(
                     _ => 0,
                 };
                 let step_cost = engine.layer_policy.step(state.layer as usize, step_penalty);
-                let g = cost.checked_add(step_cost).expect("bounded search cost");
+                let g = add_search_cost(cost, step_cost)?;
                 if best.get(&next).is_some_and(|old| *old <= g) {
                     continue;
                 }
@@ -3470,7 +3479,7 @@ fn walk_multilayer(
                 );
                 let h = heuristic(next.at, next.layer as usize)?;
                 queue.push(Reverse((
-                    g.checked_add(h).expect("bounded heuristic"),
+                    add_search_cost(g, h)?,
                     TieG {
                         g,
                         lane_rank: engine.bus_lane_rank(net, state.at, at)?,
@@ -3594,8 +3603,8 @@ fn walk_multilayer(
                     }
                     _ => 0,
                 };
-                let total_v_cost = engine.layer_policy.scale(v_cost + v_penalty);
-                let g = cost.checked_add(total_v_cost).expect("bounded search cost");
+                let total_v_cost = engine.layer_policy.via_step(v_cost, v_penalty)?;
+                let g = add_search_cost(cost, total_v_cost)?;
                 if best.get(&next).is_some_and(|old| *old <= g) {
                     continue;
                 }
@@ -3629,7 +3638,7 @@ fn walk_multilayer(
                     heuristic(next.at, next.layer as usize)?
                 };
                 queue.push(Reverse((
-                    g.checked_add(h).expect("bounded heuristic"),
+                    add_search_cost(g, h)?,
                     TieG {
                         g,
                         lane_rank: engine.bus_lane_rank(net, next.at, next.at)?,
@@ -3844,7 +3853,7 @@ fn seed_backward_a_star(
                 PathEdge::Via(v) => (v.at, v.at),
             };
             q_bwd.push(Reverse((
-                g_seed.checked_add(h).expect("bounded bwd heuristic"),
+                add_search_cost(g_seed, h)?,
                 TieG {
                     g: g_seed,
                     lane_rank: engine.bus_lane_rank(net, a, b)?,
@@ -3863,7 +3872,7 @@ fn seed_backward_a_star(
                 arrived_by_via: fwd_via,
             };
             if let Some(&g_fwd) = best_fwd_meet.get(&fkey) {
-                let total = g_fwd.checked_add(g_seed).expect("bounded meet cost");
+                let total = add_search_cost(g_fwd, g_seed)?;
                 if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
                     *best_mu = Some((
                         total,
@@ -4033,7 +4042,8 @@ fn seed_backward_a_star(
                                                 }
                                                 _ => 0,
                                             };
-                                            let g_seed = engine.layer_policy.scale(v_cost + v_pen);
+                                            let g_seed =
+                                                engine.layer_policy.via_step(v_cost, v_pen)?;
                                             let bkey = BiKey {
                                                 at: p,
                                                 layer: l_from as u8,
@@ -5051,7 +5061,7 @@ fn walk_multilayer_bidirectional(
                                     arrived_by_via: bwd_via,
                                 };
                                 if let Some(&g_bwd) = best_bwd.get(&bkey) {
-                                    let total = g.checked_add(g_bwd).expect("bounded meet cost");
+                                    let total = add_search_cost(g, g_bwd)?;
                                     if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
                                         best_mu = Some((
                                             total,
@@ -5067,7 +5077,7 @@ fn walk_multilayer_bidirectional(
                     }
                     let h = heuristic(next.at, next.layer as usize)?;
                     q_fwd.push(Reverse((
-                        g.checked_add(h).expect("bounded heuristic"),
+                        add_search_cost(g, h)?,
                         TieG {
                             g,
                             lane_rank: engine.bus_lane_rank(net, state.at, at)?,
@@ -5163,9 +5173,8 @@ fn walk_multilayer_bidirectional(
                         }
                         _ => 0,
                     };
-                    let g = cost
-                        .checked_add(engine.layer_policy.scale(v_cost + v_penalty))
-                        .expect("bounded search cost");
+                    let g =
+                        add_search_cost(cost, engine.layer_policy.via_step(v_cost, v_penalty)?)?;
                     if is_goal && best_mu.as_ref().is_none_or(|(c, _)| g < *c) {
                         best_mu = Some((g, MeetRecord::DirectFwdVia { prev: state, pv }));
                     }
@@ -5208,8 +5217,7 @@ fn walk_multilayer_bidirectional(
                                         arrived_by_via: bwd_via,
                                     };
                                     if let Some(&g_bwd) = best_bwd.get(&bkey) {
-                                        let total =
-                                            g.checked_add(g_bwd).expect("bounded meet cost");
+                                        let total = add_search_cost(g, g_bwd)?;
                                         if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
                                             best_mu = Some((
                                                 total,
@@ -5230,7 +5238,7 @@ fn walk_multilayer_bidirectional(
                         heuristic(next.at, next.layer as usize)?
                     };
                     q_fwd.push(Reverse((
-                        g.checked_add(h).expect("bounded heuristic"),
+                        add_search_cost(g, h)?,
                         TieG {
                             g,
                             lane_rank: engine.bus_lane_rank(net, next.at, next.at)?,
@@ -5299,7 +5307,7 @@ fn walk_multilayer_bidirectional(
                         continue;
                     };
                     let q = [qx, qy];
-                    let g = cost + engine.layer_policy.step(l_idx, step_penalty);
+                    let g = add_search_cost(cost, engine.layer_policy.step(l_idx, step_penalty))?;
                     let next_key = BiKey {
                         at: q,
                         layer: bkey.layer,
@@ -5355,7 +5363,7 @@ fn walk_multilayer_bidirectional(
                             arrived_by_via: fwd_via,
                         };
                         if let Some(&g_fwd) = best_fwd_meet.get(&fkey) {
-                            let total = g_fwd.checked_add(g).expect("bounded meet cost");
+                            let total = add_search_cost(g_fwd, g)?;
                             if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
                                 best_mu = Some((
                                     total,
@@ -5372,7 +5380,7 @@ fn walk_multilayer_bidirectional(
                         .expect("reverse frontier seeded")
                         .estimate(q, bkey.layer, min_step, via_bound, &engine.work)?;
                     q_bwd.push(Reverse((
-                        g.checked_add(h).expect("bounded bwd heuristic"),
+                        add_search_cost(g, h)?,
                         TieG {
                             g,
                             lane_rank: engine.bus_lane_rank(net, q, bkey.at)?,
@@ -5447,9 +5455,8 @@ fn walk_multilayer_bidirectional(
                         }
                         _ => 0,
                     };
-                    let g = cost
-                        .checked_add(engine.layer_policy.scale(v_cost + v_penalty))
-                        .expect("bounded search cost");
+                    let g =
+                        add_search_cost(cost, engine.layer_policy.via_step(v_cost, v_penalty)?)?;
                     if best_bwd.get(&next_key).is_some_and(|&old| old <= g)
                         || settled_bwd.contains(&next_key)
                     {
@@ -5486,7 +5493,7 @@ fn walk_multilayer_bidirectional(
                             arrived_by_via: fwd_via,
                         };
                         if let Some(&g_fwd) = best_fwd_meet.get(&fkey) {
-                            let total = g_fwd.checked_add(g).expect("bounded meet cost");
+                            let total = add_search_cost(g_fwd, g)?;
                             if best_mu.as_ref().is_none_or(|(c, _)| total < *c) {
                                 best_mu = Some((
                                     total,
@@ -5503,7 +5510,7 @@ fn walk_multilayer_bidirectional(
                         .expect("reverse frontier seeded")
                         .estimate(bkey.at, next_key.layer, min_step, via_bound, &engine.work)?;
                     q_bwd.push(Reverse((
-                        g.checked_add(h).expect("bounded bwd heuristic"),
+                        add_search_cost(g, h)?,
                         TieG {
                             g,
                             lane_rank: engine.bus_lane_rank(net, next_key.at, next_key.at)?,

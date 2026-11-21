@@ -119,6 +119,17 @@ impl ResolvedLayerPolicy {
     pub(crate) fn scale(&self, raw: u64) -> u64 {
         raw.saturating_mul(self.unit)
     }
+    pub(crate) fn via_step(&self, via_cost: u64, congestion: u64) -> Result<u64, Failure> {
+        via_cost
+            .checked_add(congestion)
+            .and_then(|cost| cost.checked_mul(self.unit))
+            .ok_or_else(|| {
+                Failure::new(
+                    Status::Invalid,
+                    "via cost exceeds the supported 64-bit range",
+                )
+            })
+    }
     pub(crate) fn unscale(&self, weighted: u64) -> u64 {
         weighted.div_ceil(self.unit)
     }
