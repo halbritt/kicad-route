@@ -2248,6 +2248,7 @@ fn measure_net_fromto(
     net: u32,
     require_delay: bool,
 ) -> Result<Option<NetMeasure>, Failure> {
+    engine.work.charge(engine.input.pads.len() as u64)?;
     let pads: Vec<_> = engine.input.pads.iter().filter(|p| p.net == net).collect();
     if pads.len() < 2 {
         return Ok(None);
@@ -2258,6 +2259,11 @@ fn measure_net_fromto(
         None
     };
 
+    engine.work.charge(
+        (engine.copper.input().len()
+            + engine.copper.input_vias().len()
+            + engine.copper.generated_item_count()) as u64,
+    )?;
     let tracks: Vec<&Track> = engine.copper.tracks().filter(|t| t.net == net).collect();
     let vias: Vec<&Via> = engine.copper.vias().filter(|v| v.net == net).collect();
 
@@ -2337,6 +2343,7 @@ fn measure_net_fromto(
         let a_max_x = i128::from(ta.start[0].max(ta.end[0]));
         let a_min_y = i128::from(ta.start[1].min(ta.end[1]));
         let a_max_y = i128::from(ta.start[1].max(ta.end[1]));
+        engine.work.charge((tracks.len() - i - 1) as u64)?;
         for j in (i + 1)..tracks.len() {
             let Some((in_j, out_j, li_b, _, _)) = track_nodes[j] else {
                 continue;
@@ -2401,6 +2408,7 @@ fn measure_net_fromto(
         let via_r = (v.diameter_nm as f64) * 0.5;
         let mut active_layers: Vec<usize> = Vec::new();
 
+        engine.work.charge(tracks.len() as u64)?;
         for (i, t) in tracks.iter().enumerate() {
             let Some((in_i, out_i, li, layer_delay_rate, len_i)) = track_nodes[i] else {
                 continue;
@@ -2469,6 +2477,7 @@ fn measure_net_fromto(
             }
         }
 
+        engine.work.charge(pads.len() as u64)?;
         for (k, p) in pads.iter().enumerate() {
             if geometry::via_connects_pad(v, p) {
                 for li in pad_layer_indices(engine, p) {
@@ -2487,6 +2496,7 @@ fn measure_net_fromto(
             }
         }
 
+        engine.work.charge(vias.len() as u64)?;
         for (jb, vb) in vias.iter().enumerate() {
             if jb != j && vb.at == v.at {
                 let sb = engine.layer_index(&vb.start_layer).unwrap_or(0);
@@ -2506,6 +2516,9 @@ fn measure_net_fromto(
             add_dir_edge(v_in, v_out, 0.0, 0.0, &mut adj);
         }
         for a_idx in 0..active_layers.len() {
+            engine
+                .work
+                .charge((active_layers.len() - a_idx - 1) as u64)?;
             for b_idx in (a_idx + 1)..active_layers.len() {
                 let la = active_layers[a_idx];
                 let lb = active_layers[b_idx];
@@ -2544,6 +2557,7 @@ fn measure_net_fromto(
     }
 
     for j in 0..vias.len() {
+        engine.work.charge((vias.len() - j - 1) as u64)?;
         for jb in (j + 1)..vias.len() {
             if vias[j].at == vias[jb].at {
                 for (&li, &(in_a, out_a)) in &via_nodes[j] {
@@ -2564,6 +2578,7 @@ fn measure_net_fromto(
             continue;
         };
         for a in 0..nv.len() {
+            engine.work.charge((nv.len() - a - 1) as u64)?;
             for b in (a + 1)..nv.len() {
                 if nv[a].2 == nv[b].2 {
                     continue;
@@ -2582,6 +2597,7 @@ fn measure_net_fromto(
 
     // Unconditional pad-to-track edges for all net pads (handles PTH multi-layer + boundary + intermediate pads)
     for (k, p) in pads.iter().enumerate() {
+        engine.work.charge(tracks.len() as u64)?;
         for (i, t) in tracks.iter().enumerate() {
             let Some((in_i, out_i, _, _, _)) = track_nodes[i] else {
                 continue;
@@ -2644,6 +2660,7 @@ fn measure_net_fromto(
         blocked_vias: Vec::new(),
     });
     while let Some(cur) = heap.pop() {
+        engine.work.charge(1 + cur.blocked_vias.len() as u64)?;
         if cur.node == t_node {
             return Ok(Some(NetMeasure {
                 length_nm: cur.len_nm.round() as i64,
@@ -2662,6 +2679,7 @@ fn measure_net_fromto(
             continue;
         }
         let cur_kind = node_kind[cur.node];
+        engine.work.charge(adj[cur.node].len() as u64)?;
         for &e in &adj[cur.node] {
             let next_kind = node_kind[e.to];
             if matches!(cur_kind, NodeKind::TrackOut(_) | NodeKind::TrackIn(_)) {
@@ -3917,20 +3935,24 @@ fn enumerate_end_fanouts(
                 if p_fwd < -1.0 || n_fwd < -1.0 {
                     continue;
                 }
-                if needs_via_escape
-                    && !allowed_layer_idxs.iter().any(|&to_li| {
+                if needs_via_escape {
+                    let mut legal_escape = false;
+                    for &to_li in allowed_layer_idxs {
                         let (from_l, to_l) = if is_end { (to_li, li) } else { (li, to_li) };
-                        let Ok(Some((vp, vn, _, _))) =
-                            coupled_via_pair_check(engine, pair, g, dir, pos_on_left, from_l, to_l)
-                        else {
-                            return false;
-                        };
-                        let p_ok = vp.at == p_pad.at || !geometry::via_connects_pad(&vp, p_pad);
-                        let n_ok = vn.at == n_pad.at || !geometry::via_connects_pad(&vn, n_pad);
-                        p_ok && n_ok
-                    })
-                {
-                    continue;
+                        if let Some((vp, vn, _, _)) =
+                            coupled_via_pair_check(engine, pair, g, dir, pos_on_left, from_l, to_l)?
+                        {
+                            let p_ok = vp.at == p_pad.at || !geometry::via_connects_pad(&vp, p_pad);
+                            let n_ok = vn.at == n_pad.at || !geometry::via_connects_pad(&vn, n_pad);
+                            if p_ok && n_ok {
+                                legal_escape = true;
+                                break;
+                            }
+                        }
+                    }
+                    if !legal_escape {
+                        continue;
+                    }
                 }
                 if let Some(imp) = &pair.impedance {
                     if !point_over_reference_zones(engine, gp, imp)
@@ -3983,27 +4005,27 @@ fn enumerate_end_fanouts(
                     {
                         n_paths.push(vec![n_pad.at, gn]);
                     }
+                    let path_legal = |points: &[Point], net| -> Result<bool, Failure> {
+                        for seg in points.windows(2) {
+                            if !legal_edge_with_width(engine, net, li, seg[0], seg[1], ew)? {
+                                return Ok(false);
+                            }
+                        }
+                        Ok(true)
+                    };
                     let mut best_ew: Option<((usize, i64, usize, i64), EndFanout)> = None;
                     for pp in &p_paths {
                         if !fanout_path_exits_pad_cleanly(pp, p_pad, ew, pair.width_nm) {
                             continue;
                         }
-                        let p_legal = pp.windows(2).all(|seg| {
-                            legal_edge_with_width(engine, pair.pos_net, li, seg[0], seg[1], ew)
-                                .unwrap_or(false)
-                        });
-                        if !p_legal {
+                        if !path_legal(pp, pair.pos_net)? {
                             continue;
                         }
                         for np in &n_paths {
                             if !fanout_path_exits_pad_cleanly(np, n_pad, ew, pair.width_nm) {
                                 continue;
                             }
-                            let n_legal = np.windows(2).all(|seg| {
-                                legal_edge_with_width(engine, pair.neg_net, li, seg[0], seg[1], ew)
-                                    .unwrap_or(false)
-                            });
-                            if !n_legal {
+                            if !path_legal(np, pair.neg_net)? {
                                 continue;
                             }
                             let mut cross_ok = true;
@@ -5491,9 +5513,11 @@ fn coalesce_collinear_net_tracks(
         }
     }
 }
+mod centerline_search;
+
 #[allow(clippy::too_many_arguments)]
 fn astar_coupled_centerline(
-    engine: &Engine,
+    engine: &mut Engine,
     pair: &ResolvedDiffPair,
     sf: &EndFanout,
     ef: &EndFanout,
@@ -5504,9 +5528,10 @@ fn astar_coupled_centerline(
     budget: &mut TrialBudget<'_>,
     mut expanded_out: Option<&mut u64>,
     mut frontier: Option<&mut BlockedFrontier>,
-) -> Result<Option<CoupledSolution>, Failure> {
+    mut accept: impl FnMut(&mut Engine, &ResolvedDiffPair, CoupledSolution) -> Result<bool, Failure>,
+) -> Result<bool, Failure> {
     if allowed_layer_idxs.is_empty() || sf.pos_on_left != ef.pos_on_left {
-        return Ok(None);
+        return Ok(false);
     }
     let s_nm = pair.width_nm + pair.gap_nm;
     let half = 0.5 * (s_nm as f64);
@@ -5576,7 +5601,7 @@ fn astar_coupled_centerline(
         }
     }
     if valid_start_layers.is_empty() {
-        return Ok(None);
+        return Ok(false);
     }
 
     let ef_in_allowed = allowed_layer_idxs.contains(&ef.layer_idx);
@@ -5603,7 +5628,7 @@ fn astar_coupled_centerline(
         }
     }
     if valid_end_layers.is_empty() {
-        return Ok(None);
+        return Ok(false);
     }
 
     let origin = sf.gather;
@@ -5613,85 +5638,61 @@ fn astar_coupled_centerline(
             origin[1] + i64::from(gy) * step_nm,
         ]
     };
-    let heuristic = |pt: Point, li: usize| -> u64 {
-        let d = dist_f64(pt, ef.gather).round() as u64;
-        let at_goal_layer = if ef_in_allowed {
-            li == ef.layer_idx
-        } else {
-            valid_end_layers.contains(&li)
-        };
-        let v = if at_goal_layer { 0 } else { 400_000 };
-        d.saturating_mul(5).saturating_div(4).saturating_add(v)
+    use centerline_search::{snap_bound, Arrival, Frontier, Pose};
+
+    let snap_radius = step_nm * 6;
+    let diag_len = ((step_nm as f64) * std::f64::consts::SQRT_2).round() as u64;
+    let cheapest = |length| {
+        allowed_layer_idxs
+            .iter()
+            .map(|&li| engine.layer_policy.length_cost(li, length))
+            .min()
+            .unwrap()
+    };
+    let axial = cheapest(step_nm as u64);
+    let diagonal = cheapest(diag_len);
+    let heuristic = |pt| {
+        snap_bound(
+            pt,
+            ef.gather,
+            snap_radius as u64,
+            step_nm as u64,
+            axial,
+            diagonal,
+        )
+    };
+    let approach = |pt: Point| {
+        let dx = pt[0].abs_diff(ef.gather[0]);
+        let dy = pt[1].abs_diff(ef.gather[1]);
+        dx.saturating_mul(dx).saturating_add(dy.saturating_mul(dy))
     };
 
-    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    struct Key {
-        gx: i32,
-        gy: i32,
-        li: u8,
-        dir: u8,
-    }
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    struct Node {
-        f: u64,
-        g: u64,
-        key: Key,
-    }
-    impl Ord for Node {
-        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-            other
-                .f
-                .cmp(&self.f)
-                .then_with(|| other.g.cmp(&self.g))
-                .then_with(|| self.key.gx.cmp(&other.key.gx))
-                .then_with(|| self.key.gy.cmp(&other.key.gy))
-                .then_with(|| self.key.li.cmp(&other.key.li))
-                .then_with(|| self.key.dir.cmp(&other.key.dir))
-        }
-    }
-    impl PartialOrd for Node {
-        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-            Some(self.cmp(other))
-        }
-    }
-
-    let mut best_g: BTreeMap<Key, u64> = BTreeMap::new();
-    let mut parent: BTreeMap<Key, Key> = BTreeMap::new();
-    let mut heap = BinaryHeap::new();
+    let mut open = Frontier::default();
     for &(s_li, init_g) in &valid_start_layers {
-        let sk = Key {
+        let pose = Pose {
             gx: 0,
             gy: 0,
             li: s_li as u8,
             dir: 8,
+            arrival: Arrival::Straight,
         };
-        best_g.insert(sk, init_g);
-        heap.push(Node {
-            f: init_g.saturating_add(heuristic(origin, s_li)),
-            g: init_g,
-            key: sk,
-        });
+        open.push(
+            &engine.work,
+            pose,
+            None,
+            init_g,
+            heuristic(origin),
+            approach(origin),
+        )?;
     }
-
-    let snap_radius = step_nm * 6;
-    let diag_len = ((step_nm as f64) * std::f64::consts::SQRT_2).round() as u64;
     let mut expansions = 0usize;
     let max_expansions = (engine.input.max_expansions as usize).min(35_000);
     let mut snap_attempts = 0usize;
 
-    let reconstruct_runs = |tail_key: Key,
+    let reconstruct_runs = |chain: &[Pose],
                             tail_pts: &[Point],
-                            tail_target_li: Option<usize>,
-                            parent: &BTreeMap<Key, Key>|
-     -> Vec<(Vec<Point>, usize)> {
-        let mut chain = Vec::new();
-        let mut cur = tail_key;
-        chain.push(cur);
-        while let Some(&prev) = parent.get(&cur) {
-            chain.push(prev);
-            cur = prev;
-        }
-        chain.reverse();
+                            tail_target_li: Option<usize>|
+     -> Option<Vec<(Vec<Point>, usize)>> {
         let mut runs: Vec<(Vec<Point>, usize)> = Vec::new();
         for k in chain {
             let pt = grid_pt(k.gx, k.gy);
@@ -5732,24 +5733,22 @@ fn astar_coupled_centerline(
         for (pts, _) in &mut runs {
             *pts = simplify_collinear_points(std::mem::take(pts));
         }
-        let single_run = runs.len() == 1;
-        runs.retain(|(pts, _)| single_run || pts.len() >= 2);
-        runs
+        // A singleton between layers would erase a charged transition and
+        // replace it with different copper at reconstruction.
+        runs.iter().all(|(pts, _)| pts.len() >= 2).then_some(runs)
     };
 
-    while let Some(cur) = heap.pop() {
-        let k = cur.key;
-        if cur.g > best_g.get(&k).copied().unwrap_or(u64::MAX) {
-            continue;
-        }
+    // Give distinct prefixes a share of the same expansion and snap budgets.
+    while expansions < max_expansions {
+        let Some((id, cur)) = open.pop(&engine.work, expansions % 8 == 7)? else {
+            break;
+        };
+        let k = cur.pose;
         if let Some(ex) = expanded_out.as_deref_mut() {
             budget.check_before_expand(engine, *ex, frontier.as_deref())?;
             *ex = ex.checked_add(1).expect("bounded expansion count");
         }
         expansions += 1;
-        if expansions > max_expansions {
-            break;
-        }
         engine.work.charge(1)?;
         let pt = grid_pt(k.gx, k.gy);
         let li = k.li as usize;
@@ -5808,13 +5807,19 @@ fn astar_coupled_centerline(
                 } else {
                     &[None]
                 };
+                let chain = open.path(&engine.work, id)?;
                 for tail in &tails {
                     for &tail_target_li in tail_target_options {
-                        let runs = reconstruct_runs(k, tail, tail_target_li, &parent);
+                        engine.work.charge((chain.len() + tail.len()) as u64)?;
+                        let Some(runs) = reconstruct_runs(&chain, tail, tail_target_li) else {
+                            continue;
+                        };
                         if let Some(sol) =
                             validate_and_build_coupled_solution(engine, pair, sf, ef, &runs)?
                         {
-                            return Ok(Some(sol));
+                            if accept(engine, pair, sol)? {
+                                return Ok(true);
+                            }
                         }
                     }
                 }
@@ -5906,56 +5911,31 @@ fn astar_coupled_centerline(
             } else {
                 step_nm as u64
             };
-            let turn_pen = if k.dir < 8 && nd as u8 != k.dir {
-                let just_via = parent.get(&k).is_some_and(|pk| pk.li != k.li);
-                if just_via {
-                    300_000
-                } else {
-                    25_000
-                }
-            } else {
-                0
-            };
+            let (nk, turn_pen) = k.step(nx, ny, nd as u8);
             let ext_pen = step_penalty(k.li, npt);
             let ng = cur
                 .g
                 .saturating_add(engine.layer_policy.length_cost(k.li as usize, step_len))
                 .saturating_add(turn_pen)
                 .saturating_add(ext_pen);
-            let nk = Key {
-                gx: nx,
-                gy: ny,
-                li: k.li,
-                dir: nd as u8,
-            };
-            if ng < best_g.get(&nk).copied().unwrap_or(u64::MAX) {
-                best_g.insert(nk, ng);
-                parent.insert(nk, k);
-                heap.push(Node {
-                    f: ng.saturating_add(heuristic(npt, li)),
-                    g: ng,
-                    key: nk,
-                });
-            }
+            open.push(
+                &engine.work,
+                nk,
+                Some(id),
+                ng,
+                heuristic(npt),
+                approach(npt),
+            )?;
         }
 
         // Layer transitions via coupled via pair
-        if k.dir < 8
+        if k.can_start_via()
             && allowed_layer_idxs.len() > 1
             && !(sf.layer_idx != li && dist_f64(pt, origin) + 1_000.0 < min_via_lead_nm)
         {
             let cur_dir = dir_vec(k.dir as usize);
             // Discourage placing a via within 1 short step of a miter turn so KiCad fromTo
             // does not collapse the corner inside the via copper pad.
-            let near_turn_pen = if step_nm < 800_000
-                && parent
-                    .get(&k)
-                    .is_some_and(|pk| pk.li == k.li && pk.dir < 8 && pk.dir != k.dir)
-            {
-                300_000u64
-            } else {
-                0u64
-            };
             for &next_li in allowed_layer_idxs {
                 if next_li == li {
                     continue;
@@ -5982,31 +5962,18 @@ fn astar_coupled_centerline(
                     }
                     continue;
                 }
+                let (nk, near_turn_pen) = k.via(next_li as u8, step_nm);
                 let ext_via = via_penalty(pt, k.li, next_li as u8);
                 let ng = cur
                     .g
                     .saturating_add(via_base_cost)
                     .saturating_add(near_turn_pen)
                     .saturating_add(ext_via);
-                let nk = Key {
-                    gx: k.gx,
-                    gy: k.gy,
-                    li: next_li as u8,
-                    dir: k.dir,
-                };
-                if ng < best_g.get(&nk).copied().unwrap_or(u64::MAX) {
-                    best_g.insert(nk, ng);
-                    parent.insert(nk, k);
-                    heap.push(Node {
-                        f: ng.saturating_add(heuristic(pt, next_li)),
-                        g: ng,
-                        key: nk,
-                    });
-                }
+                open.push(&engine.work, nk, Some(id), ng, heuristic(pt), approach(pt))?;
             }
         }
     }
-    Ok(None)
+    Ok(false)
 }
 
 fn path_hits_step_penalty(
@@ -6043,7 +6010,6 @@ fn route_single_diff_pair_inner(
     budget: &mut TrialBudget<'_>,
     mut expanded: Option<&mut u64>,
     mut frontier: Option<&mut BlockedFrontier>,
-    use_commit_tx: bool,
 ) -> Result<(), UnitRouteError> {
     // Check if already connected & protected / pre-routed
     let p_conn = measure_net_fromto(engine, pair.pos_net, false)
@@ -6255,11 +6221,7 @@ fn route_single_diff_pair_inner(
                 if let Some(sol) = validate_and_build_coupled_solution(engine, pair, sf, ef, &runs)
                     .map_err(UnitRouteError::Fatal)?
                 {
-                    if use_commit_tx {
-                        return commit_coupled_solution(engine, pair, sol)
-                            .map_err(UnitRouteError::Fatal);
-                    }
-                    if commit_coupled_solution_direct(engine, pair, sol)
+                    if try_commit_coupled_solution(engine, pair, sol)
                         .map_err(UnitRouteError::Fatal)?
                     {
                         return Ok(());
@@ -6297,20 +6259,11 @@ fn route_single_diff_pair_inner(
                 budget,
                 expanded.as_deref_mut(),
                 frontier.as_deref_mut(),
+                try_commit_coupled_solution,
             );
             match res {
-                Ok(Some(sol)) => {
-                    if use_commit_tx {
-                        return commit_coupled_solution(engine, pair, sol)
-                            .map_err(UnitRouteError::Fatal);
-                    }
-                    if commit_coupled_solution_direct(engine, pair, sol)
-                        .map_err(UnitRouteError::Fatal)?
-                    {
-                        return Ok(());
-                    }
-                }
-                Ok(None) => {}
+                Ok(true) => return Ok(()),
+                Ok(false) => {}
                 Err(e) if e.status == Status::BudgetExhausted => {
                     if let Some(f) = frontier {
                         if budget.aborted
@@ -6370,7 +6323,6 @@ fn route_single_diff_pair(
         &mut budget,
         None,
         None,
-        true,
     ) {
         Ok(()) => Ok(()),
         Err(UnitRouteError::Fatal(e)) => Err(e),
@@ -6384,46 +6336,24 @@ fn route_single_diff_pair(
     }
 }
 
-fn commit_coupled_solution_direct(
+// Validate the assembled copper in a nested frame. A rejected proposal
+// restores the copper, indexes, ID sequence and journal. Its work remains spent.
+fn try_commit_coupled_solution(
     engine: &mut Engine,
     pair: &ResolvedDiffPair,
     sol: CoupledSolution,
 ) -> Result<bool, Failure> {
-    let p_had_gen = engine.copper.has_generated_for_net(pair.pos_net);
-    let n_had_gen = engine.copper.has_generated_for_net(pair.neg_net);
-    if p_had_gen || n_had_gen {
-        return match commit_coupled_solution(engine, pair, sol) {
-            Ok(()) => Ok(true),
-            Err(e) if e.status == Status::Unroutable => Ok(false),
-            Err(e) => Err(e),
-        };
+    enum Rejected {
+        Infeasible,
+        Failed(Failure),
     }
-    for t in sol.tracks {
-        if t.start != t.end {
-            engine.copper.insert(t, &engine.work)?;
+    impl From<Failure> for Rejected {
+        fn from(failure: Failure) -> Self {
+            Self::Failed(failure)
         }
     }
-    for v in sol.vias {
-        engine.copper.insert_via(v, &engine.work)?;
-    }
-    let p_ok = measure_net_fromto(engine, pair.pos_net, false)?.is_some()
-        && engine.components(pair.pos_net)?.len() <= 1;
-    let n_ok = measure_net_fromto(engine, pair.neg_net, false)?.is_some()
-        && engine.components(pair.neg_net)?.len() <= 1;
-    if !p_ok || !n_ok {
-        engine.copper.remove_net(pair.pos_net, &engine.work)?;
-        engine.copper.remove_net(pair.neg_net, &engine.work)?;
-        return Ok(false);
-    }
-    Ok(true)
-}
 
-fn commit_coupled_solution(
-    engine: &mut Engine,
-    pair: &ResolvedDiffPair,
-    sol: CoupledSolution,
-) -> Result<(), Failure> {
-    unwrap_tx(engine.transaction(|tx| {
+    let result = engine.transaction(|tx| {
         let eng = &mut *tx.engine;
         for t in sol.tracks {
             if t.start != t.end {
@@ -6431,23 +6361,37 @@ fn commit_coupled_solution(
             }
         }
         for v in sol.vias {
+            // The step check only saw this transition's two vias. Earlier
+            // transitions in the same candidate now occupy the copper index.
+            let start = eng
+                .layer_index(&v.start_layer)
+                .expect("coupled via start layer");
+            let end = eng
+                .layer_index(&v.end_layer)
+                .expect("coupled via end layer");
+            if eng
+                .legal_via(v.net, v.at, start, end, v.kind, &[])?
+                .is_none()
+            {
+                return Err(Rejected::Infeasible);
+            }
             eng.copper.insert_via(v, &eng.work)?;
         }
-        let p_ok = measure_net_fromto(eng, pair.pos_net, false)?.is_some()
-            && eng.components(pair.pos_net)?.len() <= 1;
-        let n_ok = measure_net_fromto(eng, pair.neg_net, false)?.is_some()
-            && eng.components(pair.neg_net)?.len() <= 1;
-        if !p_ok || !n_ok {
-            return Err(Failure::new(
-                Status::Unroutable,
-                format!(
-                    "coupled solution failed connectivity verification for {}",
-                    pair.stem
-                ),
-            ));
+        for net in [pair.pos_net, pair.neg_net] {
+            if eng.components(net)?.len() > 1 || measure_net_fromto(eng, net, false)?.is_none() {
+                return Err(Rejected::Infeasible);
+            }
         }
         Ok(())
-    }))
+    });
+    match result {
+        Ok(()) => Ok(true),
+        Err(TransactionError::Operation(Rejected::Infeasible)) => Ok(false),
+        Err(
+            TransactionError::Operation(Rejected::Failed(failure))
+            | TransactionError::Limit(failure),
+        ) => Err(failure),
+    }
 }
 
 pub(crate) fn delay_profile_layers(
@@ -6588,7 +6532,6 @@ impl CompositeRouteAdapter {
                     budget,
                     Some(expanded),
                     Some(&mut frontier),
-                    false,
                 )
             }
         }
