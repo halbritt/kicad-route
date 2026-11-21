@@ -6012,3 +6012,41 @@ fn routed_track_contacts_reach_the_trace_body_from_either_side() {
         assert_eq!(stub.touches(other, &stack, |_, _| false), joined);
     }
 }
+
+#[test]
+fn a_via_beside_a_passing_trace_needs_a_junction() {
+    let stack = vec!["F.Cu".into(), "B.Cu".into()];
+    let work = WorkBudget::new(Limits::default());
+    let via = Via {
+        id: id(100),
+        net: 1,
+        at: [50, 50],
+        diameter_nm: 20,
+        drill_nm: 6,
+        start_layer: "F.Cu".into(),
+        end_layer: "B.Cu".into(),
+        kind: ViaKind::Through,
+        locked: true,
+    };
+    let passing = track(101, 1, [10, 58], [90, 58], 10);
+    let junction = track(102, 1, [10, 58], [50, 58], 10);
+    let on_axis = track(103, 1, [10, 55], [90, 55], 10);
+    for (t, anchored) in [(&passing, false), (&junction, true), (&on_axis, true)] {
+        assert!(geometry::track_connects_via(t, &via));
+        assert!(geometry::track_lands_on_via(t, &via));
+        assert_eq!(
+            Copper::Track(t).touches_via(&via, &stack, &work).unwrap(),
+            anchored
+        );
+        assert_eq!(
+            Copper::Track(t).touches(Copper::Via(&via), &stack, |_, _| false),
+            anchored
+        );
+    }
+    assert_eq!(
+        Copper::Via(&via)
+            .attachment(passing.start, passing.end, 1, 10, "F.Cu", &stack, &work)
+            .unwrap(),
+        Some([44, 58])
+    );
+}

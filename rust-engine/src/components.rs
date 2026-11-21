@@ -140,7 +140,7 @@ impl<'a> Copper<'a> {
                 geometry::via_connects_pad(v, p)
             }
             (Self::Via(v), Self::Track(t)) | (Self::Track(t), Self::Via(v)) => {
-                geometry::track_lands_on_via(t, v)
+                geometry::via_anchored_on_track(v, t)
                     || (geometry::track_connects_via(t, v) && both_from_input(&t.id, &v.id))
             }
             (Self::Via(v), Self::Graphic(g)) | (Self::Graphic(g), Self::Via(v)) => {
@@ -203,7 +203,7 @@ impl<'a> Copper<'a> {
         }
         Ok(match self {
             Self::Pad(p) => geometry::via_connects_pad(via, p),
-            Self::Track(t) => geometry::track_lands_on_via(t, via),
+            Self::Track(t) => geometry::via_anchored_on_track(via, t),
             Self::Graphic(g) => geometry::via_connects_graphic(via, g),
             Self::Via(v) => geometry::vias_connect(via, v),
             Self::ZoneFill { poly, .. } => {
