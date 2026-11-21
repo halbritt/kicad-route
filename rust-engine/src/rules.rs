@@ -514,13 +514,13 @@ fn wildcard_full_match(pattern: &str, text: &str) -> bool {
     let mut star_pi: Option<usize> = None;
     let mut match_ti = 0usize;
     while ti < t.len() {
-        if pi < p.len() && (p[pi] == '?' || p[pi] == t[ti]) {
-            pi += 1;
-            ti += 1;
-        } else if pi < p.len() && p[pi] == '*' {
+        if pi < p.len() && p[pi] == '*' {
             star_pi = Some(pi);
             match_ti = ti;
             pi += 1;
+        } else if pi < p.len() && (p[pi] == '?' || p[pi] == t[ti]) {
+            pi += 1;
+            ti += 1;
         } else if let Some(sp) = star_pi {
             pi = sp + 1;
             match_ti += 1;
@@ -1756,14 +1756,20 @@ impl DruExpr {
                 layer.resolve(layers, aliases);
             }
             Self::Eq(a, b) | Self::Ne(a, b) => {
-                let lit = match (a, b) {
-                    (DruValueExpr::Prop(_, DruProp::Layer), lit)
-                    | (lit, DruValueExpr::Prop(_, DruProp::Layer)) => lit,
+                let (lit, on_right) = match (a, b) {
+                    (DruValueExpr::Prop(_, DruProp::Layer), lit) => (lit, true),
+                    (lit, DruValueExpr::Prop(_, DruProp::Layer)) => (lit, false),
                     _ => return Ok(()),
                 };
-                if let DruValueExpr::StrLit(pattern) = lit {
-                    *lit =
-                        DruValueExpr::LayerNames(resolve_layer_pattern(pattern, layers, aliases));
+                if let DruValueExpr::StrLit(value) = lit {
+                    let names = matching_layer_names(layers, aliases, |name| {
+                        if on_right {
+                            layer_pattern_matches(value, name)
+                        } else {
+                            layer_pattern_matches(name, value)
+                        }
+                    });
+                    *lit = DruValueExpr::LayerNames(names);
                 }
             }
             _ => {}
@@ -1779,7 +1785,7 @@ impl DruExpr {
                 match (a, b) {
                     (DruValueExpr::Prop(s, DruProp::Type), DruValueExpr::StrLit(name))
                     | (DruValueExpr::StrLit(name), DruValueExpr::Prop(s, DruProp::Type)) => {
-                        *s == side && name == "Via"
+                        *s == side && name.eq_ignore_ascii_case("Via")
                     }
                     _ => false,
                 }
@@ -1987,14 +1993,17 @@ fn resolve_layer_pattern(
     layers: &[String],
     aliases: &BTreeMap<String, String>,
 ) -> Vec<String> {
+    matching_layer_names(layers, aliases, |name| layer_pattern_matches(pattern, name))
+}
+
+fn matching_layer_names(
+    layers: &[String],
+    aliases: &BTreeMap<String, String>,
+    matches: impl Fn(&str) -> bool,
+) -> Vec<String> {
     layers
         .iter()
-        .filter(|layer| {
-            layer_pattern_matches(pattern, layer)
-                || aliases
-                    .get(*layer)
-                    .is_some_and(|name| layer_pattern_matches(pattern, name))
-        })
+        .filter(|layer| matches(layer) || aliases.get(*layer).is_some_and(|name| matches(name)))
         .cloned()
         .collect()
 }
@@ -2230,6 +2239,31 @@ impl<'a> ExprParser<'a> {
                         ));
                     }
                 };
+                if matches!(val, DruValueExpr::IntLit(_)) != matches!(rhs, DruValueExpr::IntLit(_))
+                {
+                    return Err(Failure::new(
+                        Status::Unsupported,
+                        "unsupported comparison between an integer and a KiCad item property or string",
+                    ));
+                }
+                if let (DruValueExpr::Prop(_, p), DruValueExpr::Prop(_, q)) = (&val, &rhs) {
+                    if p != q {
+                        return Err(Failure::new(
+                            Status::Unsupported,
+                            "comparison between different KiCad item properties is unsupported",
+                        ));
+                    }
+                }
+                // KiCad net codes can be compared to one another. A numeric
+                // literal here can make KiCad discard the entire rules file.
+                if matches!(val, DruValueExpr::Prop(_, DruProp::Net))
+                    != matches!(rhs, DruValueExpr::Prop(_, DruProp::Net))
+                {
+                    return Err(Failure::new(
+                        Status::Unsupported,
+                        "compare Net with another Net property or match NetName against a string",
+                    ));
+                }
                 Ok(if is_eq {
                     DruExpr::Eq(val, rhs)
                 } else {
@@ -2344,15 +2378,12 @@ impl<'a> ExprParser<'a> {
                     };
                 }
                 match ident.as_str() {
-                    "true" => Ok(Err(DruExpr::BoolLit(true))),
-                    "false" => Ok(Err(DruExpr::BoolLit(false))),
-                    "AB.sameNet" => Ok(Err(DruExpr::SameNet)),
                     "A.NetClass" => Ok(Ok(DruValueExpr::Prop(Side::A, DruProp::NetClass))),
                     "B.NetClass" => Ok(Ok(DruValueExpr::Prop(Side::B, DruProp::NetClass))),
-                    "A.NetName" => Ok(Ok(DruValueExpr::Prop(Side::A, DruProp::NetName))),
-                    "B.NetName" => Ok(Ok(DruValueExpr::Prop(Side::B, DruProp::NetName))),
                     "A.Net" => Ok(Ok(DruValueExpr::Prop(Side::A, DruProp::Net))),
                     "B.Net" => Ok(Ok(DruValueExpr::Prop(Side::B, DruProp::Net))),
+                    "A.NetName" => Ok(Ok(DruValueExpr::Prop(Side::A, DruProp::NetName))),
+                    "B.NetName" => Ok(Ok(DruValueExpr::Prop(Side::B, DruProp::NetName))),
                     "A.Type" => Ok(Ok(DruValueExpr::Prop(Side::A, DruProp::Type))),
                     "B.Type" => Ok(Ok(DruValueExpr::Prop(Side::B, DruProp::Type))),
                     "A.Layer" => Ok(Ok(DruValueExpr::Prop(Side::A, DruProp::Layer))),
@@ -2641,7 +2672,7 @@ fn parse_dru_constraint(items: &[Sexpr]) -> Result<DruConstraint, Failure> {
                 max_nm,
             })
         }
-        "via_drill" => {
+        "hole_size" => {
             let (min_nm, max_nm) = parse_min_max_dims(args, true, kind)?;
             Ok(DruConstraint::ViaDrill {
                 min_nm: min_nm.unwrap_or(0),
@@ -2931,6 +2962,16 @@ pub struct DruItem<'a> {
     pub layers: &'a [String],
 }
 
+// KiCad string comparisons match the left value against the right-hand pattern.
+fn dru_string_eq(value: &str, pattern: &str) -> bool {
+    if !pattern.contains(['*', '?']) {
+        return value.eq_ignore_ascii_case(pattern)
+            || ((!value.is_ascii() || !pattern.is_ascii())
+                && value.to_lowercase() == pattern.to_lowercase());
+    }
+    wildcard_full_match(&pattern.to_lowercase(), &value.to_lowercase())
+}
+
 fn eval_value_eq(
     val_a: &DruValueExpr,
     val_b: &DruValueExpr,
@@ -2944,11 +2985,13 @@ fn eval_value_eq(
         }
     };
     match (val_a, val_b) {
-        (DruValueExpr::StrLit(x), DruValueExpr::StrLit(y)) => x == y,
+        (DruValueExpr::StrLit(x), DruValueExpr::StrLit(y)) => dru_string_eq(x, y),
         (DruValueExpr::IntLit(x), DruValueExpr::IntLit(y)) => x == y,
-        (DruValueExpr::Prop(s, DruProp::Layer), DruValueExpr::StrLit(l))
-        | (DruValueExpr::StrLit(l), DruValueExpr::Prop(s, DruProp::Layer)) => {
+        (DruValueExpr::Prop(s, DruProp::Layer), DruValueExpr::StrLit(l)) => {
             pick(*s).is_some_and(|it| it.layers.iter().any(|name| layer_pattern_matches(l, name)))
+        }
+        (DruValueExpr::StrLit(l), DruValueExpr::Prop(s, DruProp::Layer)) => {
+            pick(*s).is_some_and(|it| it.layers.iter().any(|name| layer_pattern_matches(name, l)))
         }
         (DruValueExpr::Prop(s, DruProp::Layer), DruValueExpr::LayerNames(names))
         | (DruValueExpr::LayerNames(names), DruValueExpr::Prop(s, DruProp::Layer)) => {
@@ -2973,24 +3016,19 @@ fn eval_value_eq(
         (DruValueExpr::Prop(s, p), DruValueExpr::StrLit(lit))
         | (DruValueExpr::StrLit(lit), DruValueExpr::Prop(s, p)) => {
             let Some(it) = pick(*s) else { return false };
-            match p {
-                DruProp::NetClass => {
-                    let mut names = std::iter::once(it.net_class)
-                        .chain(it.class_members.iter().map(String::as_str));
-                    if lit.contains(['*', '?']) {
-                        let pattern = lit.to_lowercase();
-                        names.any(|name| wildcard_full_match(&pattern, &name.to_lowercase()))
-                    } else {
-                        names.any(|name| {
-                            name.eq_ignore_ascii_case(lit)
-                                || ((!name.is_ascii() || !lit.is_ascii())
-                                    && name.to_lowercase() == lit.to_lowercase())
-                        })
-                    }
+            let matches = |value: &str| {
+                if matches!(val_b, DruValueExpr::StrLit(_)) {
+                    dru_string_eq(value, lit)
+                } else {
+                    dru_string_eq(lit, value)
                 }
-                DruProp::NetName => it.net_name == lit,
-                DruProp::Type => it.kind.as_kicad_str() == lit,
-                DruProp::Net => it.net_name == lit,
+            };
+            match p {
+                DruProp::NetClass => std::iter::once(it.net_class)
+                    .chain(it.class_members.iter().map(String::as_str))
+                    .any(matches),
+                DruProp::NetName | DruProp::Net => matches(it.net_name),
+                DruProp::Type => matches(it.kind.as_kicad_str()),
                 DruProp::Layer => unreachable!(),
             }
         }
@@ -3000,7 +3038,7 @@ fn eval_value_eq(
                     DruProp::NetClass => {
                         i1.net_class == i2.net_class && i1.class_members == i2.class_members
                     }
-                    DruProp::NetName => i1.net_name == i2.net_name,
+                    DruProp::NetName => dru_string_eq(i1.net_name, i2.net_name),
                     DruProp::Type => i1.kind == i2.kind,
                     DruProp::Net | DruProp::Layer => unreachable!(),
                 },
@@ -4871,6 +4909,14 @@ mod tests {
     }
 
     #[test]
+    fn kicad_dru_patterns_use_the_right_operand_and_preserve_literal_stars_in_values() {
+        assert!(dru_string_eq("TrAcK", "TR*"));
+        assert!(!dru_string_eq("TR*", "TrAcK"));
+        assert!(dru_string_eq("NET*17", "net*"));
+        assert!(!dru_string_eq("NET*17", "net?"));
+    }
+
+    #[test]
     fn kicad_dru_parses_supported_and_fails_closed_on_unsupported() {
         let dru = br#"
         (version 1)
@@ -4888,6 +4934,10 @@ mod tests {
 
         for (bad, expected) in [
             ("(version 2)", Status::Unsupported),
+            (r#"(version 1)(rule x (constraint via_drill (min 0.3mm)))"#, Status::Unsupported),
+            (r#"(version 1)(rule x (condition "AB.sameNet") (constraint clearance (min 0.3mm)))"#, Status::Unsupported),
+            (r#"(version 1)(rule x (condition "true") (constraint track_width (min 0.3mm)))"#, Status::Unsupported),
+            (r#"(version 1)(rule x (condition "A.Net == 1") (constraint track_width (min 0.3mm)))"#, Status::Unsupported),
             ("(version 1)\n(rule \"x\" (constraint clearance", Status::Invalid),
             ("(version 1)\n(rule \"x\" (constraint courtyard_clearance (min 0.2mm)))", Status::Unsupported),
             ("(version 1)\n(rule \"x\" (constraint disallow bogus))", Status::Unsupported),
@@ -4959,12 +5009,18 @@ mod tests {
             for selector in [
                 format!(r#"(layer "{pattern}")"#),
                 format!(r#"(condition "A.Layer == '{pattern}'")"#),
-                format!(r#"(condition "'{pattern}' == B.Layer")"#),
                 format!(r#"(condition "A.existsOnLayer('{pattern}')")"#),
                 format!(r#"(condition "B.existsOnLayer('{pattern}')")"#),
             ] {
                 check_layer_clearances(&aliases, &selector, expected);
             }
+            let reversed = format!(r#"(condition "'{pattern}' == B.Layer")"#);
+            let literal = if pattern.contains(['*', '?']) {
+                [off; 3]
+            } else {
+                expected
+            };
+            check_layer_clearances(&aliases, &reversed, literal);
         }
         check_layer_clearances(
             &aliases,
@@ -5232,7 +5288,7 @@ mod tests {
         );
 
         inp.custom_rules = Some(
-            "(version 1)\n(rule \"drl\" (layer \"B.Cu\") (constraint via_drill (min 0.9mm)))"
+            "(version 1)\n(rule \"drl\" (layer \"B.Cu\") (constraint hole_size (min 0.9mm)))"
                 .into(),
         );
         let eff2 = resolve_effective_rules(&mut inp).unwrap();

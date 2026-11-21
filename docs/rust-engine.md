@@ -114,6 +114,12 @@ JSON on the final stderr line: `invalid` for malformed/stale requests,
 `unsupported` for unrepresented native features, `output_exists` for an existing
 destination, and `io_error` for input/output failures. Argument-parser usage
 errors and unexpected programming errors are not converted to routing outcomes.
+When a project has custom rules, validation also runs KiCad on a private
+copy with a temporary track and a rule that forbids that track. KiCad can drop
+a rules file that fails to compile while returning success. Publication
+requires the DRC finding for the temporary track. The source and candidate
+receive their ordinary DRC checks under the original rule text.
+
 Duplicate JSON fields, malformed track fields and zero-length additions are
 rejected before publication. Exported JSON also uses staged create-if-absent
 publication, so a failed write cannot leave a partial request at its destination.
@@ -161,8 +167,12 @@ from the first class that defines it. KiCad net settings through version 3 use
 the class list order. Later versions sort by ascending numeric priority and
 then by class name. Version-0 projects using legacy overbar notation in class
 assignments require migration in KiCad. Missing track and via dimensions inherit from Default.
-Custom rules can select a constituent class and raise its dimensions. Before
-publication KiCad reloads the candidate and the adapter checks the width of
+Custom rules can select a constituent class and raise its dimensions. In
+comparisons on item type or net name, KiCad matches the left value against the
+case-insensitive pattern on the right. A custom minimum or maximum drill
+diameter uses the native `hole_size` constraint.
+
+Before publication KiCad reloads the candidate and the adapter checks the width of
 each new track and the diameter and drill of each new via against the native
 effective class. Requested differential pairs use their differential width.
 
