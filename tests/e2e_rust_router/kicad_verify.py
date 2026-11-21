@@ -1158,9 +1158,19 @@ def verify_routed_board(
         seen_uuids.add(tid)
         if not net_name:
             raise AssertionError(f"added copper on net 0: {snap}")
-        width = snap[4] if cls == "PCB_VIA" else (snap[6] if cls == "PCB_ARC" else snap[5])
-        if width < min_width:
-            raise AssertionError(f"added copper width {width} < min_track_width {min_width}: {snap}")
+        if cls == "PCB_VIA":
+            if not snap[4]:
+                raise AssertionError(f"added via has no copper layer: {snap}")
+            for layer, diameter in snap[4]:
+                if diameter < min_width:
+                    raise AssertionError(
+                        f"added via diameter {diameter} on {pn.LayerName(layer)} "
+                        f"< min_track_width {min_width}: {snap}"
+                    )
+        else:
+            width = snap[6] if cls == "PCB_ARC" else snap[5]
+            if width < min_width:
+                raise AssertionError(f"added copper width {width} < min_track_width {min_width}: {snap}")
 
     if refill_zones:
         with tempfile.TemporaryDirectory(prefix="e2e-verify-") as tmp:

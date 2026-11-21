@@ -1395,7 +1395,7 @@ def t2_f11_05(ctx: DriverContext) -> dict[str, Any]:
     pos = fp.GetPosition()
     fp.SetPosition(pn.VECTOR2I(pos.x + 500_000, pos.y))
     pn.SaveBoard(str(cand_pcb2), b2, True)
-    from tests.e2e_rust_router.kicad_verify import verify_preservation
+    from tests.e2e_rust_router.kicad_verify import verify_preservation, verify_routed_board
 
     try:
         verify_preservation(ref_pcb, cand_pcb2)
@@ -1416,4 +1416,25 @@ def t2_f11_05(ctx: DriverContext) -> dict[str, Any]:
         assert "input copper item mutated" in str(exc)
     else:
         raise AssertionError("preservation check accepted a resized bottom-layer via pad")
-    return {"checked": ["pro_tamper", "footprint_shift", "via_bottom_diameter"]}
+    added_dir = stage_fixture_copy(src_dir, ctx.work_dir / "added-via")
+    added_pcb = added_dir / ref_pcb.name
+    candidate = pn.LoadBoard(str(added_pcb))
+    reference_via = next(item for item in candidate.GetTracks() if item.GetClass() == "PCB_VIA")
+    added_via = pn.PCB_VIA(candidate)
+    added_via.SetPosition(reference_via.GetPosition())
+    added_via.SetNetCode(reference_via.GetNetCode())
+    added_via.SetDrill(reference_via.GetDrill())
+    added_via.SetWidth(reference_via.GetWidth(pn.F_Cu))
+    added_via.Padstack().SetMode(pn.PADSTACK.MODE_FRONT_INNER_BACK)
+    minimum = int(candidate.GetDesignSettings().m_TrackMinWidth)
+    assert minimum > 1 and added_via.GetWidth(pn.F_Cu) >= minimum
+    added_via.SetWidth(pn.B_Cu, minimum - 1)
+    candidate.Add(added_via)
+    assert pn.SaveBoard(str(added_pcb), candidate, True)
+    try:
+        verify_routed_board(ref_pcb, added_pcb)
+    except AssertionError as exc:
+        assert f"added via diameter {minimum - 1} on B.Cu" in str(exc), str(exc)
+    else:
+        raise AssertionError("undersized added back-layer via copper passed the width check")
+    return {"checked": ["pro_tamper", "footprint_shift", "via_bottom_diameter", "added_via_bottom_width"]}
