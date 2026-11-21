@@ -3298,6 +3298,15 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             if saved is None:
                 raise NativeValidationError('KiCad could not reload the refilled candidate')
             saved.BuildConnectivity()
+            if selected_names is not None:
+                # load_supported rejects pre-existing teardrop zones, so every
+                # saved teardrop here is copper created by the native refill.
+                outside = {z.GetNetname() for z in _all_board_zones(saved)
+                           if z.IsTeardropArea() and z.GetNetname() not in selected_names}
+                if outside:
+                    raise NativeValidationError(
+                        'native refill added teardrop copper outside the --nets selection: '
+                        + ', '.join(sorted(outside)))
         else:
             saved = pcbnew.LoadBoard(str(temporary))
             if saved is None:

@@ -3613,6 +3613,68 @@ def test_teardrop_enabled_board_without_copper_pours_refills_and_saves_teardrops
     assert sum(1 for z in pcbnew.LoadBoard(str(plain_out)).Zones() if z.IsTeardropArea()) == 0
 
 
+def test_scoped_native_refill_respects_teardrop_net_selection(tmp_path, native_board, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.LoadBoard(str(native_board))
+    signal_pads = list(board.GetPads())
+    obstacle = next(iter(board.GetTracks()))
+    obstacle_code = obstacle.GetNetCode()
+    obstacle_pads = []
+    for pad in signal_pads:
+        pad.SetTeardropsEnabled(True)
+        fp = pad.GetParentFootprint()
+        fp.Reference().SetVisible(False)
+        fp.Value().SetVisible(False)
+        other = pcbnew.PAD(fp)
+        other.SetNumber('2')
+        other.SetAttribute(pad.GetAttribute())
+        other.SetShape(pad.GetShape())
+        other.SetSize(pad.GetSize(pcbnew.F_Cu))
+        other.SetLayerSet(pad.GetLayerSet())
+        other.SetPosition(pcbnew.VECTOR2I(pad.GetPosition().x, 4_000_000))
+        other.SetNetCode(obstacle_code)
+        other.SetTeardropsEnabled(True)
+        fp.Add(other)
+        obstacle_pads.append(other)
+    obstacle.SetStart(obstacle_pads[0].GetPosition())
+    obstacle.SetEnd(obstacle_pads[1].GetPosition())
+    assert pcbnew.SaveBoard(str(native_board), board)
+    original = native_board.read_bytes()
+    assert not list(board.Zones())
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps(RULES))
+
+    def route(name, *filters):
+        dest = tmp_path / name
+        dest.mkdir()
+        output = dest / 'board.kicad_pcb'
+        result = run([str(engine), 'route-native', str(native_board), str(output),
+                      '--rules', str(rules_path), *filters], check=False)
+        return result, output
+
+    def teardrop_nets(output):
+        saved = pcbnew.LoadBoard(str(output))
+        return {z.GetNetname() for z in saved.Zones() if z.IsTeardropArea()}
+
+    whole, whole_board = route('whole')
+    assert whole.returncode == 0, whole.stderr
+    assert teardrop_nets(whole_board) == {'SIGNAL', 'OBSTACLE'}
+
+    scoped, refused = route('scoped', '--nets', 'SIGNAL')
+    assert scoped.returncode == 2, scoped.stdout
+    assert 'teardrop' in scoped.stdout and 'OBSTACLE' in scoped.stdout
+    assert not list(refused.parent.iterdir())
+    assert native_board.read_bytes() == original
+
+    for pad in obstacle_pads:
+        pad.SetTeardropsEnabled(False)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    permitted, permitted_board = route('selected-only', '--nets', '!OBSTACLE')
+    assert permitted.returncode == 0, permitted.stderr
+    assert teardrop_nets(permitted_board) == {'SIGNAL'}
+
+
 def _assert_fail_closed_export_apply_and_cli(run, engine, board_path: Path, rules: dict, rules_path: Path,
                                              out_dir: Path, tag: str, match: str):
     with pytest.raises(bridge.UnsupportedBoard, match=match):
