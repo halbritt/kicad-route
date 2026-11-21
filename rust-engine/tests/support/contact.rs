@@ -7,6 +7,7 @@ pub struct Body {
     pub lo: Point,
     pub hi: Point,
     pub radius2: i64,
+    is_track: bool,
 }
 impl Body {
     pub fn pad(p: &Pad) -> Self {
@@ -14,6 +15,7 @@ impl Body {
             Shape::Circle { radius_nm: r } => Self {
                 lo: p.at,
                 hi: p.at,
+                is_track: false,
                 radius2: 2 * r,
             },
             Shape::RoundRect {
@@ -22,11 +24,13 @@ impl Body {
             } => Self {
                 lo: [p.at[0] - h[0] + r, p.at[1] - h[1] + r],
                 hi: [p.at[0] + h[0] - r, p.at[1] + h[1] - r],
+                is_track: false,
                 radius2: 2 * r,
             },
             Shape::Rect { half_size_nm: h } => Self {
                 lo: [p.at[0] - h[0], p.at[1] - h[1]],
                 hi: [p.at[0] + h[0], p.at[1] + h[1]],
+                is_track: false,
                 radius2: 0,
             },
             Shape::Union { .. }
@@ -46,6 +50,7 @@ impl Body {
             lo: [a[0].min(b[0]), a[1].min(b[1])],
             hi: [a[0].max(b[0]), a[1].max(b[1])],
             radius2,
+            is_track: true,
         }
     }
     pub fn distance4(self, other: Self) -> i64 {
@@ -64,6 +69,16 @@ impl Body {
         }
         let radius2 = 2 * (self.radius2 / 2 + other.radius2 / 2 - 1);
         radius2 >= 0 && self.distance4(other) <= radius2 * radius2
+    }
+    /// The native overlap still applies to a routed join. At least one
+    /// track axis must also lie inside the other capsule. For an axis-aligned
+    /// pair our independent box-distance calculation measures this exactly.
+    pub fn accepts_landing(self, cap: Self) -> bool {
+        let distance4 = self.distance4(cap);
+        let own = 2 * (self.radius2 / 2);
+        let incoming = 2 * (cap.radius2 / 2);
+        self.contacts(cap)
+            && (!self.is_track || distance4 <= own * own || distance4 <= incoming * incoming)
     }
     pub fn violates(self, other: Self, clearance: i64) -> bool {
         let radius2 = self.radius2 + other.radius2 + 2 * clearance;

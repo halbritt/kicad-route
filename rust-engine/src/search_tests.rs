@@ -65,7 +65,7 @@ fn oracle(
         if legal(i, foreign, *p, *p)
             && source
                 .iter()
-                .any(|s| s.contacts(Body::segment(*p, *p, i.rules.width_nm)))
+                .any(|s| s.accepts_landing(Body::segment(*p, *p, i.rules.width_nm)))
             && seen.insert(*p)
         {
             q.push_back((*p, 0));
@@ -78,7 +78,7 @@ fn oracle(
                 if legal(i, foreign, a, p)
                     && targets
                         .iter()
-                        .any(|t| t.contacts(Body::segment(p, p, i.rules.width_nm)))
+                        .any(|t| t.accepts_landing(Body::segment(p, p, i.rules.width_nm)))
                 {
                     return Some(d + 1);
                 }
@@ -245,7 +245,7 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                                     "offgrid={offgrid} width={width} clearance={clearance} kind={kind} mask={mask}");
                                 assert!(path.points.windows(2).all(|p| legal(&i, &foreign, p[0], p[1])));
                                 let last = *path.points.last().unwrap();
-                                assert!(target_body.contacts(Body::segment(last, last, width)));
+                                assert!(target_body.accepts_landing(Body::segment(last, last, width)));
                             }
                             (None, Err(e)) => {
                                 unreachable += 1;
@@ -691,7 +691,7 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
                             assert_eq!(path.steps, cost, "width={width} grid={grid} shift={shift} mask={mask}");
                             assert!(path.points.windows(2).all(|p| legal(&i, &foreign, p[0], p[1])));
                             let cap = Body::segment(*path.points.last().unwrap(), *path.points.last().unwrap(), width);
-                            assert!(Body::pad(&target_pad).contacts(cap) || Body::track(&target_track).contacts(cap));
+                            assert!(Body::pad(&target_pad).accepts_landing(cap) || Body::track(&target_track).accepts_landing(cap));
                         }
                         (None, Err(e)) => { unreachable += 1; assert_eq!(e.status, Status::Unroutable); }
                         (expected, actual) => panic!("width={width} grid={grid} shift={shift} mask={mask}: oracle={expected:?} search={actual:?}"),
@@ -5997,7 +5997,8 @@ fn routed_track_contacts_reach_the_trace_body_from_either_side() {
         (60, 20, true),
         (61, 20, false),
         (69, 20, false),
-        (61, 32, false),
+        (61, 32, true),
+        (67, 32, false),
     ] {
         let nearby = track(101, 1, [10, y], [60, y], new_width);
         let other = Copper::Track(&nearby);

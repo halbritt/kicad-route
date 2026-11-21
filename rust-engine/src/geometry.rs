@@ -488,12 +488,12 @@ pub fn tracks_connect(a: &Track, b: &Track) -> bool {
     segments_near(a.start, a.end, b.start, b.end, gap2, true)
 }
 
-/// For a routed junction, both track centerlines reach the body of the other
-/// trace. Two overlapping round caps alone can form a nanometre-wide neck.
+/// At a routed junction the narrower trace reaches into the wider copper
+/// by its own radius. Two barely overlapping round caps form a narrow neck.
 pub(crate) fn tracks_land_together(a: &Track, b: &Track) -> bool {
     let ra = a.width_nm / 2;
     let rb = b.width_nm / 2;
-    let distance = ra.min(rb).min(ra + rb - CONTACT_OVERLAP_NM);
+    let distance = ra.max(rb).min(ra + rb - CONTACT_OVERLAP_NM);
     segments_near(
         a.start,
         a.end,
