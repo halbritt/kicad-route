@@ -54,6 +54,13 @@ resulting edits and publishes the board after native checks.
 
 ## Native compatibility interface
 
+A successful standalone `route-native` operation publishes the routed PCB.
+When opening the output in KiCad or running DRC later, keep a copy of its
+original `.kicad_pro` and any `.kicad_dru` next to the PCB under the same
+basename. The process validates its staged copy under the original rules.
+If the output has a different basename or directory, KiCad needs those
+files at the corresponding destination to reproduce that validation.
+
 `tools/rust_engine_kicad.py` uses installed `pcbnew` only to decode native KiCad
 objects and encode Rust's explicit edit list. It does not select paths, victims,
 IDs, geometry or routing costs. This is justified by KiCad's native Python

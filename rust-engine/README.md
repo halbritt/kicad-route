@@ -36,6 +36,14 @@ failed or the board that was published. Read both the process exit code and
 the result. Run `route-native --help` on the executable for options covering
 rules, limits, pair routing and length matching.
 
+The output is a standalone PCB. To reopen or check it under its original
+design rules, place the source `.kicad_pro` and `.kicad_dru` files that exist
+beside the output, using the output board's basename. For example, a board
+named `routed.kicad_pcb` uses `routed.kicad_pro` and `routed.kicad_dru`.
+Keep project-relative footprint libraries and tables at their expected paths.
+KiCad can load different defaults when it cannot find the project. Use a
+separate directory when the same filename already belongs to another project.
+
 After linking a board, saved request or operation report, the controller opens
 and syncs its containing directory. A failure after the board link preserves
 the board and its recorded digest and returns exit 8 with
