@@ -97,6 +97,14 @@ measurements on the saved board separately establish the actual width, gap
 and length of the copper. The native operation report carries the same rows in
 `routing.diff_pairs`.
 
+Use `--diff-pair-intra-match` to tune the lengths of a pair's two legs.
+A coupled `--length-match-group` can also use `--length-match-tolerance`
+and `--meander-amplitude`. Single-ended groups have their own
+`--group-*` controls. A native skew rule on a tunable pair supplies its own
+tolerance and accepts `--meander-amplitude`. AC chains use
+`--ac-meander-amplitude`. The router rejects a pair tolerance or amplitude
+when the request has no matching operation that uses it.
+
 ### Signal layer policy
 
 Pass `--layer-policy-json` to `route-native`, or supply the same object in
