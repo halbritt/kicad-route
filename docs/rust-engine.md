@@ -153,6 +153,12 @@ publication KiCad reloads the candidate and the adapter checks the width of
 each new track and the diameter and drill of each new via against the native
 effective class. Requested differential pairs use their differential width.
 
+Raw requests must list each copper layer at most once per pad. Native board
+and netclass dimensions use the same 200 mm upper bound as parsed project
+dimensions. The router checks them before calculating clearances or via sizes.
+A positive meander amplitude is a ceiling. Search samples excursions up to
+the board diagonal and checks the resulting integer coordinates.
+
 Copper geometry uses
 KiCad's standard layer names, such as `F.Cu` and `In1.Cu`. When the board
 renames a copper layer, the optional `board_design_settings.layer_aliases` map

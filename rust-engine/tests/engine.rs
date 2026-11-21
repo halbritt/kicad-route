@@ -715,6 +715,84 @@ fn document() -> Value {
     json!({"version":1,"source_id":"a".repeat(64),"layer":"F.Cu","bounds":{"min":[0,0],"max":[60,60]},"rules":{"width_nm":2,"clearance_nm":1,"grid_nm":10,"edge_clearance_nm":0},"nets":[{"id":1,"name":"A"}],"pads":[{"id":id(1),"net":1,"at":[10,10],"shape":{"kind":"circle","radius_nm":1}},{"id":id(2),"net":1,"at":[50,10],"shape":{"kind":"rect","half_size_nm":[1,1]}}],"tracks":[],"max_expansions":10000})
 }
 #[test]
+fn raw_rule_dimensions_are_checked_before_geometry() {
+    let invalid = [
+        (
+            "rules",
+            json!({"width_nm":i64::MAX,"clearance_nm":0,"grid_nm":10,"edge_clearance_nm":0}),
+        ),
+        (
+            "board_design_settings",
+            json!({"min_via_annular_width_nm": 2 * MAX_NM + 1}),
+        ),
+        (
+            "board_design_settings",
+            json!({"min_hole_to_hole_nm": 2 * MAX_NM + 1}),
+        ),
+        (
+            "board_design_settings",
+            json!({"netclasses":[{"name":"A","clearance_nm":2 * MAX_NM + 1}]}),
+        ),
+        (
+            "board_design_settings",
+            json!({"netclasses":[{"name":"Default","via_drill_nm":2 * MAX_NM + 1}]}),
+        ),
+    ];
+    for (field, value) in invalid {
+        let mut wire = document();
+        wire[field] = value;
+        let input: Input = serde_json::from_value(wire.clone()).unwrap();
+        let validation = input.validate().unwrap_err();
+        assert_eq!(validation.status, Status::Invalid, "{field}");
+        let result = run_json(&serde_json::to_vec(&wire).unwrap());
+        assert_eq!(result.status, Status::Invalid, "{field}");
+        assert_eq!(
+            result.reason.as_deref(),
+            Some(validation.reason.as_str()),
+            "{field}"
+        );
+        assert!(result.added_tracks.is_empty() && result.added_vias.is_empty());
+        assert_eq!(result.expanded_states, 0);
+    }
+    let mut wire = document();
+    wire["board_design_settings"] = json!({"min_hole_to_hole_nm": 2*MAX_NM,
+        "netclasses":[{"name":"unused","clearance_nm":2*MAX_NM,"via_drill_nm":-1}]});
+    serde_json::from_value::<Input>(wire)
+        .unwrap()
+        .validate()
+        .unwrap();
+}
+
+#[test]
+fn serialized_effective_pair_dimensions_obey_the_native_dimension_bound() {
+    let input = base();
+    let mut effective =
+        kicad_route_engine::rules::EffectiveRules::from_uniform_rules(input.rules, &input.nets);
+    effective.net_rules.get_mut(&0).unwrap().diff_pair_gap_nm = 2 * MAX_NM;
+    effective.validate().unwrap();
+    effective.net_rules.get_mut(&0).unwrap().diff_pair_gap_nm += 1;
+    let mut raw = serde_json::to_value(&input).unwrap();
+    raw["effective_rules"] = serde_json::to_value(effective).unwrap();
+    let result = run_json(&serde_json::to_vec(&raw).unwrap());
+    assert_eq!(result.status, Status::Invalid);
+    assert!(result.added_tracks.is_empty());
+}
+
+#[test]
+fn raw_pads_must_have_unique_active_copper_layers() {
+    let mut wire = document();
+    wire["layers"] = json!(["F.Cu", "In1.Cu", "B.Cu"]);
+    wire["pads"][0]["layers"] = json!(["F.Cu", "In1.Cu", "F.Cu"]);
+    let result = run_json(&serde_json::to_vec(&wire).unwrap());
+    assert_eq!(result.status, Status::Invalid);
+    assert!(result.reason.unwrap().contains("duplicate copper layer"));
+    assert!(result.added_tracks.is_empty());
+    wire["pads"][0]["layers"] = json!(["F.Cu", "In1.Cu", "B.Cu"]);
+    let input: Input = serde_json::from_value(wire).unwrap();
+    input.validate().unwrap();
+    Engine::new(input).unwrap();
+}
+#[test]
 fn malformed_and_unsupported_never_become_empty_success() {
     for (pointer, value, status) in [
         ("/version", json!(2), Status::Unsupported),

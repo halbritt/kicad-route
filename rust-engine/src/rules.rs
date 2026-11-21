@@ -266,6 +266,70 @@ pub struct NetClassDef {
     pub tuning_profile: Option<String>,
 }
 
+impl BoardDesignSettings {
+    pub(crate) fn validate_dimensions(&self) -> Result<(), Failure> {
+        let fields = [
+            self.min_track_width_nm,
+            self.min_clearance_nm,
+            self.min_edge_clearance_nm,
+            self.min_via_diameter_nm,
+            self.min_via_annular_width_nm,
+            self.min_through_hole_diameter_nm,
+            self.min_hole_clearance_nm,
+            self.min_hole_to_hole_nm,
+            self.min_microvia_diameter_nm,
+            self.min_microvia_drill_nm,
+            self.solder_mask_expansion_nm,
+            self.solder_mask_min_width_nm,
+            self.solder_mask_to_copper_clearance_nm,
+            self.default_clearance_nm,
+            self.default_track_width_nm,
+            self.default_via_diameter_nm,
+            self.default_via_drill_nm,
+            self.default_microvia_diameter_nm,
+            self.default_microvia_drill_nm,
+        ];
+        if fields.iter().any(|&v| v < 0) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "board_design_settings values must be nonnegative",
+            ));
+        }
+        if fields.iter().any(|&v| v > 2 * MAX_NM) {
+            return Err(Failure::new(
+                Status::Invalid,
+                "board_design_settings dimensions cannot exceed 200000000 nm",
+            ));
+        }
+        for class in &self.netclasses {
+            // -1 denotes an absent field in KiCad. Explicit zero is meaningful.
+            if [
+                class.clearance_nm,
+                class.track_width_nm,
+                class.via_diameter_nm,
+                class.via_drill_nm,
+                class.microvia_diameter_nm,
+                class.microvia_drill_nm,
+                class.diff_pair_width_nm,
+                class.diff_pair_gap_nm,
+                class.diff_pair_via_gap_nm,
+            ]
+            .into_iter()
+            .any(|v| !(-1..=2 * MAX_NM).contains(&v))
+            {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    format!(
+                        "board netclass {:?} dimension outside supported range",
+                        class.name
+                    ),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
 fn unset_dimension() -> i64 {
     -1
 }
@@ -3249,6 +3313,9 @@ impl EffectiveRules {
                 nr.hole_clearance_nm,
                 nr.hole_to_hole_nm,
                 nr.annular_width_nm,
+                nr.diff_pair_width_nm,
+                nr.diff_pair_gap_nm,
+                nr.diff_pair_via_gap_nm,
             ]
             .iter()
             .any(|&v| !(0..=2 * MAX_NM).contains(&v))
@@ -4017,6 +4084,12 @@ fn resolve_rule_layers(
 }
 
 pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Failure> {
+    if !input.rules.is_omitted() {
+        input.rules.validate_dimensions()?;
+    }
+    if let Some(settings) = &input.board_design_settings {
+        settings.validate_dimensions()?;
+    }
     if input.project_rules.is_none()
         && input.custom_rules.is_none()
         && input.board_design_settings.is_none()
@@ -4152,33 +4225,6 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
     }
     resolve_rule_layers(&mut dru_rules, &layers_ref, aliases)?;
     if let Some(bds) = &input.board_design_settings {
-        let fields = [
-            bds.min_track_width_nm,
-            bds.min_clearance_nm,
-            bds.min_edge_clearance_nm,
-            bds.min_via_diameter_nm,
-            bds.min_via_annular_width_nm,
-            bds.min_through_hole_diameter_nm,
-            bds.min_hole_clearance_nm,
-            bds.min_hole_to_hole_nm,
-            bds.min_microvia_diameter_nm,
-            bds.min_microvia_drill_nm,
-            bds.solder_mask_expansion_nm,
-            bds.solder_mask_min_width_nm,
-            bds.solder_mask_to_copper_clearance_nm,
-            bds.default_clearance_nm,
-            bds.default_track_width_nm,
-            bds.default_via_diameter_nm,
-            bds.default_via_drill_nm,
-            bds.default_microvia_diameter_nm,
-            bds.default_microvia_drill_nm,
-        ];
-        if fields.iter().any(|&v| v < 0) {
-            return Err(Failure::new(
-                Status::Invalid,
-                "board_design_settings values must be nonnegative",
-            ));
-        }
         if bds.min_resolved_spokes.is_some_and(|n| n > 16) {
             return Err(Failure::new(
                 Status::Invalid,

@@ -6742,6 +6742,25 @@ impl MeanderAttempts {
     }
 }
 
+fn usable_meander_amplitude(ceiling_nm: i64, bounds: crate::model::Bounds) -> f64 {
+    // A perpendicular excursion cannot exceed the diagonal of the validated board bounds.
+    let span = |axis: usize| (bounds.max[axis] - bounds.min[axis]) as f64;
+    (ceiling_nm as f64).min(span(0).hypot(span(1)))
+}
+
+fn meander_point(start: Point, dx: f64, dy: f64) -> Option<Point> {
+    let coordinate = |origin: i64, offset: f64| {
+        // Any two representable board points differ by at most twice MAX_NM on an axis.
+        let delta = offset.round();
+        let extent = (2 * crate::model::MAX_NM) as f64;
+        if !(-extent..=extent).contains(&delta) {
+            return None;
+        }
+        origin.checked_add(delta as i64)
+    };
+    Some([coordinate(start[0], dx)?, coordinate(start[1], dy)?])
+}
+
 #[allow(clippy::too_many_arguments)]
 fn generate_45_meander_wave(
     start: Point,
@@ -6758,7 +6777,7 @@ fn generate_45_meander_wave(
     inner_offset_margin_nm: f64,
     allow_ortho: bool,
     allow_chamfer: bool,
-) -> (Vec<Point>, f64, f64) {
+) -> Option<(Vec<Point>, f64, f64)> {
     let min_seg = (1.2 * width_nm).max(width_nm + 50_000.0);
     let c_try = (0.3 * spacing_nm).min(0.35 * amp_nm);
     let gap_try = (spacing_nm - 2.0 * c_try).max(0.5 * spacing_nm);
@@ -6770,12 +6789,7 @@ fn generate_45_meander_wave(
         && (amp_nm - 2.0 * c_try - inner_top_shrink) >= min_seg
         && (n_waves <= 1 || (gap_try - inner_top_shrink) >= min_seg);
 
-    let pt_at = |t: f64, h: f64| -> Point {
-        [
-            start[0] + (t * ux + h * nx).round() as i64,
-            start[1] + (t * uy + h * ny).round() as i64,
-        ]
-    };
+    let pt_at = |t: f64, h: f64| meander_point(start, t * ux + h * nx, t * uy + h * ny);
 
     if chamfer_ok {
         let c = c_try;
@@ -6796,16 +6810,16 @@ fn generate_45_meander_wave(
             let t_up = tb + c;
             let t_dn = t_up + spacing_nm;
             let t_end = t_dn + c;
-            pts.push(pt_at(tb, 0.0));
-            pts.push(pt_at(t_up, s * c));
-            pts.push(pt_at(t_up, s * (amp_nm - c)));
-            pts.push(pt_at(t_up + c, s * amp_nm));
-            pts.push(pt_at(t_dn - c, s * amp_nm));
-            pts.push(pt_at(t_dn, s * (amp_nm - c)));
-            pts.push(pt_at(t_dn, s * c));
-            pts.push(pt_at(t_end, 0.0));
+            pts.push(pt_at(tb, 0.0)?);
+            pts.push(pt_at(t_up, s * c)?);
+            pts.push(pt_at(t_up, s * (amp_nm - c))?);
+            pts.push(pt_at(t_up + c, s * amp_nm)?);
+            pts.push(pt_at(t_dn - c, s * amp_nm)?);
+            pts.push(pt_at(t_dn, s * (amp_nm - c))?);
+            pts.push(pt_at(t_dn, s * c)?);
+            pts.push(pt_at(t_end, 0.0)?);
         }
-        return (pts, t0, t0 + total_span);
+        return Some((pts, t0, t0 + total_span));
     }
 
     let ortho_ok = allow_ortho
@@ -6827,19 +6841,19 @@ fn generate_45_meander_wave(
             };
             let tb = t0 + (i as f64) * pitch;
             let t_end = tb + spacing_nm;
-            pts.push(pt_at(tb, 0.0));
-            pts.push(pt_at(tb, s * amp_nm));
-            pts.push(pt_at(t_end, s * amp_nm));
-            pts.push(pt_at(t_end, 0.0));
+            pts.push(pt_at(tb, 0.0)?);
+            pts.push(pt_at(tb, s * amp_nm)?);
+            pts.push(pt_at(t_end, s * amp_nm)?);
+            pts.push(pt_at(t_end, 0.0)?);
         }
-        return (pts, t0, t0 + total_span);
+        return Some((pts, t0, t0 + total_span));
     }
 
     // Small 45-degree wave: flat-top 45-degree trapezoid when `!allow_ortho` (avoiding 90-degree
     // corners that overhang in KiCad diff_pair_uncoupled), or 45-degree triangle bump otherwise.
     // Never exceed the caller-requested `amp_nm` ceiling.
     if amp_nm <= 0.0 {
-        return (Vec::new(), t_center, t_center);
+        return Some((Vec::new(), t_center, t_center));
     }
     let h_small = amp_nm;
     let top_len = if allow_ortho {
@@ -6864,14 +6878,14 @@ fn generate_45_meander_wave(
             1.0
         };
         let tb = t_start + (i as f64) * step_tri;
-        pts.push(pt_at(tb, 0.0));
-        pts.push(pt_at(tb + h_small, s * h_small));
+        pts.push(pt_at(tb, 0.0)?);
+        pts.push(pt_at(tb + h_small, s * h_small)?);
         if top_len > 0.0 {
-            pts.push(pt_at(tb + h_small + top_len, s * h_small));
+            pts.push(pt_at(tb + h_small + top_len, s * h_small)?);
         }
-        pts.push(pt_at(tb + wave_span, 0.0));
+        pts.push(pt_at(tb + wave_span, 0.0)?);
     }
-    (pts, t_start, t_start + tri_span)
+    Some((pts, t_start, t_start + tri_span))
 }
 
 fn measure_tracks_uncoupled_nm(pair: &ResolvedDiffPair, tracks: &[Track]) -> i64 {
@@ -7258,6 +7272,7 @@ fn apply_single_ended_meander(
         }
     });
 
+    let max_amp = usable_meander_amplitude(amp_max_nm, engine.input.bounds);
     let mut attempts = MeanderAttempts::default();
     // Charge one work unit per wave per leg each time a prospective shape is built,
     // including shapes rejected before copper legality or a transaction is reached.
@@ -7311,7 +7326,6 @@ fn apply_single_ended_meander(
         };
         let max_waves =
             (((seg_len - 1.5 * spacing_nm) / (2.0 * spacing_nm)).floor() as usize).max(1);
-        let max_amp = amp_max_nm as f64;
         if max_amp <= 10_000.0 {
             continue;
         }
@@ -7337,7 +7351,7 @@ fn apply_single_ended_meander(
                 0.0,
                 true,
                 true,
-            );
+            )?;
             if t0 < 50_000.0 || t1 > seg_len - 50_000.0 {
                 return None;
             }
@@ -7495,17 +7509,14 @@ fn apply_single_ended_meander(
                             if t0 < 50_000.0 || t1 > seg_len - 50_000.0 {
                                 return None;
                             }
-                            let pt_at = |t: f64, h: f64| -> Point {
-                                [
-                                    cand.start[0] + (t * ux + h * nx).round() as i64,
-                                    cand.start[1] + (t * uy + h * ny).round() as i64,
-                                ]
+                            let pt_at = |t: f64, h: f64| {
+                                meander_point(cand.start, t * ux + h * nx, t * uy + h * ny)
                             };
                             let full = vec![
                                 cand.start,
-                                pt_at(t0, 0.0),
-                                pt_at(center_t, amp_h),
-                                pt_at(t1, 0.0),
+                                pt_at(t0, 0.0)?,
+                                pt_at(center_t, amp_h)?,
+                                pt_at(t1, 0.0)?,
                                 cand.end,
                             ];
                             let clean = simplify_collinear_points(full);
@@ -7720,6 +7731,7 @@ fn apply_coupled_pair_meander(
         None
     };
 
+    let max_amp = usable_meander_amplitude(amp_max_nm, engine.input.bounds);
     let mut attempts = MeanderAttempts::default();
     for (_, pt_orig, nt_orig) in trunk_pairs {
         let Some(li) = engine.layer_index(&pt_orig.layer) else {
@@ -7770,7 +7782,6 @@ fn apply_coupled_pair_meander(
         } else {
             (target_val - cur_avg) as f64
         };
-        let max_amp = amp_max_nm as f64;
         if max_amp <= 10_000.0 {
             continue;
         }
@@ -7797,7 +7808,7 @@ fn apply_coupled_pair_meander(
                 0.5 * (s_nm as f64),
                 false,
                 allow_chamfer,
-            );
+            )?;
             if t0 < s_nm as f64 || t1 > c_len - (s_nm as f64) {
                 return None;
             }
@@ -8054,11 +8065,8 @@ fn apply_coupled_pair_meander(
                     for &(nx, ny) in &[(-uy, ux), (uy, -ux)] {
                         let eval_coupled_v =
                             |half_span: f64| -> Option<(Vec<Point>, Vec<Point>, f64)> {
-                                let pt_at = |t: f64, h: f64| -> Point {
-                                    [
-                                        c_start[0] + (t * ux + h * nx).round() as i64,
-                                        c_start[1] + (t * uy + h * ny).round() as i64,
-                                    ]
+                                let pt_at = |t: f64, h: f64| {
+                                    meander_point(c_start, t * ux + h * nx, t * uy + h * ny)
                                 };
                                 let full_c = if alternating {
                                     let gap_mid = s_nm as f64;
@@ -8073,12 +8081,12 @@ fn apply_coupled_pair_meander(
                                     }
                                     vec![
                                         c_start,
-                                        pt_at(t0, 0.0),
-                                        pt_at(c1, amp_h),
-                                        pt_at(t1, 0.0),
-                                        pt_at(t2, 0.0),
-                                        pt_at(c2, -amp_h),
-                                        pt_at(t3, 0.0),
+                                        pt_at(t0, 0.0)?,
+                                        pt_at(c1, amp_h)?,
+                                        pt_at(t1, 0.0)?,
+                                        pt_at(t2, 0.0)?,
+                                        pt_at(c2, -amp_h)?,
+                                        pt_at(t3, 0.0)?,
                                         c_end,
                                     ]
                                 } else {
@@ -8089,9 +8097,9 @@ fn apply_coupled_pair_meander(
                                     }
                                     vec![
                                         c_start,
-                                        pt_at(t0, 0.0),
-                                        pt_at(0.5 * c_len, amp_h),
-                                        pt_at(t1, 0.0),
+                                        pt_at(t0, 0.0)?,
+                                        pt_at(0.5 * c_len, amp_h)?,
+                                        pt_at(t1, 0.0)?,
                                         c_end,
                                     ]
                                 };
@@ -9005,6 +9013,19 @@ pub fn apply_length_matching_in_tx(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn meander_coordinates_round_in_bounds_and_refuse_unrepresentable_offsets() {
+        let max = crate::model::MAX_NM;
+        assert_eq!(
+            meander_point([-max, 0], (2 * max) as f64, -0.5),
+            Some([max, -1])
+        );
+        for dx in [(2 * max + 1) as f64, f64::NAN, f64::INFINITY] {
+            assert!(meander_point([0, 0], dx, 0.0).is_none());
+        }
+        assert!(meander_point([i64::MAX, 0], 1.0, 0.0).is_none());
+    }
 
     #[test]
     fn length_matching_preserves_clearance_to_locked_same_net_branches() {
