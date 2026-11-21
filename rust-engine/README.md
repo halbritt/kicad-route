@@ -112,6 +112,11 @@ vias. With only a global declaration, a through via may connect the permitted
 outer faces across the inner layers. Allowed layers use the board's physical
 stack names. The original board's copper and design rules still apply.
 
+The native `measure-layer-policy` inventory reports via diameters in
+nanometres. Its `diameter` field gives the diameter on the via's top layer.
+When the diameter varies across its span, `diameters_by_layer` lists the
+diameter on each enabled copper layer the via reaches.
+
 Optional track cost multipliers range from 1 through 1000 in signal-layer
 order. They weight planar steps in both search directions and coupled-pair
 path selection. Fractional multipliers have a resolution of one millionth.

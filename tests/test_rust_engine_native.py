@@ -4850,6 +4850,30 @@ def test_route_native_per_net_policy_refuses_through_via_crossing_excluded_inner
     assert not target.exists()
 
 
+def test_layer_policy_inventory_preserves_independent_via_diameters(tmp_path):
+    source = ROOT / 'fixtures/route_demo/route_demo.kicad_pcb'
+    board = pcbnew.LoadBoard(str(source))
+    via = next(item for item in board.GetTracks() if item.GetClass() == 'PCB_VIA')
+    uid = via.m_Uuid.AsString()
+    top = int(via.GetWidth(pcbnew.F_Cu))
+    via.Padstack().SetMode(pcbnew.PADSTACK.MODE_FRONT_INNER_BACK)
+    via.SetWidth(pcbnew.B_Cu, top + 50_000)
+    candidate = tmp_path / 'candidate.kicad_pcb'
+    assert pcbnew.SaveBoard(str(candidate), board, True)
+    output = tmp_path / 'inventory.json'
+    proc = subprocess.run([sys.executable, str(ROOT / 'tools/rust_engine_kicad.py'),
+                           'measure-layer-policy', str(source), str(candidate), str(output),
+                           '--pour-area-loss', '0.5'],
+                          capture_output=True, text=True, check=True)
+    assert 'PCB_VIA::GetWidth called without a layer argument' not in proc.stderr
+    facts = json.loads(output.read_bytes())
+    before, after = (next(v for v in facts[key]['vias'] if v['uuid'] == uid)
+                     for key in ('source', 'candidate'))
+    assert before['diameter'] == after['diameter'] == top
+    assert 'diameters_by_layer' not in before
+    assert after['diameters_by_layer'] == {'F.Cu': top, 'B.Cu': top + 50_000}
+
+
 def test_layer_policy_probe_measures_saved_track_and_rule_bytes_without_changing_input(native_board, tmp_path):
     board = native_board
     rules = board.with_suffix('.kicad_dru')

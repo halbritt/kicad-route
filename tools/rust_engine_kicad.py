@@ -3295,9 +3295,15 @@ def _layer_copper_inventory(board, sha):
         kind = item.GetClass()
         record = {'uuid': item_id(item), 'net': item.GetNetname()}
         if kind == 'PCB_VIA':
-            vias.append({**record, 'layers': [pcbnew.LayerName(item.TopLayer()), pcbnew.LayerName(item.BottomLayer())],
-                         'position': point(item.GetPosition()), 'via_type': via_names.get(item.GetViaType(), 'unknown'),
-                         'diameter': int(item.GetWidth()), 'drill': int(item.GetDrillValue())})
+            diameters = {pcbnew.LayerName(layer): int(item.GetWidth(layer))
+                         for layer in stack if item.IsOnLayer(layer)}
+            top, bottom = pcbnew.LayerName(item.TopLayer()), pcbnew.LayerName(item.BottomLayer())
+            record.update(layers=[top, bottom], position=point(item.GetPosition()),
+                          via_type=via_names.get(item.GetViaType(), 'unknown'),
+                          diameter=diameters[top], drill=int(item.GetDrillValue()))
+            if len(set(diameters.values())) > 1:
+                record['diameters_by_layer'] = diameters
+            vias.append(record)
         elif kind in ('PCB_TRACK', 'PCB_ARC'):
             record.update(kind='arc' if kind == 'PCB_ARC' else 'segment', layer=pcbnew.LayerName(item.GetLayer()),
                           width=int(item.GetWidth()), start=point(item.GetStart()), end=point(item.GetEnd()))
