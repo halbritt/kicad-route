@@ -2176,27 +2176,39 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             nc_obj = {
                 'name': nc_name,
                 'priority': int(nc.GetPriority()) if hasattr(nc, 'GetPriority') else (2147483647 if nc_name == 'Default' else 0),
-                'clearance_nm': max(0, int(nc.GetClearance())),
-                'track_width_nm': max(0, int(nc.GetTrackWidth())),
-                'via_diameter_nm': max(0, int(nc.GetViaDiameter())),
-                'via_drill_nm': max(0, int(nc.GetViaDrill())),
-                'microvia_diameter_nm': max(0, int(nc.GetuViaDiameter())),
-                'microvia_drill_nm': max(0, int(nc.GetuViaDrill())),
-                'diff_pair_width_nm': max(0, int(nc.GetDiffPairWidth())),
-                'diff_pair_gap_nm': max(0, int(nc.GetDiffPairGap())),
-                'diff_pair_via_gap_nm': max(0, int(nc.GetDiffPairViaGap())),
+                'has_wire_width': nc.HasWireWidth(),
+                'has_bus_width': nc.HasBusWidth(),
             }
+            for key, prop in (('clearance', 'Clearance'), ('track_width', 'TrackWidth'),
+                              ('via_diameter', 'ViaDiameter'), ('via_drill', 'ViaDrill'),
+                              ('microvia_diameter', 'uViaDiameter'), ('microvia_drill', 'uViaDrill'),
+                              ('diff_pair_width', 'DiffPairWidth'), ('diff_pair_gap', 'DiffPairGap'),
+                              ('diff_pair_via_gap', 'DiffPairViaGap')):
+                if getattr(nc, 'Has' + prop)():
+                    nc_obj[key + '_nm'] = int(getattr(nc, 'Get' + prop)())
             if tp:
                 nc_obj['tuning_profile'] = tp
             nc_items.append(nc_obj)
         if nc_items:
             bds['netclasses'] = nc_items
         nc_assign = {}
+        members_by_name = {}
+        comma_names = [name for name in seen_nc if ',' in name]
         for code, net in board.GetNetsByNetcode().items():
             if code > 0:
                 nc_name = net.GetNetClassName()
                 if nc_name and nc_name != 'Default':
-                    nc_assign[net.GetNetname()] = [nc_name]
+                    if ',' not in nc_name:
+                        nc_assign[net.GetNetname()] = [nc_name]
+                        continue
+                    if nc_name not in members_by_name:
+                        effective = net_settings.GetEffectiveNetClass(net.GetNetname())
+                        # A comma may belong to a real class name. Verify each possible
+                        # member against the native constituent list before exporting it.
+                        candidates = set(nc_name.split(',')) | {name for name in comma_names if name in nc_name}
+                        members_by_name[nc_name] = [name for name in sorted(candidates)
+                                                    if effective.ContainsNetclassWithName(name)]
+                    nc_assign[net.GetNetname()] = members_by_name[nc_name] or [nc_name]
         if nc_assign:
             bds['netclass_assignments'] = nc_assign
     if hasattr(settings, 'm_UseHeightForLengthCalcs'):
@@ -2826,6 +2838,57 @@ def _check_result_groups(plan, names, selected):
             raise ValueError('Rust output bus group contains duplicate lanes')
 
 
+def _verify_added_copper_sizes(saved, added_ids, pairs, options):
+    """Measure only newly published copper against KiCad's resolved project classes."""
+    options = options or {}
+    if not added_ids:
+        return
+    pair_nets = set()
+    for pair in pairs:
+        pos, neg = pair['pos_net'], pair['neg_net']
+        if [pair['pos_name'], pair['neg_name']] in options.get('explicit_pairs', []):
+            pair_nets.update((pos, neg))
+        elif options.get('diff_pairs_mode') == 'auto':
+            # The result alone cannot authorize a smaller differential width.
+            partner = saved.DpCoupledNet(saved.FindNet(pos))
+            if partner and partner.GetNetCode() == neg:
+                pair_nets.update((pos, neg))
+
+    seen = set()
+    classes = {}
+    settings = saved.GetDesignSettings().m_NetSettings
+    cu_layers, _ = _cu_stack(saved)
+    for item in saved.GetTracks():
+        ident = item_id(item)
+        if ident not in added_ids:
+            continue
+        seen.add(ident)
+        net = item.GetNetCode()
+        if net not in classes:
+            classes[net] = settings.GetEffectiveNetClass(item.GetNetname())
+        nc = classes[net]
+        if isinstance(item, pcbnew.PCB_VIA):
+            micro = item.GetViaType() == pcbnew.VIATYPE_MICROVIA
+            diameter = nc.GetuViaDiameter() if micro else nc.GetViaDiameter()
+            drill = nc.GetuViaDrill() if micro else nc.GetViaDrill()
+            top, bottom = sorted((cu_layers.index(item.TopLayer()), cu_layers.index(item.BottomLayer())))
+            span = cu_layers[top:bottom + 1]
+            measurements = [('via diameter', min(item.GetWidth(layer) for layer in span), diameter),
+                            ('via drill', item.GetDrillValue(), drill)]
+        else:
+            width = nc.GetDiffPairWidth() if item.GetNetCode() in pair_nets else nc.GetTrackWidth()
+            measurements = [('track width', item.GetWidth(), width)]
+        for label, actual, floor in measurements:
+            if floor <= 0:
+                raise UnsupportedBoard(f'KiCad supplied no positive {label} for netclass {nc.GetName()!r}')
+            if actual < floor:
+                raise NativeValidationError(
+                    f'{item.GetNetname()!r} {ident} {label} {actual} nm below '
+                    f'native netclass {nc.GetName()!r} floor {floor} nm')
+    if seen != added_ids:
+        raise NativeValidationError('saved board is missing added copper')
+
+
 def _refilled_copper(board, shift):
     """Measure the saved copper using the request's coordinate frame."""
     cu_layers, _ = _cu_stack(board)
@@ -3136,6 +3199,8 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
             saved.BuildConnectivity()
             before = native_violations(before_board, directory / 'before-drc.json', timeout=drc_timeout)
             after = native_violations(temporary, directory / 'after-drc.json', timeout=drc_timeout)
+        _verify_added_copper_sizes(saved, {item['id'] for item in additions + added_vias},
+                                   plan.get('diff_pairs', []), req_doc.get('routing_options'))
         key = lambda violation: json.dumps(violation, sort_keys=True)
         introduced = Counter(map(key, after['violations'])) - Counter(map(key, before['violations']))
         try:

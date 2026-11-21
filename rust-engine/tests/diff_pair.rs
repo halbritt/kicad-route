@@ -69,6 +69,7 @@ fn base_diff_input(net_names: &[&str]) -> Input {
             diff_pair_gap_nm: 350_000,
             diff_pair_via_gap_nm: 250_000,
             tuning_profile: None,
+            ..Default::default()
         },
         NetClassDef {
             name: "DIFF".to_owned(),
@@ -83,6 +84,7 @@ fn base_diff_input(net_names: &[&str]) -> Input {
             diff_pair_gap_nm: 350_000,
             diff_pair_via_gap_nm: 250_000,
             tuning_profile: None,
+            ..Default::default()
         },
     ];
     Input {
@@ -336,6 +338,23 @@ fn pair_discovery_supports_conventions_sheet_paths_and_refuses_invalid_preflight
     let r5 = resolve_effective_rules(&mut misclass).unwrap();
     assert_eq!(
         discover_and_validate(&misclass, &r5).unwrap_err().status,
+        Status::Invalid
+    );
+
+    // A comma in a class name can give two distinct assignments the same display name.
+    let logical = base_diff_input(&["A_P", "A_N"]);
+    let mut definitions = logical.clone();
+    let mut rules = resolve_effective_rules(&mut definitions).unwrap();
+    for row in rules.net_rules.values_mut().filter(|r| r.net_id > 0) {
+        row.class_name = "A,B".into();
+        row.class_members = if row.net_name == "A_P" {
+            vec!["A,B".into()]
+        } else {
+            vec!["A".into(), "B".into()]
+        };
+    }
+    assert_eq!(
+        discover_and_validate(&logical, &rules).unwrap_err().status,
         Status::Invalid
     );
 

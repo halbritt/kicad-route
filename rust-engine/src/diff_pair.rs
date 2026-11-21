@@ -1264,7 +1264,7 @@ fn discover_and_validate_with_copper(
         }
         let pr = rules.net(pos_net);
         let nr = rules.net(neg_net);
-        if pr.class_name != nr.class_name {
+        if pr.class_name != nr.class_name || pr.class_members != nr.class_members {
             return Err(Failure::new(
                 Status::Invalid,
                 format!(

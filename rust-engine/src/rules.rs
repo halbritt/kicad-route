@@ -239,17 +239,35 @@ impl Default for BoardMinimums {
 pub struct NetClassDef {
     pub name: String,
     pub priority: i64,
+    #[serde(default = "unset_dimension")]
     pub clearance_nm: i64,
+    #[serde(default = "unset_dimension")]
     pub track_width_nm: i64,
+    #[serde(default = "unset_dimension")]
     pub via_diameter_nm: i64,
+    #[serde(default = "unset_dimension")]
     pub via_drill_nm: i64,
+    #[serde(default = "unset_dimension")]
     pub microvia_diameter_nm: i64,
+    #[serde(default = "unset_dimension")]
     pub microvia_drill_nm: i64,
+    #[serde(default = "unset_dimension")]
     pub diff_pair_width_nm: i64,
+    #[serde(default = "unset_dimension")]
     pub diff_pair_gap_nm: i64,
+    #[serde(default = "unset_dimension")]
     pub diff_pair_via_gap_nm: i64,
+    // These schematic fields also decide whether KiCad adds Default to the compound name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_wire_width: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub has_bus_width: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tuning_profile: Option<String>,
+}
+
+fn unset_dimension() -> i64 {
+    -1
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
@@ -1038,6 +1056,21 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
         let ns = ns_val.as_object().ok_or_else(|| {
             Failure::new(Status::Invalid, ".kicad_pro net_settings must be an object")
         })?;
+        let schema = ns
+            .get("meta")
+            .and_then(|v| v.get("version"))
+            .map(|v| {
+                v.as_u64().filter(|v| *v <= 5).ok_or_else(|| {
+                    Failure::new(
+                        Status::Unsupported,
+                        "unsupported .kicad_pro net_settings version",
+                    )
+                })
+            })
+            .transpose()?;
+        let legacy_patterns = schema.is_some_and(|v| v <= 2) && ns.contains_key("classes");
+        let mut legacy_priority = 0;
+        let mut class_indices = BTreeMap::new();
         if let Some(cls_val) = ns.get("classes") {
             let cls_arr = cls_val.as_array().ok_or_else(|| {
                 Failure::new(
@@ -1059,7 +1092,52 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                         Failure::new(Status::Invalid, ".kicad_pro netclass missing name")
                     })?
                     .to_owned();
-                let priority = c.get("priority").and_then(|v| v.as_i64()).unwrap_or(0);
+                let index = *class_indices.entry(name.clone()).or_insert(classes.len());
+                let priority = if schema.is_some_and(|v| v <= 3) {
+                    if name == "Default" {
+                        i64::from(i32::MAX)
+                    } else {
+                        legacy_priority += 1;
+                        legacy_priority - 1
+                    }
+                } else {
+                    c.get("priority")
+                        .map(|v| {
+                            v.as_i64()
+                                .filter(|n| i32::try_from(*n).is_ok())
+                                .ok_or_else(|| {
+                                    Failure::new(
+                                        Status::Unsupported,
+                                        "netclass priority must be a signed 32-bit integer",
+                                    )
+                                })
+                        })
+                        .transpose()?
+                        .unwrap_or(-1)
+                };
+                if legacy_patterns {
+                    if let Some(nets) = c.get("nets").and_then(|v| v.as_array()) {
+                        for value in nets {
+                            let pattern = value.as_str().ok_or_else(|| {
+                                Failure::new(
+                                    Status::Invalid,
+                                    ".kicad_pro legacy netclass nets must be strings",
+                                )
+                            })?;
+                            if schema == Some(0) && pattern.contains('~') {
+                                return Err(Failure::new(
+                                    Status::Unsupported,
+                                    "legacy netclass overbar notation requires project migration",
+                                ));
+                            }
+                            patterns.push(NetClassPattern {
+                                netclass: name.clone(),
+                                pattern: pattern.to_owned(),
+                                matcher: PatternMatcher::compile(pattern)?,
+                            });
+                        }
+                    }
+                }
                 let tuning_profile = match c.get("tuning_profile") {
                     None | Some(serde_json::Value::Null) => None,
                     Some(v) => {
@@ -1072,20 +1150,28 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                         (!s.is_empty()).then(|| s.to_owned())
                     }
                 };
-                classes.push(NetClassDef {
+                let class = NetClassDef {
                     name,
                     priority,
-                    clearance_nm: json_mm_field(c, "clearance", 0)?,
-                    track_width_nm: json_mm_field(c, "track_width", 0)?,
-                    via_diameter_nm: json_mm_field(c, "via_diameter", 0)?,
-                    via_drill_nm: json_mm_field(c, "via_drill", 0)?,
-                    microvia_diameter_nm: json_mm_field(c, "microvia_diameter", 0)?,
-                    microvia_drill_nm: json_mm_field(c, "microvia_drill", 0)?,
-                    diff_pair_width_nm: json_mm_field(c, "diff_pair_width", 0)?,
-                    diff_pair_gap_nm: json_mm_field(c, "diff_pair_gap", 0)?,
-                    diff_pair_via_gap_nm: json_mm_field(c, "diff_pair_via_gap", 0)?,
-                    tuning_profile,
-                });
+                    clearance_nm: json_mm_field(c, "clearance", -1)?,
+                    track_width_nm: json_mm_field(c, "track_width", -1)?,
+                    via_diameter_nm: json_mm_field(c, "via_diameter", -1)?,
+                    via_drill_nm: json_mm_field(c, "via_drill", -1)?,
+                    microvia_diameter_nm: json_mm_field(c, "microvia_diameter", -1)?,
+                    microvia_drill_nm: json_mm_field(c, "microvia_drill", -1)?,
+                    diff_pair_width_nm: json_mm_field(c, "diff_pair_width", -1)?,
+                    diff_pair_gap_nm: json_mm_field(c, "diff_pair_gap", -1)?,
+                    diff_pair_via_gap_nm: json_mm_field(c, "diff_pair_via_gap", -1)?,
+                    has_wire_width: Some(c.get("wire_width").is_some_and(|v| v.is_number())),
+                    has_bus_width: Some(c.get("bus_width").is_some_and(|v| v.is_number())),
+                    tuning_profile: tuning_profile.filter(|_| !schema.is_some_and(|v| v <= 4)),
+                };
+                if index == classes.len() {
+                    classes.push(class);
+                } else {
+                    // KiCad keeps the last definition with a given name.
+                    classes[index] = class;
+                }
             }
         }
         if let Some(assign_val) = ns.get("netclass_assignments") {
@@ -1133,7 +1219,7 @@ pub fn parse_kicad_pro(bytes: &[u8]) -> Result<ProjectRules, Failure> {
                 }
             }
         }
-        if let Some(pat_val) = ns.get("netclass_patterns") {
+        if let Some(pat_val) = ns.get("netclass_patterns").filter(|_| !legacy_patterns) {
             if !pat_val.is_null() {
                 let arr = pat_val.as_array().ok_or_else(|| {
                     Failure::new(
@@ -2149,14 +2235,18 @@ impl<'a> ExprParser<'a> {
                                 layer: LayerSelector::pattern(fn_args.pop().unwrap()),
                             }))
                         }
-                        "A.hasNetClass" if fn_args.len() == 1 => Ok(Err(DruExpr::HasNetClass {
-                            side: Side::A,
-                            class_name: fn_args.pop().unwrap(),
-                        })),
-                        "B.hasNetClass" if fn_args.len() == 1 => Ok(Err(DruExpr::HasNetClass {
-                            side: Side::B,
-                            class_name: fn_args.pop().unwrap(),
-                        })),
+                        "A.hasNetclass" | "A.hasNetClass" if fn_args.len() == 1 => {
+                            Ok(Err(DruExpr::HasNetClass {
+                                side: Side::A,
+                                class_name: fn_args.pop().unwrap(),
+                            }))
+                        }
+                        "B.hasNetclass" | "B.hasNetClass" if fn_args.len() == 1 => {
+                            Ok(Err(DruExpr::HasNetClass {
+                                side: Side::B,
+                                class_name: fn_args.pop().unwrap(),
+                            }))
+                        }
                         "A.inDiffPair" if fn_args.len() == 1 => Ok(Err(DruExpr::InDiffPair {
                             side: Side::A,
                             pattern: fn_args.pop().unwrap(),
@@ -2820,7 +2910,20 @@ fn eval_value_eq(
         | (DruValueExpr::StrLit(lit), DruValueExpr::Prop(s, p)) => {
             let Some(it) = pick(*s) else { return false };
             match p {
-                DruProp::NetClass => it.net_class == lit,
+                DruProp::NetClass => {
+                    let mut names = std::iter::once(it.net_class)
+                        .chain(it.class_members.iter().map(String::as_str));
+                    if lit.contains(['*', '?']) {
+                        let pattern = lit.to_lowercase();
+                        names.any(|name| wildcard_full_match(&pattern, &name.to_lowercase()))
+                    } else {
+                        names.any(|name| {
+                            name.eq_ignore_ascii_case(lit)
+                                || ((!name.is_ascii() || !lit.is_ascii())
+                                    && name.to_lowercase() == lit.to_lowercase())
+                        })
+                    }
+                }
                 DruProp::NetName => it.net_name == lit,
                 DruProp::Type => it.kind.as_kicad_str() == lit,
                 DruProp::Net => it.net_name == lit,
@@ -2830,7 +2933,9 @@ fn eval_value_eq(
         (DruValueExpr::Prop(s1, p1), DruValueExpr::Prop(s2, p2)) if p1 == p2 => {
             match (pick(*s1), pick(*s2)) {
                 (Some(i1), Some(i2)) => match p1 {
-                    DruProp::NetClass => i1.net_class == i2.net_class,
+                    DruProp::NetClass => {
+                        i1.net_class == i2.net_class && i1.class_members == i2.class_members
+                    }
                     DruProp::NetName => i1.net_name == i2.net_name,
                     DruProp::Type => i1.kind == i2.kind,
                     DruProp::Net | DruProp::Layer => unreachable!(),
@@ -2890,7 +2995,13 @@ pub fn eval_dru_expr_for_context(
                 Side::B => b,
             };
             it.is_some_and(|item| {
-                item.net_class == class_name || item.class_members.iter().any(|c| c == class_name)
+                item.class_members.iter().any(|member| {
+                    if class_name.contains(['*', '?']) {
+                        wildcard_full_match(class_name, member)
+                    } else {
+                        member == class_name
+                    }
+                })
             })
         }
         DruExpr::InDiffPair { side, pattern } => {
@@ -3779,54 +3890,80 @@ fn merge_minimums(bds: Option<&BoardDesignSettings>, pro: Option<&ProjectRules>)
     m
 }
 
-fn resolve_net_classes<'a>(
-    net_name: &str,
-    pro: &'a ProjectRules,
-) -> (String, Vec<String>, Option<&'a NetClassDef>) {
-    if net_name.is_empty() {
-        let def = pro.classes.iter().find(|c| c.name == "Default");
-        return ("Default".to_owned(), vec!["Default".to_owned()], def);
-    }
-    let mut matched_names: BTreeSet<String> = BTreeSet::new();
-    if let Some(assigned) = pro.assignments.get(net_name) {
-        for c in assigned {
-            matched_names.insert(c.clone());
+fn resolve_net_classes(net_name: &str, pro: &ProjectRules) -> (String, Vec<String>, NetClassDef) {
+    let mut names = BTreeSet::new();
+    if !net_name.is_empty() {
+        if let Some(assigned) = pro.assignments.get(net_name) {
+            names.extend(
+                assigned
+                    .iter()
+                    .map(String::as_str)
+                    .filter(|name| !name.is_empty()),
+            );
+        }
+        for pattern in &pro.patterns {
+            if pattern.matcher.matches(net_name) {
+                names.insert(pattern.netclass.as_str());
+            }
         }
     }
-    for pat in &pro.patterns {
-        if pat.matcher.matches(net_name) {
-            matched_names.insert(pat.netclass.clone());
-        }
-    }
-    matched_names.remove("Default");
-    let mut members: Vec<String> = matched_names.into_iter().collect();
-    if members.is_empty() {
+    let default = pro.classes.iter().find(|class| class.name == "Default");
+    // Implicit label classes contribute their name to DRU predicates but no dimensions.
+    let mut ordered: Vec<_> = names
+        .into_iter()
+        .map(|name| (name, pro.classes.iter().find(|class| class.name == name)))
+        .collect();
+    ordered.sort_by_key(|(name, class)| {
+        (class.map_or(i64::from(i32::MAX - 1), |c| c.priority), *name)
+    });
+    let mut members: Vec<_> = ordered.iter().map(|(name, _)| (*name).to_owned()).collect();
+    let defs: Vec<_> = ordered.iter().filter_map(|(_, class)| *class).collect();
+    let mut needs_default = members.is_empty()
+        || !defs.iter().any(|c| c.has_wire_width.unwrap_or(true))
+        || !defs.iter().any(|c| c.has_bus_width.unwrap_or(true));
+    let tuning_profile = defs
+        .iter()
+        .find_map(|c| c.tuning_profile.clone())
+        .or_else(|| {
+            let profile = default?.tuning_profile.clone()?;
+            needs_default = true;
+            Some(profile)
+        });
+    // Unlike the other dimensions, KiCad does not inherit a missing diff-pair via gap.
+    let via_gap = if members.is_empty() {
+        default.map_or(-1, |c| c.diff_pair_via_gap_nm)
+    } else {
+        defs.iter()
+            .map(|c| c.diff_pair_via_gap_nm)
+            .find(|n| *n >= 0)
+            .unwrap_or(-1)
+    };
+    let mut dimension = |get: fn(&NetClassDef) -> i64| {
+        defs.iter()
+            .map(|c| get(c))
+            .find(|n| *n >= 0)
+            .unwrap_or_else(|| {
+                needs_default = true;
+                default.map_or(-1, get)
+            })
+    };
+    let effective = NetClassDef {
+        clearance_nm: dimension(|c| c.clearance_nm),
+        track_width_nm: dimension(|c| c.track_width_nm),
+        via_diameter_nm: dimension(|c| c.via_diameter_nm),
+        via_drill_nm: dimension(|c| c.via_drill_nm),
+        microvia_diameter_nm: dimension(|c| c.microvia_diameter_nm),
+        microvia_drill_nm: dimension(|c| c.microvia_drill_nm),
+        diff_pair_width_nm: dimension(|c| c.diff_pair_width_nm),
+        diff_pair_gap_nm: dimension(|c| c.diff_pair_gap_nm),
+        diff_pair_via_gap_nm: via_gap,
+        tuning_profile,
+        ..Default::default()
+    };
+    if needs_default && !members.iter().any(|name| name == "Default") {
         members.push("Default".to_owned());
     }
-    let mut matched_defs: Vec<&NetClassDef> = pro
-        .classes
-        .iter()
-        .filter(|c| members.iter().any(|m| m == &c.name))
-        .collect();
-    matched_defs.sort_by(|a, b| {
-        b.priority
-            .cmp(&a.priority)
-            .then_with(|| a.name.cmp(&b.name))
-    });
-    let class_name = if members.len() == 1 {
-        members[0].clone()
-    } else {
-        matched_defs
-            .iter()
-            .map(|d| d.name.as_str())
-            .collect::<Vec<_>>()
-            .join(",")
-    };
-    let primary = matched_defs
-        .first()
-        .copied()
-        .or_else(|| pro.classes.iter().find(|c| c.name == "Default"));
-    (class_name, members, primary)
+    (members.join(","), members, effective)
 }
 
 fn resolve_rule_layers(
@@ -3965,6 +4102,15 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
                 );
                 if project.assignments.is_empty() && project.patterns.is_empty() {
                     project.assignments.clone_from(&board.netclass_assignments);
+                }
+            } else if !project.classes.iter().any(|class| class.name == "Default") {
+                if let Some(default) = input.board_design_settings.as_ref().and_then(|settings| {
+                    settings
+                        .netclasses
+                        .iter()
+                        .find(|class| class.name == "Default")
+                }) {
+                    project.classes.push(default.clone());
                 }
             }
             Some(project)
@@ -4188,20 +4334,27 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
         .collect();
 
     for net in all_nets {
-        let (class_name, class_members, cls_opt) = match &pro {
+        let (class_name, class_members, class) = match &pro {
             Some(p) => resolve_net_classes(&net.name, p),
-            None => ("Default".to_owned(), vec!["Default".to_owned()], None),
+            None => (
+                "Default".to_owned(),
+                vec!["Default".to_owned()],
+                NetClassDef {
+                    clearance_nm: -1,
+                    ..Default::default()
+                },
+            ),
         };
-        let cls_w = cls_opt.map_or(0, |c| c.track_width_nm);
-        let cls_c = cls_opt.map_or(0, |c| c.clearance_nm);
-        let cls_vd = cls_opt.map_or(0, |c| c.via_diameter_nm);
-        let cls_vdr = cls_opt.map_or(0, |c| c.via_drill_nm);
-        let cls_mvd = cls_opt.map_or(0, |c| c.microvia_diameter_nm);
-        let cls_mvdr = cls_opt.map_or(0, |c| c.microvia_drill_nm);
-        let diff_pair_width_nm = cls_opt.map_or(0, |c| c.diff_pair_width_nm);
-        let diff_pair_gap_nm = cls_opt.map_or(0, |c| c.diff_pair_gap_nm);
-        let diff_pair_via_gap_nm = cls_opt.map_or(0, |c| c.diff_pair_via_gap_nm);
-        let tuning_profile = cls_opt.and_then(|c| c.tuning_profile.clone());
+        let cls_w = class.track_width_nm;
+        let cls_c = class.clearance_nm;
+        let cls_vd = class.via_diameter_nm;
+        let cls_vdr = class.via_drill_nm;
+        let cls_mvd = class.microvia_diameter_nm;
+        let cls_mvdr = class.microvia_drill_nm;
+        let diff_pair_width_nm = class.diff_pair_width_nm.max(0);
+        let diff_pair_gap_nm = class.diff_pair_gap_nm.max(0);
+        let diff_pair_via_gap_nm = class.diff_pair_via_gap_nm.max(0);
+        let tuning_profile = class.tuning_profile;
 
         let mut width_nm = (if cls_w > 0 {
             cls_w
@@ -4209,7 +4362,7 @@ pub fn resolve_effective_rules(input: &mut Input) -> Result<EffectiveRules, Fail
             base_rules.width_nm
         })
         .max(minimums.min_track_width_nm);
-        let mut clearance_nm = (if cls_c > 0 {
+        let mut clearance_nm = (if cls_c >= 0 {
             cls_c
         } else {
             base_rules.clearance_nm
@@ -4587,9 +4740,88 @@ mod tests {
         assert_eq!(parsed.minimums.min_via_diameter_nm, 1_500_000);
         assert!(parsed.minimums.allow_blind_buried_vias);
         assert!(!parsed.minimums.allow_microvias);
-        assert_eq!(resolve_net_classes("in1", &parsed).0, "FastIn");
+        assert_eq!(resolve_net_classes("in1", &parsed).0, "FastIn,Default");
         assert_eq!(resolve_net_classes("plain_in", &parsed).0, "Default");
-        assert_eq!(resolve_net_classes("VCC", &parsed).0, "FastIn");
+        assert_eq!(resolve_net_classes("VCC", &parsed).0, "FastIn,Default");
+    }
+
+    #[test]
+    fn compound_class_uses_priority_per_field_and_preserves_constituents() {
+        let mut ns = serde_json::json!({
+            "meta": {"version": 5},
+            "classes": [
+                {"name":"Default","via_drill":0.35,"diff_pair_via_gap":0.9,"tuning_profile":"DEFAULT"},
+                {"name":"Power","priority":4,"track_width":0.50,"clearance":0.0,"diff_pair_gap":0.19},
+                {"name":"HV","priority":1,"track_width":0.25,"via_diameter":0.85,"microvia_drill":0.12}
+            ],
+            "netclass_patterns":[{"pattern":"VIN","netclass":"Power"},{"pattern":"VIN","netclass":"HV"}]
+        });
+        let resolve = |ns: &serde_json::Value| {
+            let pro = serde_json::json!({"meta":{"version":1}, "net_settings":ns});
+            let parsed = parse_kicad_pro(pro.to_string().as_bytes()).unwrap();
+            resolve_net_classes("VIN", &parsed)
+        };
+        for version in [3, 4, 5] {
+            ns["meta"]["version"] = version.into();
+            let (name, _, rules) = resolve(&ns);
+            let expected = if version == 3 {
+                ("Power,HV,Default", 500_000)
+            } else {
+                ("HV,Power,Default", 250_000)
+            };
+            assert_eq!((name.as_str(), rules.track_width_nm), expected);
+            assert_eq!(
+                (rules.via_diameter_nm, rules.via_drill_nm),
+                (850_000, 350_000)
+            );
+            assert_eq!(
+                (
+                    rules.clearance_nm,
+                    rules.microvia_drill_nm,
+                    rules.diff_pair_gap_nm
+                ),
+                (0, 120_000, 190_000)
+            );
+            assert_eq!(rules.diff_pair_via_gap_nm, -1);
+            assert_eq!(
+                rules.tuning_profile.as_deref(),
+                (version == 5).then_some("DEFAULT")
+            );
+        }
+        ns["classes"][1]["priority"] = 1.into();
+        ns["netclass_assignments"] = serde_json::json!({"VIN":["Tag,with comma"]});
+        let (name, members, _) = resolve(&ns);
+        assert_eq!(members, ["HV", "Power", "Tag,with comma", "Default"]);
+        assert_eq!(name, "HV,Power,Tag,with comma,Default");
+        let item = DruItem {
+            net_id: 1,
+            net_name: "VIN",
+            net_class: &name,
+            class_members: &members,
+            kind: DruItemKind::Track,
+            layers: &[],
+        };
+        for (pattern, expected) in [("H?", true), ("Power", true), (&name, false)] {
+            assert_eq!(
+                eval_dru_expr(
+                    &DruExpr::HasNetClass {
+                        side: Side::A,
+                        class_name: pattern.to_owned()
+                    },
+                    &item,
+                    None
+                ),
+                expected
+            );
+        }
+        ns["meta"]["version"] = 2.into();
+        ns["classes"][1]["nets"] = serde_json::json!(["VIN"]);
+        ns["netclass_assignments"] = serde_json::Value::Null;
+        let (name, _, rules) = resolve(&ns);
+        assert_eq!(
+            (name.as_str(), rules.track_width_nm),
+            ("Power,Default", 500_000)
+        );
     }
 
     #[test]

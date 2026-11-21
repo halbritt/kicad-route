@@ -133,6 +133,16 @@ the board and project. Its track width, clearance and through-via dimensions
 must be resolved. Any board-wide minima and custom rules still apply. An
 explicit project format version must be in the supported range of 1 through 3.
 
+For a net assigned to several classes, Rust resolves each routing dimension
+from the first class that defines it. KiCad net settings through version 3 use
+the class list order. Later versions sort by ascending numeric priority and
+then by class name. Version-0 projects using legacy overbar notation in class
+assignments require migration in KiCad. Missing track and via dimensions inherit from Default.
+Custom rules can select a constituent class and raise its dimensions. Before
+publication KiCad reloads the candidate and the adapter checks the width of
+each new track and the diameter and drill of each new via against the native
+effective class. Requested differential pairs use their differential width.
+
 Copper geometry uses
 KiCad's standard layer names, such as `F.Cu` and `In1.Cu`. When the board
 renames a copper layer, the optional `board_design_settings.layer_aliases` map
