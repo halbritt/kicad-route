@@ -977,7 +977,13 @@ pub fn discover_and_validate(
     input: &Input,
     rules: &EffectiveRules,
 ) -> Result<DiffPairPlan, Failure> {
-    discover_and_validate_with_copper(input, &input.tracks, &input.vias, rules)
+    discover_and_validate_with_copper(
+        input,
+        &input.tracks,
+        &input.vias,
+        rules,
+        &WorkBudget::new(input.limits),
+    )
 }
 
 fn discover_and_validate_with_copper(
@@ -985,10 +991,11 @@ fn discover_and_validate_with_copper(
     copper_tracks: &[Track],
     copper_vias: &[Via],
     rules: &EffectiveRules,
+    work: &WorkBudget,
 ) -> Result<DiffPairPlan, Failure> {
     let empty_opts = RoutingOptions::default();
     let opts = input.routing_options.as_ref().unwrap_or(&empty_opts);
-    let active_nets = crate::net_scope::active_nets(input)?;
+    let active_nets = crate::net_scope::active_nets(input, work)?;
     let protect_mode = opts.protect_mode.unwrap_or(ProtectMode::None);
     let protected_nets = compute_protected_nets(copper_tracks, copper_vias, protect_mode);
 
@@ -6446,6 +6453,7 @@ pub(crate) fn plan_diff_pairs(engine: &Engine) -> Result<DiffPairRunState, Failu
         engine.copper.input(),
         engine.copper.input_vias(),
         &engine.effective_rules,
+        engine.work(),
     )?;
     let routed_pair_nets: BTreeSet<u32> = plan
         .pairs

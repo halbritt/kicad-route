@@ -176,6 +176,8 @@ fn route_all_only_edits_nets_selected_by_the_native_pattern() {
     let cases: &[(&[&str], &[u32])] = &[
         (&["!SIG_[AB]"], &[3, 4, 5, 6, 7, 8]),
         (&["SIG_[AB]"], &[1, 2, 9]),
+        (&["!no-such-net"], &[1, 2, 3, 4, 5, 6, 7, 8, 9]),
+        (&["!SIG_B", "SIG_[AB]"], &[1, 9]),
         (&["/SIG_[AB]"], &[1]),
         (&["SIG_[A-C]", "!/block/*", "!/SIG_C"], &[1, 9]),
         (&["/block/D[[]0]"], &[4]),
@@ -223,6 +225,23 @@ fn route_all_only_edits_nets_selected_by_the_native_pattern() {
         assert_eq!(engine.copper().generated().count(), 0);
         assert_eq!(engine.copper().generated_vias().count(), 0);
     }
+}
+
+#[test]
+fn filtered_work_exhaustion_precedes_every_candidate_edit() {
+    let name = "a".repeat(1024);
+    let mut input = base_diff_input(&["/routed", &name]);
+    input.limits.max_work = 8_000;
+    input.routing_options = Some(RoutingOptions {
+        net_filters: vec!["routed".to_owned(), format!("*{}z*", "a".repeat(128))],
+        ..Default::default()
+    });
+    let mut engine = Engine::new(input).unwrap();
+    let error = engine.route_all().unwrap_err();
+    assert_eq!(error.status, Status::WorkExhausted);
+    assert_eq!(error.work_used, 8_000);
+    assert!(engine.copper().generated().next().is_none());
+    assert!(engine.copper().generated_vias().next().is_none());
 }
 
 #[test]
