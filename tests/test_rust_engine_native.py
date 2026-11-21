@@ -3703,6 +3703,46 @@ def test_native_nearly_complete_arc_detours_and_reopens(tmp_path, guarded_cli, l
     assert after['unconnected_items'] == [] and after['violations'] == []
 
 
+def test_native_new_stroke_anchors_into_locked_circular_arc(tmp_path, guarded_cli):
+    from tests.e2e_rust_router.kicad_verify import BoardBuilder
+
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = BoardBuilder(seed=2309)
+    board.set_rect_outline(-4_000_000, -4_000_000, 4_000_000, 4_000_000)
+    start, mid, end = (1_999_326, 343), (-2_000_674, 1_158), (1_999_325, -1_287)
+    for ref, at, diameter in [('J1', start, 200_000), ('J2', (499_326, 2_000_753), 40_000)]:
+        fp = board.add_footprint(ref, at)
+        board.add_pad(fp, '1', 'SIG', at, size_nm=(diameter, diameter), shape=pcbnew.PAD_SHAPE_CIRCLE)
+    arc = board.add_arc('SIG', start, mid, end, 20_000, locked=True)
+    src = board.save(tmp_path / 'input').pcb_path
+    original = src.read_bytes()
+    before = run_native_drc(src, sidecar_source=src).raw
+    assert len(before['unconnected_items']) == 1
+    rules_path = tmp_path / 'rules.json'
+    rules_path.write_text(json.dumps({'width_nm': 250_000, 'clearance_nm': 250_000,
+                                     'grid_nm': 100_000, 'edge_clearance_nm': 500_000}))
+    out = tmp_path / 'routed.kicad_pcb'
+    done = run([str(engine), 'route-native', str(src), str(out), '--rules', str(rules_path)], check=False)
+    assert done.returncode == 0, (done.stdout, done.stderr)
+    assert src.read_bytes() == original
+    after = run_native_drc(out, sidecar_source=src).raw
+    assert after['unconnected_items'] == []
+    # The source arc is narrower than its project rule. Preserve its native
+    # finding and its exact copper while attaching the open pad to its sweep.
+    assert Counter(v['type'] for v in before['violations']) == {'track_width': 1}
+    assert after['violations'] == before['violations']
+    saved = pcbnew.LoadBoard(str(out))
+    saved.BuildConnectivity()
+    saved_arc, = [t for t in saved.GetTracks() if t.GetClass() == 'PCB_ARC']
+    assert (bridge.item_id(saved_arc), saved_arc.GetWidth(), saved_arc.IsLocked()) == (
+        bridge.item_id(arc), 20_000, True)
+    assert [bridge.point(get()) for get in (saved_arc.GetStart, saved_arc.GetMid, saved_arc.GetEnd)] == [
+        list(start), list(mid), list(end)]
+    neighbors = list(saved.GetConnectivity().GetConnectedTracks(saved_arc))
+    assert any(t.GetClass() == 'PCB_TRACK' for t in neighbors)
+
+
 def test_solder_mask_expansion_zero_to_copper_detour_and_drc(tmp_path, guarded_cli):
     run, _ = guarded_cli
     engine = _built_rust_engine(run)

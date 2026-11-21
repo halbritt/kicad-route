@@ -1003,6 +1003,65 @@ pub fn track_near_mask(
     }
 }
 
+/// Both the exact defining points and the shrunk chord envelope certify a
+/// centerline distance to the finite arc.
+fn track_within_arc(
+    t: &Track,
+    start: Point,
+    mid: Point,
+    end: Point,
+    body_reach: i64,
+    endpoint_reach: i64,
+) -> bool {
+    let within =
+        |p, distance| point_near_segment(p, t.start, t.end, 2 * i128::from(distance), true);
+    if within(start, endpoint_reach) || within(end, endpoint_reach) || within(mid, body_reach) {
+        return true;
+    }
+    let (chords, sag) = arc_to_conservative_chords(start, mid, end);
+    if body_reach < sag {
+        // A thin stroke may have no certified chord interior. Its rounded
+        // subdivision vertices still lie within 1 nm of the true arc.
+        return chords.iter().any(|&p| within(p, body_reach - 1));
+    }
+    chords.windows(2).any(|w| {
+        segments_near(
+            t.start,
+            t.end,
+            w[0],
+            w[1],
+            2 * i128::from(body_reach - sag),
+            true,
+        )
+    })
+}
+
+pub(crate) fn track_lands_on_graphic(t: &Track, g: &CopperGraphic) -> bool {
+    if let GraphicShape::Arc {
+        start,
+        mid,
+        end,
+        width_nm,
+    } = g.shape
+    {
+        let track_radius = t.width_nm / 2;
+        let arc_radius = width_nm / 2;
+        let overlap = track_radius + arc_radius - CONTACT_OVERLAP_NM;
+        // Either an original arc endpoint is on the generated stroke, or
+        // the generated centerline enters the arc stroke along its sweep.
+        let body = arc_radius.min(overlap);
+        return track_within_arc(
+            t,
+            start,
+            mid,
+            end,
+            body,
+            track_radius.min(overlap).max(body),
+        );
+    }
+    track_connects_graphic(t, g)
+}
+
 pub fn track_connects_graphic(t: &Track, g: &CopperGraphic) -> bool {
     let wt = (t.width_nm / 2) * 2;
     match &g.shape {
@@ -1021,19 +1080,8 @@ pub fn track_connects_graphic(t: &Track, g: &CopperGraphic) -> bool {
             end,
             width_nm,
         } => {
-            let wg = (width_nm / 2) * 2;
-            let gap2_exact = i128::from(wt) + i128::from(wg) - 2 * i128::from(CONTACT_OVERLAP_NM);
-            if [*start, *mid, *end]
-                .iter()
-                .any(|&pt| point_near_segment(pt, t.start, t.end, gap2_exact, true))
-            {
-                return true;
-            }
-            let (chords, sag) = arc_to_conservative_chords(*start, *mid, *end);
-            let gap2_shrunk = gap2_exact - 2 * i128::from(sag);
-            chords
-                .windows(2)
-                .any(|w| segments_near(t.start, t.end, w[0], w[1], gap2_shrunk, true))
+            let distance = t.width_nm / 2 + width_nm / 2 - CONTACT_OVERLAP_NM;
+            track_within_arc(t, *start, *mid, *end, distance, distance)
         }
         GraphicShape::Circle {
             center,
