@@ -3220,6 +3220,35 @@ def test_copper_pcb_text_avoidance_preservation_and_fail_closed_knockout(tmp_pat
         assert run([str(engine), 'route-native', str(tb_path), str(tmp_path / f'tb_{tb_kind}_out.kicad_pcb'), '--rules', str(rules_path)], check=False).returncode == 2
 
 
+def test_saved_track_lands_across_the_edge_of_a_filled_copper_graphic(native_board, guarded_cli):
+    run, _ = guarded_cli
+    engine = _built_rust_engine(run)
+    board = pcbnew.LoadBoard(str(native_board))
+    for obstacle in list(board.GetTracks()):
+        board.Remove(obstacle)
+    graphic = pcbnew.PCB_SHAPE(board)
+    graphic.SetShape(pcbnew.SHAPE_T_RECT)
+    graphic.SetStart(pcbnew.VECTOR2I(12_000_000, 7_000_000))
+    graphic.SetEnd(pcbnew.VECTOR2I(18_000_000, 13_000_000))
+    graphic.SetLayer(pcbnew.F_Cu)
+    graphic.SetWidth(0)
+    graphic.SetFilled(True)
+    graphic.SetNet(board.FindNet('SIGNAL'))
+    board.Add(graphic)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    rules = native_board.with_suffix('.json')
+    rules.write_text(json.dumps(RULES))
+    out = native_board.with_name('routed.kicad_pcb')
+    run([str(engine), 'route-native', str(native_board), str(out), '--rules', str(rules)])
+    routed = pcbnew.LoadBoard(str(out))
+    routed.BuildConnectivity()
+    assert routed.GetConnectivity().GetUnconnectedCount(False) == 0
+    segments = [t for t in routed.GetTracks() if type(t) is pcbnew.PCB_TRACK]
+    assert len(segments) == 1
+    endpoints = [segments[0].GetStart(), segments[0].GetEnd()]
+    assert any(12_000_000 <= p.x <= 18_000_000 and 7_000_000 <= p.y <= 13_000_000 for p in endpoints)
+
+
 def test_pad_interior_track_attachment_native_collision(tmp_path, guarded_cli):
     run, _ = guarded_cli
     engine = _built_rust_engine(run)

@@ -123,6 +123,7 @@ fn oracle(
     source: &[Body],
     targets: &[Body],
     foreign: &[Body],
+    accepts: fn(Body, Body) -> bool,
 ) -> Option<u64> {
     let mut seen = BTreeSet::new();
     let mut q = VecDeque::new();
@@ -130,7 +131,7 @@ fn oracle(
         if legal(i, foreign, *p, *p)
             && source
                 .iter()
-                .any(|s| s.accepts_landing(Body::segment(*p, *p, i.rules.width_nm)))
+                .any(|s| accepts(*s, Body::segment(*p, *p, i.rules.width_nm)))
             && seen.insert(*p)
         {
             q.push_back((*p, 0));
@@ -143,7 +144,7 @@ fn oracle(
                 if legal(i, foreign, a, p)
                     && targets
                         .iter()
-                        .any(|t| t.accepts_landing(Body::segment(p, p, i.rules.width_nm)))
+                        .any(|t| accepts(*t, Body::segment(p, p, i.rules.width_nm)))
                 {
                     return Some(d + 1);
                 }
@@ -292,16 +293,65 @@ fn exhaustive_integer_terminal_oracle_matches_component_reachability_and_cost() 
                             .map(Body::pad)
                             .chain(i.tracks.iter().filter(|t| t.net == 0).map(Body::track))
                             .collect();
-                        let expected = oracle(&i, &seeds, &source_bodies, &[target_body], &foreign);
+                        let expected = oracle(
+                            &i,
+                            &seeds,
+                            &source_bodies,
+                            &[target_body],
+                            &foreign,
+                            Body::accepts_landing,
+                        );
+                        let lower = oracle(
+                            &i,
+                            &seeds,
+                            &source_bodies,
+                            &[target_body],
+                            &foreign,
+                            Body::accepts_clipped,
+                        );
                         let engine = Engine::new(i.clone()).unwrap();
-                        let mut expanded = 0;
-                        let actual = join_components(
+                        let targets = [vec![target]];
+                        // A legal pad extension can add copper beyond the last grid
+                        // step at its clipped search cost. Independently check both
+                        // physical joints, every edge and the resulting cost bounds.
+                        let normal = join_components(&engine, 1, &source, &targets, 10_000, &mut 0);
+                        match normal {
+                            Ok(path) => {
+                                assert!(lower.is_some_and(|cost| cost <= path.steps));
+                                assert!(expected.is_none_or(|cost| path.steps <= cost));
+                                assert!(path
+                                    .points
+                                    .windows(2)
+                                    .all(|p| legal(&i, &foreign, p[0], p[1])));
+                                let mut strokes = path
+                                    .points
+                                    .windows(2)
+                                    .map(|p| Body::segment(p[0], p[1], width));
+                                assert!(strokes.clone().any(|edge| source_bodies
+                                    .iter()
+                                    .any(|s| s.accepts_landing(edge))));
+                                assert!(strokes.any(|edge| target_body.accepts_landing(edge)));
+                            }
+                            Err(e) => {
+                                assert_eq!(e.status, Status::Unroutable);
+                                assert_eq!(expected, None);
+                            }
+                        }
+                        // Without the clipped approach, all successful terminal
+                        // steps must attain exactly the BFS optimum.
+                        let actual = search_component_path(
                             &engine,
                             1,
                             &source,
-                            &[vec![target]],
-                            10000,
-                            &mut expanded,
+                            &targets,
+                            u32::MAX,
+                            None,
+                            &mut crate::negotiate::TrialBudget::fixed(10_000),
+                            &mut 0,
+                            None,
+                            None,
+                            false,
+                            PadContact::Landing,
                         );
                         match (expected, actual) {
                             (Some(cost), Ok(path)) => {
@@ -339,7 +389,8 @@ fn diagonal_interval_between_integer_endpoints_is_not_a_contact() {
             1,
             "F.Cu",
             &stack,
-            &crate::budget::WorkBudget::new(Limits::default())
+            &crate::budget::WorkBudget::new(Limits::default()),
+            PadContact::Landing
         )
         .unwrap()
         .is_none());
@@ -353,7 +404,8 @@ fn diagonal_interval_between_integer_endpoints_is_not_a_contact() {
                 1,
                 "F.Cu",
                 &stack,
-                &crate::budget::WorkBudget::new(Limits::default())
+                &crate::budget::WorkBudget::new(Limits::default()),
+                PadContact::Landing
             )
             .unwrap(),
         Some([6, 3])
@@ -736,6 +788,7 @@ fn multi_target_astar_matches_independent_cost_oracle_in_256_worlds() {
                         &[Body::track(&source)],
                         &[Body::pad(&target_pad), Body::track(&target_track)],
                         &foreign,
+                        Body::accepts_landing,
                     );
                     let engine = Engine::new(i.clone()).unwrap();
                     let targets = [
@@ -1096,6 +1149,8 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
     use std::collections::{BinaryHeap, HashMap};
 
     let stack = vec!["F.Cu".to_owned(), "In1.Cu".to_owned(), "B.Cu".to_owned()];
+    // Pads include the 1 nm via bore and its 1 nm annulus, so a grid
+    // arrival by either a via or a track satisfies this oracle.
     let mut reachable = 0usize;
     let mut unreachable = 0usize;
     for allow_blind in [false, true] {
@@ -1137,7 +1192,7 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                         at: [10, 10],
                         layers: vec!["F.Cu".into()],
                         local_clearance_nm: None,
-                        shape: Shape::Circle { radius_nm: 1 },
+                        shape: Shape::Circle { radius_nm: 2 },
                         drill: None,
                         zone_connection: crate::model::PadZoneConnection::Inherited,
                         thermal_gap_nm: None,
@@ -1154,7 +1209,7 @@ fn multilayer_astar_matches_independent_augmented_dijkstra_oracle() {
                         at: [30, 10],
                         layers: vec!["B.Cu".into()],
                         local_clearance_nm: None,
-                        shape: Shape::Circle { radius_nm: 1 },
+                        shape: Shape::Circle { radius_nm: 2 },
                         drill: None,
                         zone_connection: crate::model::PadZoneConnection::Inherited,
                         thermal_gap_nm: None,
@@ -2068,9 +2123,9 @@ fn cegar_mr_and_backward_h_enforce_dru_via_count_across_rounds() {
 
 #[test]
 fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
-    // 1. Reviewer 1 probe_a: 2L PTH [0,0] on ["F.Cu", "B.Cu"] -> [460_000, 160_000] on ["F.Cu"].
-    // Tracks only permitted in y in [-50_000, 50_000], x <= 250_000; Through via at [100_000, 0]
-    // (or [200_000, 0]) contacts P2 (dist 304_631 < 400_000) via its 600_000 nm diameter.
+    // 1. Reviewer 1 probe_a: 2L PTH [0,0] on ["F.Cu", "B.Cu"] -> [450_000, 150_000] on ["F.Cu"].
+    // Tracks only permitted in y in [-50_000, 50_000], x <= 250_000; a through via at [200_000, 0]
+    // lands on P2 (centre distance 291_548 nm, inside the 300_000 nm radius).
     // Also test max_via_count = 1 boundary where Track at [100_000, 0] with vc=1 would dominate Via if conflated.
     let make_probe_a = |max_vc: Option<u32>| {
         let inp = Input {
@@ -2126,7 +2181,7 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                 Pad {
                     id: id(2),
                     net: 1,
-                    at: [460_000, 160_000],
+                    at: [450_000, 150_000],
                     layers: vec!["F.Cu".into()],
                     local_clearance_nm: None,
                     shape: Shape::Circle { radius_nm: 100_000 },
@@ -2253,6 +2308,23 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
         );
     }
 
+    let mut shallow = make_probe_a(None);
+    shallow.pads[1].at = [460_000, 160_000];
+    let engine = Engine::new(shallow).unwrap();
+    assert_eq!(
+        join_components(
+            &engine,
+            1,
+            &[Copper::Pad(&engine.input.pads[0])],
+            &[vec![Copper::Pad(&engine.input.pads[1])]],
+            50_000,
+            &mut 0
+        )
+        .unwrap_err()
+        .status,
+        Status::Unroutable
+    );
+
     // 2. Reviewer 2 off-grid Via-only contact witness: [10,10]/[20,10] -> [23,14] on B.Cu.
     let mut offgrid_in = Input {
         version: 1,
@@ -2291,7 +2363,7 @@ fn track_vs_via_goal_dominance_and_full_span_finished_re02() {
                 at: [10, 10],
                 layers: vec!["F.Cu".into(), "B.Cu".into()],
                 local_clearance_nm: None,
-                shape: Shape::Circle { radius_nm: 1 },
+                shape: Shape::Circle { radius_nm: 3 },
                 drill: Some(DrillShape::Circle { diameter_nm: 1 }),
                 zone_connection: crate::model::PadZoneConnection::Inherited,
                 thermal_gap_nm: None,
@@ -3136,7 +3208,7 @@ fn probe_d_350_open_vs_ctrl_re02() {
                     at: [400_000, 100_000],
                     layers: vec!["B.Cu".into()],
                     local_clearance_nm: None,
-                    shape: Shape::Circle { radius_nm: 10_000 },
+                    shape: Shape::Circle { radius_nm: 40_000 },
                     drill: None,
                     zone_connection: crate::model::PadZoneConnection::Inherited,
                     thermal_gap_nm: None,
@@ -3185,6 +3257,11 @@ fn probe_d_350_open_vs_ctrl_re02() {
             routing_options: None,
         }
     };
+
+    // The original 10 µm pad lies wholly inside the only legal 30 µm bore.
+    let mut swallowed = make_probe_d(false);
+    swallowed.pads[1].shape = Shape::Circle { radius_nm: 10_000 };
+    assert_eq!(crate::run(swallowed).status, Status::Unroutable);
 
     let open_out = crate::run(make_probe_d(false));
     let ctrl_out = crate::run(make_probe_d(true));
@@ -3529,6 +3606,8 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
         .collect();
     let pt_idx = |p: Point| -> usize { grid_pts.iter().position(|&q| q == p).unwrap() };
 
+    // Pads include the 1 nm via bore and its 1 nm annulus, so a grid
+    // arrival by either a via or a track satisfies this oracle.
     let mut reachable = 0usize;
     let mut unreachable = 0usize;
     for snh in [10i64, 20] {
@@ -3570,7 +3649,7 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                         at: [0, 10],
                         layers: vec!["F.Cu".into()],
                         local_clearance_nm: None,
-                        shape: Shape::Circle { radius_nm: 1 },
+                        shape: Shape::Circle { radius_nm: 2 },
                         drill: None,
                         zone_connection: crate::model::PadZoneConnection::Inherited,
                         thermal_gap_nm: None,
@@ -3587,7 +3666,7 @@ fn same_net_hole_clearance_matches_augmented_dijkstra_oracle_re02() {
                         at: [30, 10],
                         layers: vec!["B.Cu".into()],
                         local_clearance_nm: None,
-                        shape: Shape::Circle { radius_nm: 1 },
+                        shape: Shape::Circle { radius_nm: 2 },
                         drill: None,
                         zone_connection: crate::model::PadZoneConnection::Inherited,
                         thermal_gap_nm: None,
@@ -5414,7 +5493,31 @@ fn staggered_barriers_certify_the_cheaper_path_for_off_grid_pads() {
         "rule_areas": [wall(50, 32, 0, 60), wall(51, 64, 27, 87)], "max_expansions": 75_000
     }))
     .unwrap();
-    let engine = Engine::new(input).unwrap();
+    // The old cheaper two-via route penetrated the source and target by
+    // only 81.6 and 51.4 µm. These 100 µm radius pads have a fully anchored
+    // 150-step planar route through the same staggered barriers.
+    let weak = Engine::new(input.clone()).unwrap();
+    let planar = join_components(
+        &weak,
+        1,
+        &[Copper::Pad(&weak.input.pads[0])],
+        &[vec![Copper::Pad(&weak.input.pads[1])]],
+        75_000,
+        &mut 0,
+    )
+    .unwrap();
+    assert_eq!(planar.steps, 150);
+    assert!(planar
+        .edges
+        .iter()
+        .all(|e| matches!(e, PathEdge::Track { .. })));
+
+    // Both via landings now exceed 100 µm. The cheaper complete path and
+    // the earlier planar path must still compete under their original budgets.
+    let mut supported = input;
+    supported.pads[0].at = [2_047_500, 9_045_000];
+    supported.pads[1].at = [22_042_500, 9_040_000];
+    let engine = Engine::new(supported).unwrap();
     let mut expanded = 0;
     let path = join_components(
         &engine,
@@ -5432,9 +5535,8 @@ fn staggered_barriers_certify_the_cheaper_path_for_off_grid_pads() {
         "work {}",
         engine.work.used()
     );
-    // A trial between the first complete 150-step meeting and the 149-step
-    // improvement must use the available path before requesting a rip-up.
-    // A trial before either meeting still has to report its exhaustion.
+    // A bounded trial must use its available complete route before requesting
+    // a rip-up. A trial before either meeting must report its exhaustion.
     for (cap, feasible, fixed) in [
         (1_000, false, false),
         (5_600, true, false),
@@ -5467,7 +5569,7 @@ fn staggered_barriers_certify_the_cheaper_path_for_off_grid_pads() {
         assert_eq!(asked_to_rip, !fixed && !feasible);
         if feasible {
             let path = result.unwrap();
-            assert_eq!(path.steps, 150);
+            assert_eq!(path.steps, 149);
             assert!(!path.edges.is_empty());
             for edge in path.edges {
                 if let PathEdge::Track { start, end, layer } = edge {
@@ -5965,6 +6067,281 @@ fn a_cheaper_complete_repair_restores_its_improvement_window() {
 }
 
 #[test]
+fn row_of_fine_pitch_pads_requires_a_full_land_on_the_middle_terminal() {
+    // The foreign pads leave room for a 20 nm track and its two clearances.
+    // A 26 nm track can only graze the end cap of the middle pad.
+    for width in [20, 26] {
+        let mut input: Input = serde_json::from_value(serde_json::json!({
+            "version": 1, "source_id": "a".repeat(64), "layer": "F.Cu",
+            "bounds": {"min": [0, 0], "max": [1200, 600]},
+            "rules": {"width_nm": width, "grid_nm": 25, "clearance_nm": 15, "edge_clearance_nm": 0},
+            "nets": [{"id": 1, "name": "signal"}, {"id": 2, "name": "above"}, {"id": 3, "name": "below"}],
+            "pads": [], "tracks": [], "max_expansions": 20000
+        })).unwrap();
+        input
+            .pads
+            .push(pad(1, 1, [200, 300], Shape::Circle { radius_nm: 20 }));
+        for (id, net, anchor_y, center_y) in [(2, 2, 275, 265), (3, 1, 300, 300), (4, 3, 325, 335)]
+        {
+            input.pads.push(pad(
+                id,
+                net,
+                [825, anchor_y],
+                Shape::BoxExact {
+                    center_2x: [1660, 2 * center_y],
+                    half_size_2x: [60, 20],
+                    radius_2x: 0,
+                },
+            ));
+        }
+        let out = crate::run(input);
+        if width == 20 {
+            assert_eq!(out.status, Status::Complete, "{:?}", out.reason);
+            assert!(out
+                .added_tracks
+                .iter()
+                .flat_map(|t| [t.start, t.end])
+                .any(|[x, y]| (800..=860).contains(&x) && (290..=310).contains(&y)));
+        } else {
+            assert_eq!(out.status, Status::Unroutable, "{:?}", out.reason);
+            assert!(out.added_tracks.is_empty() && out.added_vias.is_empty());
+        }
+    }
+}
+
+#[test]
+fn routed_surface_contacts_cross_the_real_outline_and_respect_cutouts() {
+    let outer = vec![[100, 0], [300, 0], [300, 200], [100, 200]];
+    let holes = vec![vec![[150, 50], [250, 50], [250, 150], [150, 150]]];
+    let poly = OutlinePolygon {
+        outer: outer.clone(),
+        holes: holes.clone(),
+    };
+    let zone: Zone = serde_json::from_value(serde_json::json!({
+        "id": id(31), "net": 1, "outer": outer, "layers": ["F.Cu"],
+        "filled": true, "refillable": false, "connection": "solid",
+        "layer_fills": [{"layer": "F.Cu", "polygons": [poly]}]
+    }))
+    .unwrap();
+    let graphic = CopperGraphic {
+        id: id(32),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Polygon {
+            outer,
+            holes,
+            width_nm: 0,
+            filled: true,
+        },
+    };
+    let stack = vec!["F.Cu".into(), "B.Cu".into()];
+    let work = WorkBudget::new(Limits::default());
+    for target in [
+        Copper::Graphic(&graphic),
+        Copper::ZoneFill {
+            layer_idx: 0,
+            zone: &zone,
+            poly: &poly,
+        },
+    ] {
+        for (a, b, landing) in [
+            ([0, 100], [130, 100], [100, 100]),
+            ([200, 100], [270, 100], [250, 100]),
+        ] {
+            let fringe = track(33, 1, a, [landing[0] - 9, 100], 20);
+            assert!(target.touches(Copper::Track(&fringe), &stack, |_, _| true));
+            assert!(!target.touches(Copper::Track(&fringe), &stack, |_, _| false));
+            assert!(!target.touches_route(&fringe, &stack, &work).unwrap());
+            assert_eq!(
+                target
+                    .attachment(a, b, 1, 20, "F.Cu", &stack, &work, PadContact::Landing)
+                    .unwrap(),
+                Some(landing)
+            );
+        }
+    }
+}
+
+#[test]
+fn slender_circular_strokes_accept_a_landing_from_either_side() {
+    let stack = ["F.Cu".to_owned()];
+    let work = WorkBudget::new(Limits::default());
+    let graphic = CopperGraphic {
+        id: id(35),
+        net: 1,
+        layer: "F.Cu".into(),
+        shape: GraphicShape::Circle {
+            center: [200, 200],
+            radius_nm: 100,
+            width_nm: 10,
+            filled: false,
+        },
+    };
+    let ring = Copper::Graphic(&graphic);
+    for (start, end, expected) in [
+        (0, 86, false),
+        (0, 90, true),
+        (200, 286, false),
+        (200, 290, true),
+    ] {
+        let approach = track(36, 1, [start, 200], [end, 200], 20);
+        assert!(ring.touches(Copper::Track(&approach), &stack, |_, _| true));
+        assert_eq!(
+            ring.touches_route(&approach, &stack, &work).unwrap(),
+            expected
+        );
+    }
+    let empty = CopperGraphic {
+        shape: GraphicShape::Circle {
+            center: [200, 200],
+            radius_nm: 100,
+            width_nm: 0,
+            filled: false,
+        },
+        ..graphic
+    };
+    let crossing = track(37, 1, [0, 200], [400, 200], 20);
+    assert!(!Copper::Graphic(&empty)
+        .touches_route(&crossing, &stack, &work)
+        .unwrap());
+}
+
+#[test]
+fn a_wide_track_lands_by_the_narrower_pad_feature_radius() {
+    // All six pad primitives start at x=100 and are 8 nm wide across y.
+    for (index, shape) in [
+        Shape::Circle { radius_nm: 4 },
+        Shape::Rect {
+            half_size_nm: [20, 4],
+        },
+        Shape::RoundRect {
+            half_size_nm: [20, 4],
+            radius_nm: 2,
+        },
+        Shape::BoxExact {
+            center_2x: [240, 0],
+            half_size_2x: [40, 8],
+            radius_2x: 0,
+        },
+        Shape::Capsule {
+            start_nm: [104, 0],
+            end_nm: [136, 0],
+            width_nm: 8,
+        },
+        Shape::ConvexPolygon {
+            vertices: vec![[100, -4], [140, -4], [140, 4], [100, 4]],
+            radius_nm: 0,
+        },
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let center = if index == 0 { [104, 0] } else { [120, 0] };
+        let terminal = pad(70, 1, center, shape);
+        for (tip, expected) in [(91, false), (93, false), (94, true)] {
+            let approach = track(71, 1, [0, 0], [tip, 0], 20);
+            assert!(geometry::track_connects_pad(&approach, &terminal));
+            assert_eq!(
+                geometry::track_lands_on_pad(&approach, &terminal),
+                expected,
+                "{terminal:?} x={tip}"
+            );
+        }
+    }
+}
+
+#[test]
+fn generated_via_needs_a_supported_layer_and_surface_copper_outside_its_bore() {
+    let stack = ["F.Cu".into(), "In1.Cu".into(), "B.Cu".into()];
+    let work = WorkBudget::new(Limits::default());
+    let via = Via {
+        id: id(71),
+        net: 1,
+        at: [0, 0],
+        diameter_nm: 40,
+        drill_nm: 20,
+        start_layer: "F.Cu".into(),
+        end_layer: "In1.Cu".into(),
+        kind: ViaKind::BlindBuried,
+        locked: false,
+    };
+    for (left, right, layer, native, routed) in [
+        (19, 59, "In1.Cu", true, false), // Outer land overlaps by one nanometre.
+        (0, 60, "In1.Cu", true, true),
+        (-3, 3, "In1.Cu", true, false), // The bore removes the entire small pad.
+        (0, 60, "B.Cu", false, false),
+    ] {
+        let mut terminal = pad(
+            72,
+            1,
+            [0, 0],
+            Shape::BoxExact {
+                center_2x: [left + right, 0],
+                half_size_2x: [right - left, 10],
+                radius_2x: 0,
+            },
+        );
+        terminal.layers = vec![layer.into()];
+        let target = Copper::Pad(&terminal);
+        assert_eq!(
+            target.touches(Copper::Via(&via), &stack, |_, _| true),
+            native
+        );
+        assert_eq!(
+            target.touches(Copper::Via(&via), &stack, |_, _| false),
+            routed
+        );
+        assert_eq!(target.touches_via(&via, &stack, &work).unwrap(), routed);
+    }
+    // A small pad can lie wholly within the wall away from its midpoint.
+    // Move it into the bore until less than its radius remains on copper.
+    for (x, expected) in [(19, true), (12, true), (10, true), (9, false)] {
+        let terminal = pad(72, 1, [x, 0], Shape::Circle { radius_nm: 2 });
+        assert_eq!(geometry::via_lands_on_pad(&via, &terminal), expected);
+    }
+    // The circle covers the via center. The offset arm reaches the annulus.
+    let compound = pad(
+        73,
+        1,
+        [0, 0],
+        Shape::Union {
+            shapes: vec![
+                Shape::Circle { radius_nm: 8 },
+                Shape::Capsule {
+                    start_nm: [5, 0],
+                    end_nm: [30, 0],
+                    width_nm: 4,
+                },
+            ],
+        },
+    );
+    assert!(Copper::Pad(&compound)
+        .touches_via(&via, &stack, &work)
+        .unwrap());
+    let bore_stub = track(74, 1, [-2, 0], [2, 0], 4);
+    assert!(!Copper::Track(&bore_stub)
+        .touches_via(&via, &stack, &work)
+        .unwrap());
+    assert!(Copper::Track(&bore_stub).touches(Copper::Via(&via), &stack, |_, _| true));
+    let small_via = Via {
+        id: id(75),
+        diameter_nm: 8,
+        drill_nm: 4,
+        ..via.clone()
+    };
+    assert!(!Copper::Via(&small_via)
+        .touches_via(&via, &stack, &work)
+        .unwrap());
+    let beside_bore = Via {
+        at: [14, 0],
+        ..small_via
+    };
+    assert!(Copper::Via(&beside_bore)
+        .touches_via(&via, &stack, &work)
+        .unwrap());
+}
+
+#[test]
 fn new_track_lands_on_a_circular_arc_body_or_an_original_endpoint() {
     let arc = CopperGraphic {
         id: id(101),
@@ -5994,7 +6371,16 @@ fn new_track_lands_on_a_circular_arc_body_or_an_original_endpoint() {
         assert_eq!(target.touches_route(&t, &stack, &work).unwrap(), expected);
     }
     let hit = target
-        .attachment([600, 950], [600, 750], 1, 120, "F.Cu", &stack, &work)
+        .attachment(
+            [600, 950],
+            [600, 750],
+            1,
+            120,
+            "F.Cu",
+            &stack,
+            &work,
+            PadContact::Landing,
+        )
         .unwrap()
         .unwrap();
     assert!(hit[1] >= 800 && hit[1] <= 813, "{hit:?}");
@@ -6050,7 +6436,16 @@ fn track_via_landing_uses_the_copper_body_in_both_directions() {
         );
     }
     let hit = Copper::Via(&via)
-        .attachment([10, 58], [70, 58], 1, 10, "F.Cu", &stack, &work)
+        .attachment(
+            [10, 58],
+            [70, 58],
+            1,
+            10,
+            "F.Cu",
+            &stack,
+            &work,
+            PadContact::Landing,
+        )
         .unwrap();
     assert_eq!(hit, Some([44, 58]));
 }
@@ -6105,8 +6500,17 @@ fn routed_track_contacts_reach_the_trace_body_from_either_side() {
     let stub = Copper::Track(&original);
     // A 6-8-10 triangle places the new endpoint on the other track's 10 nm radius.
     assert_eq!(
-        stub.attachment([10, 58], [80, 58], 1, 20, "F.Cu", &stack, &work)
-            .unwrap(),
+        stub.attachment(
+            [10, 58],
+            [80, 58],
+            1,
+            20,
+            "F.Cu",
+            &stack,
+            &work,
+            PadContact::Landing
+        )
+        .unwrap(),
         Some([44, 58])
     );
     for (y, new_width, joined) in [
@@ -6161,7 +6565,16 @@ fn a_via_beside_a_passing_trace_needs_a_junction() {
     }
     assert_eq!(
         Copper::Via(&via)
-            .attachment(passing.start, passing.end, 1, 10, "F.Cu", &stack, &work)
+            .attachment(
+                passing.start,
+                passing.end,
+                1,
+                10,
+                "F.Cu",
+                &stack,
+                &work,
+                PadContact::Landing
+            )
             .unwrap(),
         Some([44, 58])
     );

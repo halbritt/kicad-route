@@ -166,6 +166,17 @@ the same bound. Subdivision retains all three supplied points and uses at most
 at an arc when its centerline reaches the arc stroke or an original arc end
 lands on the trace. This also permits a connection in the interior of the sweep.
 
+A new trace ending on a filled copper graphic or zone fill carries its
+centerline onto the copper. Pads, graphic strokes and trace junctions require
+an overlap of at least the smaller feature radius. A via joining a surface must
+reach the surface with its land and have copper in common outside the drilled
+opening. A compound pad can supply that contact across its connected
+primitives. The component search checks layer spans, polygon cutouts and the
+actual curved edges. It can extend a clipped pad approach before accepting
+it. If the proposed copper cannot join both islands, the search continues
+against the landing geometry using its remaining work and expansion budgets.
+Existing connections between input items retain their native contact rules.
+
 ## Original single-layer JSON routing subset
 
 The following geometry, search and validation description documents the

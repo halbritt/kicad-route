@@ -18,7 +18,7 @@ use reverse_sources::ReverseSources;
 
 use crate::barrier_bound::BarrierBound;
 use crate::budget::WorkBudget;
-use crate::components::{span_mask, Copper};
+use crate::components::{span_mask, Copper, PadContact};
 use crate::geometry;
 use crate::model::{Failure, OutlinePolygon, Point, Status, Track, Via, ViaKind};
 use crate::rules::EffectiveRules;
@@ -35,6 +35,33 @@ pub(crate) struct PlacedViaKey {
     pub start_layer: u8,
     pub end_layer: u8,
     pub kind: u8,
+}
+
+impl PlacedViaKey {
+    fn as_via(self, engine: &Engine, net: u32) -> Result<Via, Failure> {
+        let span =
+            &engine.all_layers_slice()[usize::from(self.start_layer)..=usize::from(self.end_layer)];
+        let kind = match self.kind {
+            0 => ViaKind::Through,
+            1 => ViaKind::BlindBuried,
+            _ => ViaKind::Micro,
+        };
+        let (diameter_nm, drill_nm) =
+            engine
+                .effective_rules
+                .via_dims_for(net, kind == ViaKind::Micro, span)?;
+        Ok(Via {
+            id: String::new(),
+            net,
+            at: self.at,
+            diameter_nm,
+            drill_nm,
+            start_layer: engine.layer_name(usize::from(self.start_layer)).to_owned(),
+            end_layer: engine.layer_name(usize::from(self.end_layer)).to_owned(),
+            kind,
+            locked: false,
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -575,22 +602,39 @@ fn join_components_inner(
             }
         }
     }
-    let mut search =
-        |seeds: &[Copper<'_>], choices: &[Vec<Copper<'_>>], seed_layers, extra_starts| {
+    let mut search = |seeds: &[Copper<'_>],
+                      choices: &[Vec<Copper<'_>>],
+                      seed_layers,
+                      extra_starts: Option<Vec<(Point, u8, bool)>>| {
+        let mut attempt = |pad_contact| {
             search_component_path(
                 engine,
                 net,
                 seeds,
                 choices,
                 seed_layers,
-                extra_starts,
+                extra_starts.as_deref(),
                 budget,
                 expanded,
                 history,
                 frontier.as_deref_mut(),
                 prefer_higher_g,
+                pad_contact,
             )
         };
+        // A clipped pad approach often extends into a full-width landing on
+        // the same path. Keep that route when its actual copper joins both
+        // islands. Otherwise search directly for body contacts on the
+        // remaining work and expansion budget.
+        let path = attempt(PadContact::ClippedApproach)?;
+        if path_lands_on(engine, net, &path, seeds.iter().copied())?
+            && path_lands_on(engine, net, &path, choices.iter().flatten().copied())?
+        {
+            Ok(path)
+        } else {
+            attempt(PadContact::Landing)
+        }
+    };
     if !fill_targets.is_empty() {
         match search(source, &fill_targets, source_layers, None) {
             Err(e) if e.status == Status::Unroutable => {}
@@ -694,6 +738,49 @@ impl PadAxes {
         }
         Ok(axes)
     }
+}
+
+fn path_lands_on<'a>(
+    engine: &Engine,
+    net: u32,
+    path: &Path,
+    targets: impl Iterator<Item = Copper<'a>> + Clone,
+) -> Result<bool, Failure> {
+    let layers = engine.all_layers_slice();
+    for &edge in &path.edges {
+        engine.work.charge(1)?;
+        match edge {
+            PathEdge::Track { start, end, layer } => {
+                let name = engine.layer_name(usize::from(layer));
+                let width_nm = engine.effective_rules.track_width_for(net, name)?;
+                let track = Track {
+                    id: String::new(),
+                    net,
+                    start,
+                    end,
+                    width_nm,
+                    locked: false,
+                    layer: name.to_owned(),
+                };
+                for c in targets.clone() {
+                    if c.touches_route(&track, layers, &engine.work)?
+                        && !matches!(c,Copper::Via(v) if !geometry::via_anchored_on_track(v,&track))
+                    {
+                        return Ok(true);
+                    }
+                }
+            }
+            PathEdge::Via(v) => {
+                let probe = v.as_via(engine, net)?;
+                for c in targets.clone() {
+                    if c.touches_via(&probe, layers, &engine.work)? {
+                        return Ok(true);
+                    }
+                }
+            }
+        }
+    }
+    Ok(false)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -844,6 +931,7 @@ fn component_starts(
     source: &[Copper<'_>],
     targets: &[Vec<Copper<'_>>],
     source_layers: u32,
+    pad_contact: PadContact,
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
 ) -> Result<Vec<(Point, u8, bool)>, Failure> {
     let stackup = engine.all_layers_slice();
@@ -904,7 +992,7 @@ fn component_starts(
                                 layer: l_name.to_owned(),
                             };
                             for s in source {
-                                if s.touches_route(&probe, stackup, &engine.work)? {
+                                if s.route_contact(&probe, stackup, &engine.work, pad_contact)? {
                                     track_ok = true;
                                     break;
                                 }
@@ -1031,12 +1119,13 @@ fn search_component_path(
     source: &[Copper<'_>],
     targets: &[Vec<Copper<'_>>],
     source_layers: u32,
-    additional_starts: Option<Vec<(Point, u8, bool)>>,
+    additional_starts: Option<&[(Point, u8, bool)]>,
     budget: &mut crate::negotiate::TrialBudget<'_>,
     expanded: &mut u64,
     history: Option<&crate::negotiate::CongestionHistory>,
     mut frontier: Option<&mut crate::negotiate::BlockedFrontier>,
     batch_search: bool,
+    pad_contact: PadContact,
 ) -> Result<Path, Failure> {
     // On an isolated pad-to-pad join, follow a minimum-cost plateau toward the
     // target. A history-dependent drill clearance can require several competing
@@ -1050,13 +1139,14 @@ fn search_component_path(
     let l_count = engine.layer_count();
     let via_cost = engine.effective_rules.via_cost.max(1);
     let start_vec = match additional_starts {
-        Some(starts) => starts,
+        Some(starts) => starts.to_vec(),
         None => component_starts(
             engine,
             net,
             source,
             targets,
             source_layers,
+            pad_contact,
             frontier.as_deref_mut(),
         )?,
     };
@@ -1141,9 +1231,16 @@ fn search_component_path(
                     continue;
                 }
             }
-            if let Some(p_first) =
-                c.attachment(a, b, net, width_nm, l_name, stackup, &engine.work)?
-            {
+            if let Some(p_first) = c.attachment(
+                a,
+                b,
+                net,
+                width_nm,
+                l_name,
+                stackup,
+                &engine.work,
+                pad_contact,
+            )? {
                 let chosen = match c {
                     Copper::Pad(pad) if !geometry::point_in_pad(p_first, pad) => {
                         engine.work.charge((pad.shape.parts().len() - 1) as u64)?;
@@ -1613,38 +1710,17 @@ fn search_component_path(
                                 continue;
                             }
                         }
-                        if c.touches_route(&probe, stackup, &engine.work)? {
+                        if c.route_contact(&probe, stackup, &engine.work, pad_contact)? {
                             return Ok(true);
                         }
                     }
                     Ok(false)
                 }
                 PathEdge::Via(pv) => {
-                    let kind = match pv.kind {
-                        0 => ViaKind::Through,
-                        1 => ViaKind::BlindBuried,
-                        _ => ViaKind::Micro,
-                    };
-                    let span_layers = &stackup[pv.start_layer as usize..=pv.end_layer as usize];
-                    let (diam, drill) = match engine.effective_rules.via_dims_for(
-                        net,
-                        kind == ViaKind::Micro,
-                        span_layers,
-                    ) {
-                        Ok(dims) => dims,
+                    let probe_via = match pv.as_via(engine, net) {
+                        Ok(via) => via,
                         Err(e) if e.status == Status::Unroutable => return Ok(false),
                         Err(e) => return Err(e),
-                    };
-                    let probe_via = Via {
-                        id: String::new(),
-                        net,
-                        at: pv.at,
-                        diameter_nm: diam,
-                        drill_nm: drill,
-                        start_layer: stackup[pv.start_layer as usize].clone(),
-                        end_layer: stackup[pv.end_layer as usize].clone(),
-                        kind,
-                        locked: false,
                     };
                     let via_mask = span_mask(pv.start_layer as usize, pv.end_layer as usize);
                     for c in targets.iter().flatten() {
@@ -1656,6 +1732,7 @@ fn search_component_path(
                         {
                             if zone.refillable {
                                 if (1u32 << layer_idx) & via_mask != 0
+                                    && c.touches_via(&probe_via, stackup, &engine.work)?
                                     && landings
                                         .borrow_mut()
                                         .on_segment(poly, pv.at, pv.at, &engine.work)?
@@ -1909,7 +1986,7 @@ fn extend_path_into_target_pad(
         if end[0] + r < lo[0] || end[0] - r > hi[0] || end[1] + r < lo[1] || end[1] - r > hi[1] {
             continue;
         }
-        if c.touches_route(&probe, stackup, &engine.work)? {
+        if c.route_contact(&probe, stackup, &engine.work, PadContact::ClippedApproach)? {
             match c {
                 Copper::Pad(pad) => {
                     if geometry::point_in_pad(end, pad) {

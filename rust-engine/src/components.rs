@@ -25,6 +25,12 @@ pub(crate) fn span_mask(start_idx: usize, end_idx: usize) -> u32 {
     m
 }
 
+#[derive(Clone, Copy, PartialEq)]
+pub(crate) enum PadContact {
+    ClippedApproach,
+    Landing,
+}
+
 #[derive(Clone, Copy)]
 pub(crate) enum Copper<'a> {
     Pad(&'a Pad),
@@ -123,14 +129,18 @@ impl<'a> Copper<'a> {
         match (self, other) {
             (Self::Pad(a), Self::Pad(b)) => geometry::pads_touch(a, b),
             (Self::Track(t), Self::Pad(p)) | (Self::Pad(p), Self::Track(t)) => {
-                geometry::track_connects_pad(t, p)
+                if both_from_input(&t.id, &p.id) {
+                    geometry::track_connects_pad(t, p)
+                } else {
+                    geometry::track_lands_on_pad(t, p)
+                }
             }
             (Self::Track(a), Self::Track(b)) => {
                 geometry::tracks_land_together(a, b)
                     || (geometry::tracks_connect(a, b) && both_from_input(&a.id, &b.id))
             }
             (Self::Graphic(g), Self::Track(t)) | (Self::Track(t), Self::Graphic(g)) => {
-                if matches!(g.shape, GraphicShape::Arc { .. }) && !both_from_input(&t.id, &g.id) {
+                if !both_from_input(&t.id, &g.id) {
                     geometry::track_lands_on_graphic(t, g)
                 } else {
                     geometry::track_connects_graphic(t, g)
@@ -141,28 +151,50 @@ impl<'a> Copper<'a> {
             }
             (Self::Graphic(a), Self::Graphic(b)) => geometry::graphics_connect(a, b),
             (Self::Via(v), Self::Pad(p)) | (Self::Pad(p), Self::Via(v)) => {
-                geometry::via_connects_pad(v, p)
+                if both_from_input(&v.id, &p.id) {
+                    geometry::via_connects_pad(v, p)
+                } else {
+                    geometry::via_lands_on_pad(v, p)
+                }
             }
             (Self::Via(v), Self::Track(t)) | (Self::Track(t), Self::Via(v)) => {
                 geometry::via_anchored_on_track(v, t)
                     || (geometry::track_connects_via(t, v) && both_from_input(&t.id, &v.id))
             }
             (Self::Via(v), Self::Graphic(g)) | (Self::Graphic(g), Self::Via(v)) => {
-                geometry::via_connects_graphic(v, g)
+                if both_from_input(&v.id, &g.id) {
+                    geometry::via_connects_graphic(v, g)
+                } else {
+                    geometry::via_lands_on_graphic(v, g)
+                }
             }
-            (Self::Via(a), Self::Via(b)) => geometry::vias_connect(a, b),
+            (Self::Via(a), Self::Via(b)) => {
+                if both_from_input(&a.id, &b.id) {
+                    geometry::vias_connect(a, b)
+                } else {
+                    geometry::vias_land_together(a, b)
+                }
+            }
             (Self::ZoneFill { zone, poly, .. }, Self::Pad(p))
             | (Self::Pad(p), Self::ZoneFill { zone, poly, .. }) => {
                 resolve_pad_zone_connection(p, zone) != ResolvedPadZoneConnection::None
                     && geometry::zone_fill_connects_pad(&poly.outer, &poly.holes, p)
             }
-            (Self::ZoneFill { poly, .. }, Self::Track(t))
-            | (Self::Track(t), Self::ZoneFill { poly, .. }) => {
-                geometry::track_connects_filled_polygon(t, &poly.outer, &poly.holes)
+            (Self::ZoneFill { poly, zone, .. }, Self::Track(t))
+            | (Self::Track(t), Self::ZoneFill { poly, zone, .. }) => {
+                if both_from_input(&t.id, &zone.id) {
+                    geometry::track_connects_filled_polygon(t, &poly.outer, &poly.holes)
+                } else {
+                    geometry::track_lands_on_filled_polygon(t, &poly.outer, &poly.holes)
+                }
             }
-            (Self::ZoneFill { poly, .. }, Self::Via(v))
-            | (Self::Via(v), Self::ZoneFill { poly, .. }) => {
-                geometry::via_connects_filled_polygon(v, &poly.outer, &poly.holes)
+            (Self::ZoneFill { poly, zone, .. }, Self::Via(v))
+            | (Self::Via(v), Self::ZoneFill { poly, zone, .. }) => {
+                if both_from_input(&v.id, &zone.id) {
+                    geometry::via_connects_filled_polygon(v, &poly.outer, &poly.holes)
+                } else {
+                    geometry::via_lands_on_filled_polygon(v, &poly.outer, &poly.holes)
+                }
             }
             (Self::ZoneFill { poly, .. }, Self::Graphic(g))
             | (Self::Graphic(g), Self::ZoneFill { poly, .. }) => {
@@ -174,23 +206,48 @@ impl<'a> Copper<'a> {
         }
     }
 
+    /// KiCad clearance exceptions for a same-net pad or existing via use
+    /// native land contact, including copper touching incidentally.
+    pub(crate) fn native_contact(
+        self,
+        other: Self,
+        stackup: &[String],
+        work: &WorkBudget,
+    ) -> Result<bool, Failure> {
+        work.charge(self.primitive_count() * other.primitive_count())?;
+        Ok(self.touches(other, stackup, |_, _| true))
+    }
+
     pub(crate) fn touches_route(
         self,
         route: &Track,
         stackup: &[String],
         work: &WorkBudget,
     ) -> Result<bool, Failure> {
+        self.route_contact(route, stackup, work, PadContact::Landing)
+    }
+
+    pub(crate) fn route_contact(
+        self,
+        route: &Track,
+        stackup: &[String],
+        work: &WorkBudget,
+        pad_contact: PadContact,
+    ) -> Result<bool, Failure> {
         work.charge(self.primitive_count())?;
         if (self.layer_mask(stackup) & layer_bit(stackup, &route.layer)) == 0 {
             return Ok(false);
         }
         Ok(match self {
-            Self::Pad(p) => geometry::track_connects_pad(route, p),
+            Self::Pad(p) if pad_contact == PadContact::ClippedApproach => {
+                geometry::track_connects_pad(route, p)
+            }
+            Self::Pad(p) => geometry::track_lands_on_pad(route, p),
             Self::Track(t) => geometry::tracks_land_together(route, t),
             Self::Graphic(g) => geometry::track_lands_on_graphic(route, g),
             Self::Via(v) => geometry::track_lands_on_via(route, v),
             Self::ZoneFill { poly, .. } => {
-                geometry::track_connects_filled_polygon(route, &poly.outer, &poly.holes)
+                geometry::track_lands_on_filled_polygon(route, &poly.outer, &poly.holes)
             }
         })
     }
@@ -206,12 +263,12 @@ impl<'a> Copper<'a> {
             return Ok(false);
         }
         Ok(match self {
-            Self::Pad(p) => geometry::via_connects_pad(via, p),
+            Self::Pad(p) => geometry::via_lands_on_pad(via, p),
             Self::Track(t) => geometry::via_anchored_on_track(via, t),
-            Self::Graphic(g) => geometry::via_connects_graphic(via, g),
-            Self::Via(v) => geometry::vias_connect(via, v),
+            Self::Graphic(g) => geometry::via_lands_on_graphic(via, g),
+            Self::Via(v) => geometry::vias_land_together(via, v),
             Self::ZoneFill { poly, .. } => {
-                geometry::via_connects_filled_polygon(via, &poly.outer, &poly.holes)
+                geometry::via_lands_on_filled_polygon(via, &poly.outer, &poly.holes)
             }
         })
     }
@@ -229,6 +286,7 @@ impl<'a> Copper<'a> {
         layer: &str,
         stackup: &[String],
         work: &WorkBudget,
+        pad_contact: PadContact,
     ) -> Result<Option<Point>, Failure> {
         if (self.layer_mask(stackup) & layer_bit(stackup, layer)) == 0 {
             return Ok(None);
@@ -252,14 +310,14 @@ impl<'a> Copper<'a> {
             locked: false,
             layer: layer.to_owned(),
         };
-        if !self.touches_route(&route(a, b), stackup, work)? {
+        if !self.route_contact(&route(a, b), stackup, work, pad_contact)? {
             return Ok(None);
         }
         let mut lo = 1;
         let mut hi = length;
         while lo < hi {
             let mid = lo + (hi - lo) / 2;
-            if self.touches_route(&route(a, point(mid)), stackup, work)? {
+            if self.route_contact(&route(a, point(mid)), stackup, work, pad_contact)? {
                 hi = mid;
             } else {
                 lo = mid + 1;
@@ -267,7 +325,7 @@ impl<'a> Copper<'a> {
         }
         let p = point(lo);
         Ok(self
-            .touches_route(&route(p, p), stackup, work)?
+            .route_contact(&route(p, p), stackup, work, pad_contact)?
             .then_some(p))
     }
     pub(crate) fn anchors(self, bounds_min: Point, grid_nm: i64) -> Vec<Point> {
