@@ -1145,18 +1145,6 @@ fn search_component_path(
                 c.attachment(a, b, net, width_nm, l_name, stackup, &engine.work)?
             {
                 let chosen = match c {
-                    Copper::Via(via) => {
-                        // Keep the landing on this search edge, as close to
-                        // the barrel as obstacles and the visited step allow.
-                        let closest = std::array::from_fn(|k| {
-                            via.at[k].clamp(a[k].min(b[k]), a[k].max(b[k]))
-                        });
-                        if closest != p_first && check_legal(closest)? {
-                            Some(closest)
-                        } else {
-                            check_legal(p_first)?.then_some(p_first)
-                        }
-                    }
                     Copper::Pad(pad) if !geometry::point_in_pad(p_first, pad) => {
                         engine.work.charge((pad.shape.parts().len() - 1) as u64)?;
                         let [cand_deep, cand_near] =
