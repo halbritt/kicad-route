@@ -62,7 +62,9 @@ directories. Each PCB has the admitted custom rules and project settings.
 The bridge clears saved DRC exclusions in both private project copies so it
 can compare the underlying findings.
 For an input symlink, the canonical board supplies the source basename and
-sidecar files.
+sidecar files. If the input has no project, the operation uses KiCad's defaults
+and omits `request.project_path` from its result. Supply the original
+project when the board relies on its net classes or design minima.
 If the output has a different basename or directory, KiCad needs those
 files at the corresponding destination to reproduce that validation.
 The router publishes the PCB alone. Its private DRC copies use installed

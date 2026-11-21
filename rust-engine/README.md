@@ -97,6 +97,15 @@ measurements on the saved board separately establish the actual width, gap
 and length of the copper. The native operation report carries the same rows in
 `routing.diff_pairs`.
 
+Automatic pair discovery uses case-sensitive names on the same schematic
+sheet. It recognizes paired `_P` and `_N`, `+` and `-`, or bare `P` and `N`
+suffixes. A lone selected `RESET_N` can stop auto discovery, and names such
+as `12V+` and `12V-` can select the class's pair width. For numbered or
+lowercase suffixes, or mixed power and signal names, pass each intended
+pair explicitly, for example `--diff-pairs 'D_P1,D_N1'`. Other selected nets
+then route as ordinary signals. Use the names from the PCB, including any
+sheet prefix.
+
 ### Signal layer policy
 
 Pass `--layer-policy-json` to `route-native`, or supply the same object in
