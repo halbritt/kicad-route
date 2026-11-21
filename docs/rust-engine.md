@@ -104,8 +104,11 @@ bindings; a Rust KiCad-format reader can replace it later without moving engine
 policy. Applying a plan independently validates the saved native board before
 publishing it. New tracks and vias must belong to the nets selected by the
 retained request, and any reported pair or bus must stay inside that selection.
-For a partial route, the saved board must connect the selected terminal pads
-without introducing new open connections. Full-board routing requires zero
+For a partial route, each selected net must have all its terminal pads
+connected and zero native DRC opens. KiCad can choose different pads or
+tracks to describe an existing open. On each unselected net, validation
+checks the open count and verifies that every previously connected group of
+pads, tracks and vias remains connected. Full-board routing requires zero
 open connections. Both paths require no new native DRC violations and added
 widths at least the native minimum. A missing or failed DRC command also
 refuses publication. Validation failures have a `native_validation_failed`

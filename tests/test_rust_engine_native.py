@@ -5165,6 +5165,47 @@ def test_layer_policy_probe_measures_saved_track_and_rule_bytes_without_changing
     assert board.read_bytes() == data
 
 
+def test_scoped_readback_uses_native_copper_components(native_board, tmp_path):
+    multiterminal_board(native_board, 'preconnected')
+    original = pcbnew.LoadBoard(str(native_board))
+    original.BuildConnectivity()
+    before = bridge.native_violations(native_board, tmp_path / 'before.json')
+    signal = {bridge.item_id(pad): pad for pad in original.GetPads() if pad.GetNetname() == 'SIGNAL'}
+    # Substitute an equivalent endpoint in an actual KiCad ratsnest edge.
+    after = json.loads(json.dumps(before))
+    endpoints = (endpoint for finding in after['unconnected_items'] for endpoint in finding['items'])
+    for endpoint in endpoints:
+        pad = signal.get(endpoint['uuid'])
+        if pad is None:
+            continue
+        others = [peer for peer in original.GetConnectivity().GetConnectedItems(pad)
+                  if isinstance(peer, pcbnew.PAD) and bridge.item_id(peer) != endpoint['uuid']]
+        if others:
+            endpoint['uuid'] = bridge.item_id(others[0])
+            break
+    else:
+        pytest.fail('fixture needs an open whose endpoint has another connected pad')
+    bridge._verify_saved_connectivity(original, native_board, before, after, {'OBSTACLE'})
+
+    # A second edge on an untouched net still fails even with identical copper.
+    after['unconnected_items'].append(after['unconnected_items'][0])
+    with pytest.raises(bridge.NativeValidationError, match='new open connections'):
+        bridge._verify_saved_connectivity(original, native_board, before, after, {'OBSTACLE'})
+
+    # Exchange two same-net connections. The total native open count stays
+    # fixed, but an original pad pair on the unselected net loses its path.
+    trunk = next(track for track in original.GetTracks() if tuple(track.GetStart()) == (3000000, 3000000))
+    trunk.SetStart(pcbnew.VECTOR2I(3000000, 17000000))
+    candidate = tmp_path / 'changed.kicad_pcb'
+    assert pcbnew.SaveBoard(str(candidate), original)
+    changed = pcbnew.LoadBoard(str(candidate))
+    changed.BuildConnectivity()
+    after = bridge.native_violations(candidate, tmp_path / 'after.json')
+    assert len(after['unconnected_items']) == len(before['unconnected_items'])
+    with pytest.raises(bridge.NativeValidationError, match='lost an original connection on SIGNAL'):
+        bridge._verify_saved_connectivity(changed, native_board, before, after, {'OBSTACLE'})
+
+
 def test_native_apply_limits_every_copper_edit_to_the_selected_nets(tmp_path, guarded_cli):
     run, _ = guarded_cli
     engine = _built_rust_engine(run)
