@@ -533,3 +533,31 @@ fn plane_with_track_and_via_keepout_can_use_its_plated_pads_on_another_layer() {
     assert_eq!(out.status, Status::BudgetExhausted);
     assert!(out.added_tracks.is_empty());
 }
+
+#[test]
+fn pad_without_layers_joins_copper_on_the_requested_face() {
+    let mut i = base();
+    i.layer = "B.Cu".into();
+    i.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    i.pads = vec![pad(101, [20, 30]), pad(102, [60, 30])];
+    let mut connection = track(103, [20, 30], [60, 30]);
+    connection.layer = "B.Cu".into();
+    i.tracks = vec![connection];
+    let mut explicit = i.clone();
+    for p in &mut explicit.pads {
+        p.layers.push("B.Cu".into());
+    }
+    let native = run(explicit);
+    let implicit = run(i.clone());
+    assert_eq!(native.status, Status::Complete);
+    assert_eq!(implicit.status, native.status);
+    assert_eq!(implicit.expanded_states, 0);
+    assert!(implicit.added_tracks.is_empty() && implicit.added_vias.is_empty());
+    i.tracks[0].layer = "F.Cu".into();
+    let other_face = run(i);
+    assert!(
+        other_face.status != Status::Complete
+            || !other_face.added_tracks.is_empty()
+            || !other_face.added_vias.is_empty()
+    );
+}

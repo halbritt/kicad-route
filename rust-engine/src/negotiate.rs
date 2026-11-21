@@ -1675,12 +1675,8 @@ fn try_unit_with_cap(
 ) -> Result<(), TryUnitErr> {
     let retain = matches!(initial_repair, Some(InitialRepair::RetainBranches));
     let remaining = batch_limit.saturating_sub(*expanded);
-    if remaining == 0 {
-        return Err(TryUnitErr::Fatal(Failure::new(
-            Status::BudgetExhausted,
-            "total expansion budget exhausted",
-        )));
-    }
+    // An already connected unit can finish after the last expansion. Search
+    // checks the shared limit before it expands another state.
     if let Some(cap) = trial_cap.filter(|&c| remaining > c) {
         let trial_limit = (*expanded).saturating_add(cap);
         let is_blocker_eligible = |b: &BlockerScore| -> bool {

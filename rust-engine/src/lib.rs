@@ -409,6 +409,13 @@ impl Engine {
         let effective_rules = rules::resolve_effective_rules(&mut input)?;
         let work = budget::WorkBudget::with_control(input.limits, control);
         input.validate_with_work(&work)?;
+        // Older requests omit pad layers to select the request's routing layer.
+        // Resolve it once for indexing, contact, clearance, and routing.
+        for pad in &mut input.pads {
+            if pad.layers.is_empty() {
+                pad.layers.push(input.layer.clone());
+            }
+        }
         if let Some(grid) = input
             .routing_options
             .as_ref()
