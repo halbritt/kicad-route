@@ -4026,6 +4026,54 @@ fn m3_3_zone(
 }
 
 #[test]
+fn filled_copper_rejects_multiple_traversals_but_accepts_fractured_holes() {
+    let square = vec![[1, 1], [17, 1], [17, 17], [1, 17]];
+    let zone = m3_3_zone(100, 1, "F.Cu", square.clone(), true, false);
+    let with_ring = |ring| {
+        let mut input = base();
+        let mut zone = zone.clone();
+        zone.layer_fills[0].polygons[0].outer = ring;
+        input.zones.push(zone);
+        input.validate()
+    };
+    assert!(with_ring(square.clone()).is_ok());
+
+    let mut double = square.clone();
+    double.extend_from_slice(&square);
+    assert_eq!(with_ring(double).unwrap_err().status, Status::Invalid);
+    let mut split = square.clone();
+    split.extend([
+        [1, 1],
+        [7, 1],
+        [17, 1],
+        [17, 8],
+        [17, 17],
+        [9, 17],
+        [1, 17],
+        [1, 6],
+    ]);
+    split.reverse();
+    assert_eq!(with_ring(split).unwrap_err().status, Status::Invalid);
+
+    // One boundary includes a clockwise hole and a cut traversed in both
+    // directions. Such contours occur in KiCad's filled polygon output.
+    let cut = vec![
+        [1, 1],
+        [17, 1],
+        [17, 17],
+        [1, 17],
+        [1, 6],
+        [5, 6],
+        [5, 9],
+        [9, 9],
+        [9, 6],
+        [5, 6],
+        [1, 6],
+    ];
+    assert!(with_ring(cut).is_ok());
+}
+
+#[test]
 fn m3_3_rule_area_five_flags_extra_polygons_and_duplicate_layer_refusal() {
     let mut inp = base();
     inp.bounds = Bounds {
