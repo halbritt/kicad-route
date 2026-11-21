@@ -52,7 +52,9 @@ last component of a hierarchical net name. A pattern containing a slash
 matches the full name. To select the literal bus net `DATA[0]`, use
 `--nets 'DATA[[]0]'`. Use `--nets '\!RESET'` for a literal leading
 exclamation mark. Native apply checks that every proposed track and via is
-on a selected net before saving the PCB.
+on a selected net. KiCad refills the whole board when pours or teardrops
+require it. If that refill creates a teardrop on an excluded net, the router
+names the net and leaves the output unpublished.
 
 After linking a board, saved request or operation report, the controller opens
 and syncs its containing directory. A failure after the board link preserves
