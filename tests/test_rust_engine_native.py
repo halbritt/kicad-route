@@ -5133,8 +5133,21 @@ def test_tier5_stackup_utf8_collinear_bowtie_and_parse_last_json_line():
 
 
 
-def test_route_native_repairs_ground_split_by_signal_on_refill(native_board, guarded_cli, tmp_path):
+@pytest.mark.parametrize('options,should_publish', [
+    ([], True),
+    (['--protect', 'existing'], True),
+    (['--diff-pairs', 'auto'], True),
+    (['--nets', 'SIGNAL', 'OBSTACLE'], True),
+    (['--protect', 'locked', '--nets', 'S*', 'OBS*',
+      '--layer-policy-json', '{"signal_layers":["F.Cu","B.Cu"],"per_net_signal_layers":{"OBSTACLE":["F.Cu"]}}'],
+     True),
+    (['--nets', 'SIGNAL'], False),
+])
+def test_route_native_repairs_ground_split_by_signal_on_refill(
+        native_board, guarded_cli, tmp_path, options, should_publish):
     board = pcbnew.LoadBoard(str(native_board))
+    signal = board.FindNet('SIGNAL').GetNetCode()
+    ground = board.FindNet('OBSTACLE').GetNetCode()
     for track in list(board.GetTracks()):
         board.Remove(track)
     # A signal on B.Cu crosses a narrow ground pour between two plated pads.
@@ -5143,11 +5156,16 @@ def test_route_native_repairs_ground_split_by_signal_on_refill(native_board, gua
         pad.SetAttribute(pcbnew.PAD_ATTRIB_PTH)
         pad.SetDrillSize(pcbnew.VECTOR2I(400000, 400000))
         pad.SetLayerSet(pcbnew.LSET.AllCuMask())
-        pad.SetNetCode(2)
-    for i, y in enumerate((4_000_000, 16_000_000)):
+        pad.SetNetCode(ground)
+    surface_pads = [('S1', signal, 10_000_000, 4_000_000), ('S2', signal, 10_000_000, 16_000_000)]
+    scoped = '--nets' in options
+    if scoped:
+        board.Add(pcbnew.NETINFO_ITEM(board, 'AUX', 3))
+        surface_pads.extend([('A1', 3, 2_000_000, 2_000_000), ('A2', 3, 4_000_000, 2_000_000)])
+    for ref, net, x, y in surface_pads:
         fp = pcbnew.FOOTPRINT(board)
-        fp.SetReference(f'S{i+1}')
-        fp.SetPosition(pcbnew.VECTOR2I(10_000_000, y))
+        fp.SetReference(ref)
+        fp.SetPosition(pcbnew.VECTOR2I(x, y))
         pad = pcbnew.PAD(fp)
         pad.SetPosition(fp.GetPosition())
         pad.SetNumber('1')
@@ -5157,26 +5175,60 @@ def test_route_native_repairs_ground_split_by_signal_on_refill(native_board, gua
         bottom = pcbnew.LSET()
         bottom.AddLayer(pcbnew.B_Cu)
         pad.SetLayerSet(bottom)
-        pad.SetNetCode(1)
+        pad.SetNetCode(net)
         fp.Add(pad)
         board.Add(fp)
     plane = pcbnew.ZONE(board)
     plane.SetLayer(pcbnew.B_Cu)
-    plane.SetNetCode(2)
+    plane.SetNetCode(ground)
     plane.SetPadConnection(pcbnew.ZONE_CONNECTION_FULL)
     _add_rect_outline(plane.Outline(), 1_000_000, 8_000_000, 19_000_000, 12_000_000)
     board.Add(plane)
+    fixed = pcbnew.PCB_TRACK(board)
+    fixed.SetNetCode(ground)
+    fixed.SetLayer(pcbnew.F_Cu)
+    fixed.SetWidth(200_000)
+    fixed.SetStart(pcbnew.VECTOR2I(3_000_000, 10_000_000))
+    fixed.SetEnd(pcbnew.VECTOR2I(3_800_000, 10_000_000))
+    fixed.SetLocked(True)
+    board.Add(fixed)
     assert pcbnew.SaveBoard(str(native_board), board)
     run, _ = guarded_cli
     engine = _built_rust_engine(run)
-    candidate = tmp_path / 'repaired.kicad_pcb'
-    process = run([str(engine), 'route-native', str(native_board), str(candidate)], check=False)
+    source_bytes = native_board.read_bytes()
+    destination = tmp_path / 'published'
+    destination.mkdir()
+    candidate = destination / 'repaired.kicad_pcb'
+    process = run([str(engine), 'route-native', str(native_board), str(candidate), *options], check=False)
     op = json.loads(process.stdout)
+    assert native_board.read_bytes() == source_bytes
+    if not should_publish:
+        assert op['status'] == 'native_validation_failed' and process.returncode != 0
+        assert 'excluded net OBSTACLE' in op['reason']
+        assert all(p['phase'] != 'rust_refill_repair' for p in op['phases'])
+        assert list(destination.iterdir()) == []
+        return
     assert process.returncode == 0, op.get('reason')
     assert any(p['phase'] == 'rust_refill_repair' and p['status'] == 'ok' for p in op['phases'])
     assert op['publication']['published']
+    saved = pcbnew.LoadBoard(str(candidate))
+    saved.BuildConnectivity()
+    retained = next(t for t in saved.GetTracks() if bridge.item_id(t) == bridge.item_id(fixed))
+    assert retained.IsLocked() and retained.GetNetname() == 'OBSTACLE'
+    assert (retained.GetStart(), retained.GetEnd(), retained.GetLayer(), retained.GetWidth()) == (
+        fixed.GetStart(), fixed.GetEnd(), fixed.GetLayer(), fixed.GetWidth())
+    assert {t.GetNetname() for t in saved.GetTracks() if bridge.item_id(t) != bridge.item_id(fixed)} == {
+        'SIGNAL', 'OBSTACLE'}
+    if '--layer-policy-json' in options:
+        ground_repairs = [t for t in saved.GetTracks() if t.GetNetname() == 'OBSTACLE'
+                          and bridge.item_id(t) != bridge.item_id(fixed)]
+        assert ground_repairs and all(t.GetClass() == 'PCB_TRACK' and t.GetLayer() == pcbnew.F_Cu
+                                      for t in ground_repairs)
     final = bridge.native_violations(candidate, tmp_path / 'repaired-drc.json', refill_zones=True)
-    assert not final['unconnected_items']
+    if scoped:
+        assert bridge._native_opens_by_net(final, bridge._native_copper_components(saved)[0]) == {'AUX': 1}
+    else:
+        assert not final['unconnected_items']
     assert not [v for v in final['violations'] if v['severity'] == 'error']
 
 @pytest.mark.parametrize('allowed,expected', [(None, 'B.Cu'), (['F.Cu'], 'F.Cu')])

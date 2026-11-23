@@ -2694,14 +2694,9 @@ fn execute_staged_phases(
     }
     let mut current_plan = staged_plan;
     let refill_file = staging_dir.join("refilled-copper.json");
-    // A lattice or bus preference changes the search, not which nets may be repaired.
-    let mut request_refill = input_has_zones
-        && config.routing_options
-            == crate::model::RoutingOptions {
-                grid_step_nm: config.routing_options.grid_step_nm,
-                bus: config.routing_options.bus,
-                ..Default::default()
-            };
+    // Reuse the original routing options in the repair. The bridge requests
+    // measured fill only for opens that the selected nets may reconnect.
+    let mut request_refill = input_has_zones;
     let (apply_outcome, t_apply) = loop {
         let t_apply = Instant::now();
         let mut apply_args: Vec<OsString> = vec![

@@ -63,6 +63,13 @@ on a selected net. KiCad refills the whole board when pours or teardrops
 require it. If that refill creates a teardrop on an excluded net, the router
 names the net and leaves the output unpublished.
 
+If a refill splits a selected connection, the router can make one further
+routing pass using KiCad's measured fill and the remaining expansion, work
+and time budgets. It preserves the original net selection, protection,
+layer policies and matching rules. The original and first-pass tracks and
+vias are fixed during repair. When a scoped route disconnects an excluded
+net, the command reports the lost connection and leaves the PCB unpublished.
+
 After linking a board, saved request or operation report, the controller opens
 and syncs its containing directory. A failure after the board link preserves
 the board and its recorded digest and returns exit 8 with

@@ -71,6 +71,10 @@ class NativeValidationError(ValueError):
     pass
 
 
+class NativeOpenConnections(NativeValidationError):
+    """After refill, required connections are still open on nets the request may route."""
+
+
 CONSOLE_ERROR_RE = re.compile(
     r'(?im)^(?:\d{2}:\d{2}:\d{2}:\s*)?(?:fatal\s+)?error\b'
 )
@@ -3229,7 +3233,7 @@ def _verify_saved_connectivity(saved, before_board: Path, before_drc: dict, afte
                         pairs.append(' to '.join(labels))
             if pairs:
                 reason += '. ' + ' / '.join(pairs)
-            raise NativeValidationError(reason)
+            raise NativeOpenConnections(reason)
         return
     original = pcbnew.LoadBoard(str(before_board))
     if original is None:
@@ -3242,10 +3246,9 @@ def _verify_saved_connectivity(saved, before_board: Path, before_drc: dict, afte
     saved_names = {net.GetNetname() for code, net in saved.GetNetsByNetcode().items() if code}
     if not selected_names.issubset(saved_names):
         raise NativeValidationError('saved board is missing selected nets')
-    if any(after_opens[name] for name in selected_names):
-        raise NativeValidationError('native DRC still reports open connections on selected nets')
-    if after_opens - before_opens:
-        raise NativeValidationError('native DRC reports new open connections')
+    for name in sorted(after_opens - before_opens):
+        if name not in selected_names:
+            raise NativeValidationError(f'native DRC reports new open connections on excluded net {name}')
 
     # KiCad can choose different items to represent the same ratsnest edge.
     # Preserve every original unselected connection even when two changes on
@@ -3256,13 +3259,15 @@ def _verify_saved_connectivity(saved, before_board: Path, before_drc: dict, afte
         group = new_groups.get(uid)
         if group is None or group[0] != net or group != new_groups.get(representative):
             raise NativeValidationError(f'native connectivity lost an original connection on {net}')
+    if any(after_opens[name] for name in selected_names):
+        raise NativeOpenConnections('native DRC still reports open connections on selected nets')
     selected_groups = {}
     for pad in saved.GetPads():
         net = pad.GetNetname()
         if net in selected_names:
             group = new_groups[item_id(pad)]
             if selected_groups.setdefault(net, group) != group:
-                raise NativeValidationError('native connectivity still has open connections on selected nets')
+                raise NativeOpenConnections('native connectivity still has open connections on selected nets')
 
 
 def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_request: bytes,
@@ -3513,7 +3518,7 @@ def apply_snapshot(source: Path, plan: dict, destination: Path, *, expected_requ
         introduced = Counter(map(key, after['violations'])) - Counter(map(key, before['violations']))
         try:
             _verify_saved_connectivity(saved, before_board, before, after, selected_names)
-        except NativeValidationError:
+        except NativeOpenConnections:
             if refill_state is not None and has_copper_zones and after['unconnected_items']:
                 measured = _refilled_copper(saved, shift)
                 measured['introduced_violations'] = sum(introduced.values())
