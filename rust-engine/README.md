@@ -175,8 +175,11 @@ builder. The shorter prefix crosses the shared terminal approach. The
 longer prefix connects both nets.
 These bounds and the enumerated fanouts, sampled grid spacings and tail
 shapes limit reachability. Exhausting a local snap or expansion allowance
-advances to the next fanout or grid spacing. Exhausting the public search
-storage or work allowance returns `admission_exceeded` or `work_exhausted`.
+advances to the next fanout or grid spacing. If the pair remains incomplete
+after negotiation and a fanout search stopped at one of those allowances,
+the result is `budget_exhausted`. The reason identifies the pair and the
+local limit reached, even when the global expansion budget has work left.
+Exhausting the public search storage or work allowance returns `admission_exceeded` or `work_exhausted`.
 Storage includes the immutable labels, both queues, the expanded-pose map
 and the temporary reconstructed chain. Physical length, via count and total
 pair cost carry no optimality guarantee.

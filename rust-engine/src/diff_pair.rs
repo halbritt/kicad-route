@@ -5543,6 +5543,32 @@ fn coalesce_collinear_net_tracks(
 }
 mod centerline_search;
 
+const CENTERLINE_EXPANSIONS_PER_FANOUT: usize = 35_000;
+const SNAP_ATTEMPTS_PER_FANOUT: usize = 128;
+
+#[derive(Clone, Copy, Default)]
+struct PairSearchLimits {
+    snap: bool,
+    expansions: Option<usize>,
+}
+
+impl PairSearchLimits {
+    fn failure(self, pair: &ResolvedDiffPair) -> Option<Failure> {
+        let limit = match (self.snap, self.expansions) {
+            (false, None) => return None,
+            (true, None) => format!("{SNAP_ATTEMPTS_PER_FANOUT} snap attempts"),
+            (false, Some(n)) => format!("{n} expansions"),
+            (true, Some(n)) => format!(
+                "{SNAP_ATTEMPTS_PER_FANOUT} snap attempts and {n} expansions on different searches"
+            ),
+        };
+        Some(Failure::new(Status::BudgetExhausted, format!(
+            "coupled search for differential pair ({:?}, {:?}) reached its local fanout allowance: {limit}",
+            pair.pos_name, pair.neg_name
+        )))
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn astar_coupled_centerline(
     engine: &mut Engine,
@@ -5556,6 +5582,7 @@ fn astar_coupled_centerline(
     budget: &mut TrialBudget<'_>,
     mut expanded_out: Option<&mut u64>,
     mut frontier: Option<&mut BlockedFrontier>,
+    limits: &mut PairSearchLimits,
     mut accept: impl FnMut(&mut Engine, &ResolvedDiffPair, CoupledSolution) -> Result<bool, Failure>,
 ) -> Result<bool, Failure> {
     if allowed_layer_idxs.is_empty() || sf.pos_on_left != ef.pos_on_left {
@@ -5714,7 +5741,8 @@ fn astar_coupled_centerline(
         )?;
     }
     let mut expansions = 0usize;
-    let max_expansions = (engine.input.max_expansions as usize).min(35_000);
+    let max_expansions =
+        (engine.input.max_expansions as usize).min(CENTERLINE_EXPANSIONS_PER_FANOUT);
     let mut snap_attempts = 0usize;
 
     let reconstruct_runs = |chain: &[Pose],
@@ -5852,8 +5880,9 @@ fn astar_coupled_centerline(
                     }
                 }
                 snap_attempts += 1;
-                if snap_attempts >= 128 {
-                    break;
+                if snap_attempts >= SNAP_ATTEMPTS_PER_FANOUT {
+                    limits.snap = true;
+                    return Ok(false);
                 }
             }
         }
@@ -6001,6 +6030,9 @@ fn astar_coupled_centerline(
             }
         }
     }
+    if expansions == max_expansions && !open.is_empty() {
+        limits.expansions = Some(max_expansions);
+    }
     Ok(false)
 }
 
@@ -6038,6 +6070,7 @@ fn route_single_diff_pair_inner(
     budget: &mut TrialBudget<'_>,
     mut expanded: Option<&mut u64>,
     mut frontier: Option<&mut BlockedFrontier>,
+    limits: &mut PairSearchLimits,
 ) -> Result<(), UnitRouteError> {
     // Check if already connected & protected / pre-routed
     let p_conn = measure_net_fromto(engine, pair.pos_net, false)
@@ -6287,6 +6320,7 @@ fn route_single_diff_pair_inner(
                 budget,
                 expanded.as_deref_mut(),
                 frontier.as_deref_mut(),
+                limits,
                 try_commit_coupled_solution,
             );
             match res {
@@ -6325,6 +6359,9 @@ fn route_single_diff_pair_inner(
         return Err(UnitRouteError::Blocked(std::mem::take(f)));
     }
 
+    if let Some(failure) = limits.failure(pair) {
+        return Err(UnitRouteError::Fatal(failure));
+    }
     Err(UnitRouteError::Fatal(Failure::new(
         Status::Unroutable,
         format!(
@@ -6351,6 +6388,7 @@ fn route_single_diff_pair(
         &mut budget,
         None,
         None,
+        &mut PairSearchLimits::default(),
     ) {
         Ok(()) => Ok(()),
         Err(UnitRouteError::Fatal(e)) => Err(e),
@@ -6505,6 +6543,7 @@ pub(crate) fn plan_diff_pairs(engine: &Engine) -> Result<DiffPairRunState, Failu
 }
 
 pub struct CompositeRouteAdapter {
+    search_limits: Vec<PairSearchLimits>,
     state: DiffPairRunState,
     pair_by_net: BTreeMap<u32, usize>,
 }
@@ -6516,7 +6555,11 @@ impl CompositeRouteAdapter {
             pair_by_net.insert(pair.pos_net, idx);
             pair_by_net.insert(pair.neg_net, idx);
         }
-        Self { state, pair_by_net }
+        Self {
+            search_limits: vec![PairSearchLimits::default(); state.plan.pairs.len()],
+            state,
+            pair_by_net,
+        }
     }
 
     fn route_unit_with_budget(
@@ -6551,7 +6594,9 @@ impl CompositeRouteAdapter {
                         .saturating_mul(250_000)
                 };
                 let mut frontier = BlockedFrontier::new();
-                route_single_diff_pair_inner(
+                let limits = &mut self.search_limits[idx];
+                *limits = PairSearchLimits::default();
+                let result = route_single_diff_pair_inner(
                     engine,
                     pair,
                     &self.state.plan,
@@ -6560,13 +6605,27 @@ impl CompositeRouteAdapter {
                     budget,
                     Some(expanded),
                     Some(&mut frontier),
-                )
+                    limits,
+                );
+                if result.is_ok() {
+                    *limits = PairSearchLimits::default();
+                }
+                result
             }
         }
     }
 }
 
 impl RouteUnitAdapter for CompositeRouteAdapter {
+    fn search_limit_failure(&self, unit: RouteUnitId) -> Option<Failure> {
+        let RouteUnitId::DiffPair(idx) = unit else {
+            return None;
+        };
+        self.search_limits
+            .get(idx)?
+            .failure(self.state.plan.pairs.get(idx)?)
+    }
+
     fn units(&self, engine: &Engine) -> Result<Vec<UnitSpec>, Failure> {
         engine.charge_work(engine.input().nets.len() as u64)?;
         let mut out: Vec<UnitSpec> = self

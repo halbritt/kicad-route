@@ -107,6 +107,10 @@ pub(super) struct Frontier {
 }
 
 impl Frontier {
+    pub(super) fn is_empty(&self) -> bool {
+        self.preferred.is_empty() && self.alternatives.is_empty()
+    }
+
     fn entries(&self) -> usize {
         self.labels.len() + self.preferred.len() + self.alternatives.len() + self.expanded.len()
     }

@@ -716,6 +716,12 @@ impl<'a> TrialBudget<'a> {
 
 /// directly.
 pub trait RouteUnitAdapter {
+    /// A bounded unit can retain its search limit while negotiation tries its blockers.
+    #[doc(hidden)]
+    fn search_limit_failure(&self, _unit: RouteUnitId) -> Option<Failure> {
+        None
+    }
+
     fn units(&self, engine: &Engine) -> Result<Vec<UnitSpec>, Failure>;
     fn unit_for_net(&self, net: u32) -> Option<RouteUnitId>;
     /// The built-in single-ended adapter can resume a net from validated branches.
@@ -2647,10 +2653,15 @@ fn solve_with_adapter_units(
         stats.history_evictions = history.evictions();
         stats.expanded_states = *expanded;
         tx.engine.set_last_negotiation_stats(Some(stats));
-        let mut e = Failure::new(
-            Status::Unroutable,
-            "search frontier exhausted with no rippable generated blockers",
-        );
+        let mut e = failed_units
+            .iter()
+            .find_map(|&id| adapter.search_limit_failure(id))
+            .unwrap_or_else(|| {
+                Failure::new(
+                    Status::Unroutable,
+                    "search frontier exhausted with no rippable generated blockers",
+                )
+            });
         e.expanded_states = *expanded;
         return Err(crate::scoped_routing_failure(
             e,
@@ -2870,10 +2881,14 @@ fn solve_with_adapter_units(
     stats.history_evictions = history.evictions();
     stats.expanded_states = *expanded;
     tx.engine.set_last_negotiation_stats(Some(stats));
-    let mut e = Failure::new(
-        Status::Unroutable,
-        "global negotiation exhausted passes without routing all nets",
-    );
+    let mut e = adapter
+        .search_limit_failure(first_failed)
+        .unwrap_or_else(|| {
+            Failure::new(
+                Status::Unroutable,
+                "global negotiation exhausted passes without routing all nets",
+            )
+        });
     e.expanded_states = *expanded;
     Err(crate::scoped_routing_failure(
         e,

@@ -651,7 +651,7 @@ fn coupled_routing_invokes_penalty_hooks_and_rolls_back_atomically_on_keepout_bl
     assert_eq!(state.routed_pair_nets.len(), 2);
     assert!(!obs_eng.copper().generated().collect::<Vec<_>>().is_empty());
 
-    // 2. Full impassable keepout wall across F.Cu & B.Cu -> Unroutable, 0 copper emitted
+    // The fixed two-layer wall blocks the pair. The bounded search stops at its local allowance.
     let mut wall_input = base_diff_input(&["CAN+", "CAN-"]);
     wall_input.rule_areas.push(RuleArea {
         id: uuid(201),
@@ -673,9 +673,94 @@ fn coupled_routing_invokes_penalty_hooks_and_rolls_back_atomically_on_keepout_bl
     });
     let mut wall_eng = Engine::new(wall_input).unwrap();
     let err = prepare_and_route_pairs_in_tx(&mut wall_eng).unwrap_err();
-    assert_eq!(err.status, Status::Unroutable);
+    assert_eq!(err.status, Status::BudgetExhausted);
+    assert!(
+        err.reason.contains("local fanout allowance"),
+        "{}",
+        err.reason
+    );
     assert_eq!(wall_eng.copper().generated().count(), 0);
     assert_eq!(wall_eng.copper().generated_vias().count(), 0);
+}
+
+#[test]
+fn coupled_detour_distinguishes_a_fanout_allowance_from_an_empty_frontier() {
+    let mut input = base_diff_input(&["CAN+", "CAN-"]);
+    input.bounds.max = [30_000_000, 30_000_000];
+    for (i, pad) in input.pads.iter_mut().enumerate() {
+        pad.at[0] = if i % 2 == 0 { 10_000_000 } else { 20_000_000 };
+        pad.footprint_ref = Some(format!("J{}", i % 2 + 1));
+        pad.pad_number = Some(pad.net.to_string());
+    }
+    input.rule_areas.push(RuleArea {
+        id: uuid(201),
+        name: None,
+        layers: input.layers.clone(),
+        outer: vec![
+            [14_000_000, 0],
+            [16_000_000, 0],
+            [16_000_000, 14_000_000],
+            [14_000_000, 14_000_000],
+        ],
+        holes: vec![],
+        extra_polygons: vec![],
+        no_tracks: true,
+        no_vias: true,
+        no_pads: false,
+        no_footprints: false,
+        no_zone_fills: false,
+    });
+    let limited = kicad_route_engine::run(input.clone());
+    assert_eq!(
+        limited.status,
+        Status::BudgetExhausted,
+        "{:?}",
+        limited.reason
+    );
+    let reason = limited.reason.as_deref().unwrap();
+    for term in [
+        "CAN+",
+        "CAN-",
+        "fanout allowance",
+        "128 snap attempts",
+        "35000 expansions",
+    ] {
+        assert!(reason.contains(term), "{reason}");
+    }
+    assert!(limited.expanded_states > 0 && limited.expanded_states < input.max_expansions);
+    assert!(limited.work_used < input.limits.max_work);
+    assert!(limited.added_tracks.is_empty() && limited.added_vias.is_empty());
+
+    let mut small_budget = input.clone();
+    small_budget.max_expansions = 16;
+    let exhausted = kicad_route_engine::run(small_budget);
+    assert_eq!(exhausted.status, Status::BudgetExhausted);
+    assert_eq!(exhausted.expanded_states, 16);
+    assert_eq!(
+        exhausted.reason.as_deref(),
+        Some("total expansion budget exhausted")
+    );
+    assert!(exhausted.added_tracks.is_empty() && exhausted.added_vias.is_empty());
+
+    // Reducing the obstruction by 1 mm permits a complete coupled detour.
+    for corner in &mut input.rule_areas[0].outer[2..] {
+        corner[1] -= 1_000_000;
+    }
+    let complete = kicad_route_engine::run(input.clone());
+    assert_eq!(complete.status, Status::Complete, "{:?}", complete.reason);
+    assert_eq!(complete.diff_pairs[0].disposition, PairDisposition::Coupled);
+
+    // Without a legal launch the search has genuinely run out of candidates.
+    input.rule_areas[0].outer = vec![
+        [0, 0],
+        [30_000_000, 0],
+        [30_000_000, 30_000_000],
+        [0, 30_000_000],
+    ];
+    let blocked = kicad_route_engine::run(input);
+    assert_eq!(blocked.status, Status::Unroutable, "{:?}", blocked.reason);
+    assert!(!blocked.reason.as_deref().unwrap().contains("allowance"));
+    assert!(blocked.added_tracks.is_empty() && blocked.added_vias.is_empty());
 }
 
 #[test]
@@ -1211,7 +1296,7 @@ fn cumulative_uncoupled_budget_and_meander_geometry_safety() {
 fn explorer1_exact_uncoupled_projection_and_gap_corridor_slit_rejection() {
     use kicad_route_engine::model::Status;
 
-    // 1. DEEP_2D_NO_INTRA: 1.2mm stagger with intra_match=false & max uncoupled 1mm must refuse Unroutable
+    // The 1.2 mm stagger with a 1 mm uncoupled maximum must refuse the out-of-rule proposal.
     let mut no_intra = base_diff_input(&["DP+", "DP-"]);
     no_intra.pads[2].at = [10_000_000, 10_600_000];
     no_intra.pads[3].at = [38_800_000, 10_600_000];
@@ -1227,7 +1312,14 @@ fn explorer1_exact_uncoupled_projection_and_gap_corridor_slit_rejection() {
     let err1 = prepare_and_route_pairs_in_tx(&mut eng1).expect_err(
         "1.2mm uncoupled stagger with 1mm budget must fail closed even when intra_match=false",
     );
-    assert_eq!(err1.status, Status::Unroutable);
+    assert_eq!(err1.status, Status::BudgetExhausted);
+    assert!(
+        err1.reason.contains("local fanout allowance"),
+        "{}",
+        err1.reason
+    );
+    assert_eq!(eng1.copper().generated().count(), 0);
+    assert_eq!(eng1.copper().generated_vias().count(), 0);
     assert_eq!(eng1.copper().generated().count(), 0);
 
     // 2. Coupled meander miter overhangs exceeding 1mm budget (2C_small_1wave) must refuse Unroutable
