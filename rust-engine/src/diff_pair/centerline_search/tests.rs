@@ -248,6 +248,7 @@ fn disconnected_terminal_rolls_back_then_resumes_the_same_search() {
                     &mut TrialBudget::fixed(100),
                     None,
                     None,
+                    &mut Default::default(),
                     |e, pair, mut sol| {
                         attempts += 1;
                         if reject_first && attempts == 1 {
