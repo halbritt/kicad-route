@@ -4,9 +4,14 @@
 use crate::{
     budget::WorkBudget,
     geometry,
-    model::{CopperGraphic, Failure, GraphicShape, OutlinePolygon, Pad, Point, Track, Via, Zone},
+    model::{
+        CopperGraphic, Failure, GraphicShape, Input, OutlinePolygon, Pad, Point, Status, Track,
+        Via, Zone,
+    },
     zones::{resolve_pad_zone_connection, ResolvedPadZoneConnection},
 };
+
+use std::collections::BTreeMap;
 
 pub(crate) fn layer_bit(stackup: &[String], layer: &str) -> u32 {
     stackup
@@ -404,13 +409,91 @@ impl<'a> Copper<'a> {
     }
 }
 
+/// Index the native footprint connections once. They affect electrical
+/// components only, never copper geometry or physical landing predicates.
+pub(crate) fn jumper_groups(
+    input: &Input,
+    work: &WorkBudget,
+) -> Result<BTreeMap<String, usize>, Failure> {
+    let mut groups = BTreeMap::new();
+    if input
+        .components
+        .iter()
+        .all(|c| c.jumper_pad_groups.is_empty())
+    {
+        return Ok(groups);
+    }
+    work.charge(input.pads.len() as u64)?;
+    let pads: BTreeMap<_, _> = input.pads.iter().map(|p| (p.id.as_str(), p)).collect();
+    let mut links: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for c in &input.components {
+        work.charge(1)?;
+        for members in &c.jumper_pad_groups {
+            work.charge(1 + members.len() as u64)?;
+            if members.len() < 2 {
+                return Err(Failure::new(
+                    Status::Invalid,
+                    "a jumper pad group needs at least two pads",
+                ));
+            }
+            let anchor = members[0].as_str();
+            let mut net = None;
+            for id in members {
+                let pad = pads.get(id.as_str()).ok_or_else(|| {
+                    Failure::new(Status::Invalid, "unknown pad in jumper pad group")
+                })?;
+                if pad.footprint_ref.as_deref().unwrap_or("") != c.ref_des
+                    || pad.net == 0
+                    || net.is_some_and(|n| n != pad.net)
+                {
+                    return Err(Failure::new(
+                        Status::Invalid,
+                        "jumper pads must belong to the same footprint and net",
+                    ));
+                }
+                net = Some(pad.net);
+                if id != anchor {
+                    links.entry(anchor).or_default().push(id);
+                    links.entry(id).or_default().push(anchor);
+                }
+            }
+        }
+    }
+    // KiCad permits overlapping custom groups; one physical pad can join them.
+    while let Some((&root, _)) = links.first_key_value() {
+        let group = groups.len();
+        let mut pending = vec![root];
+        while let Some(id) = pending.pop() {
+            work.charge(1)?;
+            if let Some(neighbors) = links.remove(id) {
+                groups.insert(id.to_owned(), group);
+                pending.extend(neighbors);
+            }
+        }
+    }
+    Ok(groups)
+}
+
 pub(crate) fn partition<'a>(
     items: Vec<Copper<'a>>,
     stackup: &[String],
     work: &WorkBudget,
+    jumper_groups: &BTreeMap<String, usize>,
     both_from_input: impl Fn(&str, &str) -> bool,
 ) -> Result<Vec<Vec<Copper<'a>>>, Failure> {
     work.charge(items.len() as u64)?;
+    let group_ids: Vec<_> = if jumper_groups.is_empty() {
+        Vec::new()
+    } else {
+        work.charge(items.len() as u64)?;
+        items
+            .iter()
+            .map(|item| match item {
+                Copper::Pad(p) => jumper_groups.get(&p.id).copied(),
+                _ => None,
+            })
+            .collect()
+    };
     let mut seen = vec![false; items.len()];
     let mut groups = Vec::new();
     for root in 0..items.len() {
@@ -430,7 +513,9 @@ pub(crate) fn partition<'a>(
                     continue;
                 }
                 work.charge(items[i].primitive_count() * items[j].primitive_count())?;
-                if items[i].touches(items[j], stackup, &both_from_input) {
+                let linked =
+                    !group_ids.is_empty() && group_ids[i].is_some() && group_ids[i] == group_ids[j];
+                if linked || items[i].touches(items[j], stackup, &both_from_input) {
                     seen[j] = true;
                     pending.push(j);
                 }

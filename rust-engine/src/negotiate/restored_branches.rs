@@ -32,6 +32,7 @@ pub(super) fn restore(engine: &mut Engine, net: u32, removed: Range<usize>) -> R
         engine.copper.removed_copper(removed),
         &engine.layer_names,
         &engine.work,
+        &engine.jumper_groups,
         |_, _| false,
     )?;
     if groups.len() < 2 {

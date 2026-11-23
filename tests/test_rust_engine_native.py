@@ -137,6 +137,64 @@ def expected_request(native_board):
     return path
 
 
+@pytest.mark.parametrize(('mode', 'expected_opens'), [
+    ('duplicate', 0), ('disabled', 3), ('custom', 0),
+    ('external', 1), ('absent-overlap', 3), ('other-net', 1),
+])
+def test_native_footprint_jumpers(native_board, guarded_cli, mode, expected_opens):
+    board = pcbnew.LoadBoard(str(native_board))
+    local, remote = sorted(board.GetFootprints(), key=lambda fp: fp.GetReference())
+    if mode == 'external':
+        next(iter(remote.Pads())).SetNumber('C')
+    else:
+        board.Remove(remote)
+    for item in list(board.GetTracks()):
+        board.Remove(item)
+    root = next(iter(local.Pads()))
+    signal = root.GetNetCode()
+    obstacle = board.FindNet('OBSTACLE').GetNetCode()
+    local.SetDuplicatePadNumbersAreJumpers(mode == 'duplicate')
+    numbers = ['1'] * 4 if mode in ('duplicate', 'disabled') else ['A', 'B', 'B', 'C']
+    root.SetNumber(numbers[0])
+    for number, x in zip(numbers[1:], (6, 10, 13)):
+        pad = pcbnew.PAD(local)
+        pad.SetNumber(number)
+        pad.SetAttribute(pcbnew.PAD_ATTRIB_SMD)
+        pad.SetShape(pcbnew.PAD_SHAPE_CIRCLE)
+        pad.SetSize(root.GetSize())
+        pad.SetPosition(pcbnew.VECTOR2I(x * 1_000_000, root.GetPosition().y))
+        pad.SetLayerSet(root.GetLayerSet())
+        pad.SetNetCode(obstacle if mode == 'other-net' and number == 'B' else signal)
+        local.Add(pad)
+    assert pcbnew.SaveBoard(str(native_board), board)
+    if mode not in ('duplicate', 'disabled'):
+        # The two declarations share a number, and B has two physical pads.
+        overlap = 'absent' if mode == 'absent-overlap' else 'B'
+        marker = '(duplicate_pad_numbers_are_jumpers no)'
+        text = native_board.read_text()
+        assert marker in text
+        native_board.write_text(text.replace(marker, marker +
+            f' (jumper_pad_groups ("A" "{overlap}") ("{overlap}" "C"))'))
+    def measure(path):
+        pcb = pcbnew.LoadBoard(str(path))
+        nets = {bridge.item_id(p): p.GetNetname() for p in [*pcb.GetPads(), *pcb.GetTracks()]}
+        report = bridge.native_violations(path, path.with_suffix('.drc.json'))
+        return Counter(nets[v['items'][0]['uuid']] for v in report['unconnected_items']), [t.GetNetname() for t in pcb.GetTracks()]
+    before, tracks = measure(native_board)
+    assert before['SIGNAL'] == expected_opens and not tracks
+    output = native_board.with_name('jumper-routed.kicad_pcb')
+    run, _ = guarded_cli
+    op = json.loads(run([str(_built_rust_engine(run)), 'route-native', str(native_board),
+                         str(output), '--nets', 'SIGNAL']).stdout)
+    assert op['status'] == 'complete'
+    after, tracks = measure(output)
+    assert after == before - Counter(SIGNAL=expected_opens)
+    assert bool(tracks) == bool(expected_opens)
+    assert all(net == 'SIGNAL' for net in tracks)
+    if not expected_opens:
+        assert op['routing']['expanded_states'] == 0
+
+
 def test_native_export_preserves_identity_rules_and_fixed_copper(native_board):
     original = native_board.read_bytes()
     data = bridge.export_board(native_board, RULES, 100000)

@@ -1115,12 +1115,37 @@ fn discover_and_validate_with_copper(
             name_by_id.insert(n.id, n.name.as_str());
         }
     }
+    // A physical from-to measurement cannot traverse a component's internal
+    // conductor. Only pairs and match groups requesting that net need it.
+    let mut jumper_anchors = BTreeSet::new();
+    if pair_mode_active || !opts.length_match_groups.is_empty() {
+        for c in &input.components {
+            work.charge(c.jumper_pad_groups.len() as u64)?;
+            jumper_anchors.extend(c.jumper_pad_groups.iter().filter_map(|g| g.first()));
+        }
+    }
+    let mut jumper_nets = BTreeSet::new();
     let mut pad_counts: BTreeMap<u32, usize> = BTreeMap::new();
     for p in &input.pads {
         if p.net != 0 {
             *pad_counts.entry(p.net).or_insert(0) += 1;
+            if !jumper_anchors.is_empty() {
+                work.charge(1)?;
+                if jumper_anchors.contains(&p.id) {
+                    jumper_nets.insert(p.net);
+                }
+            }
         }
     }
+    let require_measurable_path = |net| {
+        if jumper_nets.contains(&net) {
+            return Err(Failure::new(Status::Unsupported, format!(
+                "cannot measure the internal footprint jumper path on leg {:?} for differential routing or length matching",
+                name_by_id[&net]
+            )));
+        }
+        Ok(())
+    };
 
     let in_scope =
         |net_id: u32| -> bool { active_nets.as_ref().is_none_or(|s| s.contains(&net_id)) };
@@ -1257,6 +1282,8 @@ fn discover_and_validate_with_copper(
 
     let mut pairs = Vec::with_capacity(raw_pairs.len());
     for (idx, (stem, pos_net, neg_net)) in raw_pairs.into_iter().enumerate() {
+        require_measurable_path(pos_net)?;
+        require_measurable_path(neg_net)?;
         let pos_name = name_by_id[&pos_net].to_owned();
         let neg_name = name_by_id[&neg_net].to_owned();
         let p_pads = pad_counts.get(&pos_net).copied().unwrap_or(0);
@@ -1542,6 +1569,7 @@ fn discover_and_validate_with_copper(
                     format!("length-match group member {m:?} outside --nets scope"),
                 ));
             }
+            require_measurable_path(nid)?;
             let n_pads = pad_counts.get(&nid).copied().unwrap_or(0);
             if n_pads != 2 {
                 return Err(Failure::new(
@@ -9370,6 +9398,7 @@ mod tests {
             .unwrap(),
         );
         cont.components.push(crate::model::ComponentInfo {
+            jumper_pad_groups: Vec::new(),
             ref_des: "R9".into(),
             dnp: false,
             exclude_from_bom: false,

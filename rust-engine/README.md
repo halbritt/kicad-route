@@ -626,6 +626,17 @@ also overlaps that track, the router divides the host at the tap. Both pieces
 retain the host’s geometry and width. The same rule applies when the branch
 was inserted first.
 
+The native importer preserves a footprint's duplicate-number jumper flag and
+its custom jumper pad groups. Overlapping groups connect through pad instances
+present on the same net. These connections can span layers and keep all
+member lands available as routing terminals. Clearance uses the actual copper
+on each layer. Equal pad numbers alone in an unflagged footprint carry no
+connection. In a version 1 request, each component's optional
+`jumper_pad_groups` lists groups of same-net physical pad IDs. Differential routing and length
+matching require a measurable path along each leg. If a requested leg
+contains an internal jumper, the router names that leg and refuses the
+operation.
+
 Thin copper that the
 conservative contact model cannot join fails honestly rather than reporting
 complete. Native connectivity can merge contacts that this model separates or

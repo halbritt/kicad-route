@@ -8,7 +8,7 @@ native decoding and encoding. Unsupported native features are rejected.
 from __future__ import annotations
 
 import argparse
-from collections import Counter
+from collections import Counter, defaultdict
 from contextlib import contextmanager
 from decimal import Decimal, InvalidOperation
 import errno
@@ -1796,9 +1796,7 @@ def _unescape_sexpr_str(s: str) -> str:
     return ''.join(out)
 
 
-def _parse_pcb_stackup(body: bytes) -> list[dict]:
-    """Extract (setup (stackup (layer ...))) entries from a .kicad_pcb S-expression."""
-    text = body.decode('utf-8')
+def _sexpr_root(text: str):
     tokens = re.finditer(r'\(|\)|"(?:\\.|[^"\\])*"|[^\s()"]+', text)
     stack: list[list] = []
     root = None
@@ -1820,6 +1818,12 @@ def _parse_pcb_stackup(body: bytes) -> list[dict]:
                 tok = _unescape_sexpr_str(tok[1:-1])
             if stack:
                 stack[-1].append(tok)
+    return root
+
+
+def _parse_pcb_stackup(body: bytes) -> list[dict]:
+    """Extract (setup (stackup (layer ...))) entries from a .kicad_pcb S-expression."""
+    root = _sexpr_root(body.decode('utf-8'))
     if not isinstance(root, list):
         return []
     setup = next((c for c in root if isinstance(c, list) and c and c[0] == 'setup'), None)
@@ -2026,6 +2030,38 @@ def _zone_layer_fills(zone, cu_layers):
     return layer_fills
 
 
+def _footprint_jumpers(footprint, pads, formatter):
+    """Return the declared same-net pad ID sets connected inside this footprint."""
+    duplicate = footprint.GetDuplicatePadNumbersAreJumpers()
+    custom = []
+    if formatter is not None:
+        # SWIG exposes JumperPadGroups() as an opaque C++ vector of sets.
+        # Ask KiCad to serialize this footprint so pad ownership and legacy
+        # UUID handling still follow the native loader.
+        formatter.Format(footprint)
+        root = _sexpr_root(formatter.GetStringOutput(True))
+        custom = [group for node in root if isinstance(node, list)
+                  and node[:1] == ['jumper_pad_groups'] for group in node[1:]]
+    if not (duplicate or custom):
+        return []
+    by_number = defaultdict(list)
+    for pad in pads:
+        if pad['net']:
+            by_number[pad.get('pad_number', '')].append(pad)
+    # KiCad connects all pad instances named by each group, including
+    # duplicate numbers inside a custom group when the duplicate flag is off.
+    # Traverse only same-net edges, as in KiCad's per-net ratsnest.
+    groups = []
+    number_groups = chain(([name] for name in by_number) if duplicate else (), custom)
+    for numbers in number_groups:
+        by_net = defaultdict(list)
+        for number in numbers:
+            for pad in by_number.get(number, ()):
+                by_net[pad['net']].append(pad['id'])
+        groups.extend(sorted(members) for members in by_net.values() if len(members) > 1)
+    return sorted(groups)
+
+
 def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int = 100000,
                     limits: dict | None = None):
     if limits is not None and not isinstance(limits, dict):
@@ -2062,7 +2098,10 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     pad_to_die_length_nm = {}
     holes = []
     components = []
+    source_bytes = read_bounded(path)
+    formatter = pcbnew.PCB_IO_KICAD_SEXPR() if b'jumper_pad_groups' in source_bytes else None
     for footprint in board.GetFootprints():
+        start_pad = len(pads)
         fp_clr = footprint.GetLocalClearance()
         fp_zc = footprint.GetLocalZoneConnection()
         fp_ref = footprint.GetReference() or ''
@@ -2119,7 +2158,8 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
             if die_length:
                 pad_to_die_length_nm[entry['id']] = die_length
             pads.append(entry)
-        if fp_ref:
+        jumpers = _footprint_jumpers(footprint, pads[start_pad:], formatter)
+        if fp_ref or jumpers:
             components.append({
                 'ref_des': fp_ref,
                 'dnp': bool(footprint.IsDNP()) if hasattr(footprint, 'IsDNP') else False,
@@ -2127,6 +2167,7 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
                 'exclude_from_pos': bool(footprint.IsExcludedFromPosFiles()) if hasattr(footprint, 'IsExcludedFromPosFiles') else False,
                 'pad_numbers': fp_pad_nums,
                 'net_ids': sorted(fp_net_ids),
+                **({'jumper_pad_groups': jumpers} if jumpers else {}),
             })
     pads.sort(key=lambda item: (item['net'], item['at'], item['id']))
     holes.sort(key=lambda item: (item['at'], item['id']))
@@ -2299,7 +2340,6 @@ def export_snapshot(path: Path, rules: dict | None = None, max_expansions: int =
     nets = [{'id': int(code), 'name': net.GetNetname()}
             for code, net in board.GetNetsByNetcode().items()]
     nets.sort(key=lambda item: (item['id'], item['name']))
-    source_bytes = read_bounded(path)
     stackup = _parse_pcb_stackup(source_bytes)
     result = {'version': INPUT_VERSION, 'source_id': hashlib.sha256(source_bytes).hexdigest(),
               'layer': 'F.Cu', 'layers': layer_names, 'bounds': bounds,

@@ -292,6 +292,41 @@ fn denied_explicit_routes_preserve_existing_copper_and_next_id() {
 }
 
 #[test]
+fn internal_jumper_paths_only_refuse_requests_that_measure_their_leg() {
+    let base = base_diff_input(&["USB_P", "USB_N", "JUMPER", "CLOCK"]);
+    let jumper = |net: u32| {
+        let mut i = base.clone();
+        let mut ids = Vec::new();
+        for p in i.pads.iter_mut().filter(|p| p.net == net) {
+            p.footprint_ref = Some("J_INTERNAL".into());
+            ids.push(p.id.clone());
+        }
+        i.components = vec![serde_json::from_value(serde_json::json!({
+            "ref_des": "J_INTERNAL", "jumper_pad_groups": [ids]
+        }))
+        .unwrap()];
+        i
+    };
+    let control = kicad_route_engine::run(jumper(3));
+    assert_eq!(control.status, Status::Complete, "{:?}", control.reason);
+    assert!(control.added_tracks.iter().any(|t| t.net == 1));
+    assert!(control.added_tracks.iter().any(|t| t.net == 2));
+    assert!(!control.added_tracks.iter().any(|t| t.net == 3));
+    let mut group = jumper(3);
+    group.routing_options.as_mut().unwrap().length_match_groups = vec![LengthMatchGroupSpec {
+        members: vec!["JUMPER".into(), "CLOCK".into()],
+        ..Default::default()
+    }];
+    for (input, name) in [(jumper(1), "USB_P"), (group, "JUMPER")] {
+        let out = kicad_route_engine::run(input);
+        assert_eq!(out.status, Status::Unsupported);
+        let reason = out.reason.unwrap();
+        assert!(reason.contains(name) && reason.contains("internal footprint jumper path"));
+        assert!(out.added_tracks.is_empty() && out.added_vias.is_empty());
+    }
+}
+
+#[test]
 fn pair_discovery_supports_conventions_sheet_paths_and_refuses_invalid_preflight() {
     // 1. Bare P/N alone (VIN) stays ordinary; TXP+TXN, _P/_N, +/- with sheet prefix are discovered.
     let mut input = base_diff_input(&["VIN", "TXP", "TXN", "/CAN+", "/CAN-", "/S/D_P", "/S/D_N"]);
@@ -5344,6 +5379,7 @@ fn ac_chain_three_pair_multipass_under_dru_skew_cap() {
         ];
         inp.components = vec![
             ComponentInfo {
+                jumper_pad_groups: Vec::new(),
                 ref_des: "J1".into(),
                 dnp: false,
                 exclude_from_bom: false,
@@ -5352,6 +5388,7 @@ fn ac_chain_three_pair_multipass_under_dru_skew_cap() {
                 net_ids: vec![1, 2],
             },
             ComponentInfo {
+                jumper_pad_groups: Vec::new(),
                 ref_des: "J2".into(),
                 dnp: false,
                 exclude_from_bom: false,
@@ -5360,6 +5397,7 @@ fn ac_chain_three_pair_multipass_under_dru_skew_cap() {
                 net_ids: vec![5, 6],
             },
             ComponentInfo {
+                jumper_pad_groups: Vec::new(),
                 ref_des: "C1".into(),
                 dnp: false,
                 exclude_from_bom: false,
@@ -5368,6 +5406,7 @@ fn ac_chain_three_pair_multipass_under_dru_skew_cap() {
                 net_ids: vec![1, 3],
             },
             ComponentInfo {
+                jumper_pad_groups: Vec::new(),
                 ref_des: "C2".into(),
                 dnp: false,
                 exclude_from_bom: false,
@@ -5376,6 +5415,7 @@ fn ac_chain_three_pair_multipass_under_dru_skew_cap() {
                 net_ids: vec![2, 4],
             },
             ComponentInfo {
+                jumper_pad_groups: Vec::new(),
                 ref_des: "C3".into(),
                 dnp: false,
                 exclude_from_bom: false,
@@ -5384,6 +5424,7 @@ fn ac_chain_three_pair_multipass_under_dru_skew_cap() {
                 net_ids: vec![3, 5],
             },
             ComponentInfo {
+                jumper_pad_groups: Vec::new(),
                 ref_des: "C4".into(),
                 dnp: false,
                 exclude_from_bom: false,

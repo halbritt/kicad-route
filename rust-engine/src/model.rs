@@ -747,6 +747,9 @@ pub struct Zone {
 #[serde(deny_unknown_fields)]
 pub struct ComponentInfo {
     pub ref_des: String,
+    /// Groups of physical pad IDs connected within the footprint.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub jumper_pad_groups: Vec<Vec<String>>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub dnp: bool,
     #[serde(default, skip_serializing_if = "is_false")]
@@ -1125,13 +1128,14 @@ impl Input {
         if let Some(settings) = &self.board_design_settings {
             settings.validate_dimensions()?;
         }
-        self.validate_with_work(&crate::budget::WorkBudget::new(self.limits))
+        self.validate_and_index_jumpers(&crate::budget::WorkBudget::new(self.limits))
+            .map(drop)
     }
 
-    pub(crate) fn validate_with_work(
+    pub(crate) fn validate_and_index_jumpers(
         &self,
         compound_work: &crate::budget::WorkBudget,
-    ) -> Result<(), Failure> {
+    ) -> Result<std::collections::BTreeMap<String, usize>, Failure> {
         self.limits.validate()?;
         if let Some(options) = &self.routing_options {
             if options
@@ -1932,6 +1936,6 @@ impl Input {
                 }
             }
         }
-        Ok(())
+        crate::components::jumper_groups(self, compound_work)
     }
 }

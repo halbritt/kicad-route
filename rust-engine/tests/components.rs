@@ -142,6 +142,56 @@ fn diagonal_off_grid_incumbent_attaches_at_its_interior() {
     assert!(38 * 38 < 4 * 4 + 38 * 38 && 76 * 76 > 4 * 4 + 38 * 38);
 }
 #[test]
+fn internal_jumper_groups_connect_across_layers_without_creating_copper() {
+    let mut i = base();
+    i.tracks.clear();
+    i.layers = vec!["F.Cu".into(), "B.Cu".into()];
+    i.nets.push(Net {
+        id: 2,
+        name: "OTHER".into(),
+    });
+    i.pads.extend([pad(2, [40, 30]), pad(3, [70, 30])]);
+    for p in &mut i.pads {
+        p.footprint_ref = Some("J".into());
+    }
+    i.pads[1].layers = vec!["B.Cu".into()];
+    i.components = vec![serde_json::from_value(serde_json::json!({
+        "ref_des": "J", "jumper_pad_groups": [[id(1), id(2)], [id(2), id(3)]]
+    }))
+    .unwrap()];
+    let mut e = Engine::new(i.clone()).unwrap();
+    assert_eq!(e.route(1, 1).unwrap(), 0);
+    assert_eq!(e.copper().tracks().count(), 0);
+    assert_eq!(e.copper().vias().count(), 0);
+    // The foreign net can cross a jumper's gap, but must clear its actual land.
+    assert!(e.legal_edge(2, [20, 20], [20, 40]).unwrap());
+    assert!(!e.legal_edge(2, [10, 20], [10, 40]).unwrap());
+    assert!(e
+        .legal_edge_on_layer(2, "F.Cu", [40, 20], [40, 40])
+        .unwrap());
+    assert!(!e
+        .legal_edge_on_layer(2, "B.Cu", [40, 20], [40, 40])
+        .unwrap());
+
+    let mut unknown = i.clone();
+    unknown.components[0].jumper_pad_groups[0][0] = id(42);
+    let mut other_net = i.clone();
+    other_net.pads[0].net = 2;
+    let mut other_footprint = i;
+    other_footprint.pads[0].footprint_ref = Some("J2".into());
+    for (bad, reason) in [
+        (unknown, "unknown pad"),
+        (other_net, "same footprint and net"),
+        (other_footprint, "same footprint and net"),
+    ] {
+        let failure = bad.validate().unwrap_err();
+        assert_eq!(Engine::new(bad).err(), Some(failure.clone()));
+        assert_eq!(failure.status, Status::Invalid);
+        assert!(failure.reason.contains(reason));
+    }
+}
+
+#[test]
 fn connected_pads_do_not_hide_a_stray_copper_component() {
     let mut i = base();
     i.pads.push(pad(3, [20, 30]));

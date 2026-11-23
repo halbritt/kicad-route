@@ -36,6 +36,7 @@ enum StaticMaskOccupancy {
 
 pub struct Engine {
     input: Input,
+    jumper_groups: std::collections::BTreeMap<String, usize>,
     layer_names: Vec<String>,
     layer_policy: layer_policy::ResolvedLayerPolicy,
     effective_rules: EffectiveRules,
@@ -410,7 +411,7 @@ impl Engine {
         }
         let effective_rules = rules::resolve_effective_rules(&mut input)?;
         let work = budget::WorkBudget::with_control(input.limits, control);
-        input.validate_with_work(&work)?;
+        let jumper_groups = input.validate_and_index_jumpers(&work)?;
         length_rules::admit(&input, &effective_rules, &work)?;
         // Older requests omit pad layers to select the request's routing layer.
         // Resolve it once for indexing, contact, clearance, and routing.
@@ -964,6 +965,7 @@ impl Engine {
         );
         Ok(Self {
             input,
+            jumper_groups,
             layer_names,
             layer_policy,
             effective_rules,
@@ -2933,10 +2935,13 @@ impl Engine {
                 }
             }
         }
-        let mut groups =
-            components::partition(items, &self.layer_names, &self.work, |first, second| {
-                self.copper.is_input_id(first) && self.copper.is_input_id(second)
-            })?;
+        let mut groups = components::partition(
+            items,
+            &self.layer_names,
+            &self.work,
+            &self.jumper_groups,
+            |first, second| self.copper.is_input_id(first) && self.copper.is_input_id(second),
+        )?;
         if includes_refillable_fill && groups.len() > 1 {
             // Source fills supply a few seed vertices. Target fills can accept
             // a legal connection anywhere on their copper, including long edges.
