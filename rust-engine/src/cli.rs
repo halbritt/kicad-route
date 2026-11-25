@@ -81,12 +81,24 @@ fn write_output(path: &Path, output: &Output) -> std::io::Result<()> {
     }
     result
 }
+/// Writes one diagnostic line to standard error; a closed stream must not replace the exit status.
+fn write_stderr_line(text: &str) {
+    use std::io::Write as _;
+    let _ = writeln!(std::io::stderr().lock(), "{text}");
+}
+
 pub(crate) fn run_main(args: &[OsString]) -> u8 {
     if args
         .get(1)
         .is_some_and(|arg| arg == "--help" || arg == "-h")
     {
-        println!("usage: kicad-route-engine <INPUT.json> <OUTPUT.json>");
+        {
+            use std::io::Write as _;
+            let _ = writeln!(
+                std::io::stdout().lock(),
+                "usage: kicad-route-engine <INPUT.json> <OUTPUT.json>"
+            );
+        }
         return kicad_route_engine::orchestration::run_cli(&args[1..2]);
     }
     if args.get(1).is_some_and(|arg| arg == "route-native") {
@@ -103,7 +115,7 @@ pub(crate) fn run(args: &[OsString], executor: impl FnOnce(&[u8]) -> Output) -> 
                 .zip(fs::canonicalize(&args[2]).ok())
                 .is_some_and(|(a, b)| a == b));
     if args.len() != 3 || same_file {
-        eprintln!("usage: kicad-route-engine INPUT.json OUTPUT.json (distinct paths); no fresh result established");
+        write_stderr_line("usage: kicad-route-engine INPUT.json OUTPUT.json (distinct paths); no fresh result established");
         return 8;
     }
     let bytes: std::io::Result<Vec<u8>> = (|| {
@@ -132,7 +144,7 @@ pub(crate) fn run(args: &[OsString], executor: impl FnOnce(&[u8]) -> Output) -> 
         ),
     };
     if let Err(e) = write_output(Path::new(&args[2]), &output) {
-        eprintln!("cannot publish output: {e}; no fresh result established; destination may still contain an older result");
+        write_stderr_line(&format!("cannot publish output: {e}; no fresh result established; destination may still contain an older result"));
         return 8;
     }
     match output.status {

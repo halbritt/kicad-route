@@ -165,6 +165,13 @@ the CLI returns exit 8 and reports the visible board's digest. The same exit
 applies if the saved request or operation report was linked but its directory
 could not be synchronized. In the latter case the report can still describe
 success. The caller must check the process exit and its final diagnostic.
+
+The CLI prints the operation result on standard output last. If that stream is
+closed or fails, the exit depends on what the caller can still read. With a
+saved `--operation-result` file the reported status stands. Without one, a
+published board or a successful result returns exit 8 with a diagnostic on
+standard error, and the board stays in place. A refusal keeps its own exit.
+A closed standard error never changes the exit.
 The regression requires Linux `strace` with syscall fault
 injection and permission to trace its own child process.
 

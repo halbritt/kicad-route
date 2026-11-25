@@ -1765,3 +1765,113 @@ fn staging_owner_leaves_replacement_directory_and_its_contents() {
     assert!(owner.wait().unwrap().success());
     assert_eq!(fs::read(stage.join("other-job")).unwrap(), b"preserve");
 }
+
+/// Runs route-native with the read end of the chosen output pipes already closed.
+fn run_with_closed_outputs(
+    ws: &Workspace,
+    tag: &str,
+    close_stdout: bool,
+    close_stderr: bool,
+    operation_result: bool,
+) -> (Option<i32>, PathBuf, PathBuf, Vec<u8>) {
+    let source = ws.write(&format!("{tag}/src/board.kicad_pcb"), b"(kicad_pcb)");
+    let bridge = write_stub_bridge(
+        ws,
+        &format!("{tag}/bridge.py"),
+        &standard_stub_script("", ""),
+    );
+    let out_dir = ws.path(&format!("{tag}/out"));
+    fs::create_dir_all(&out_dir).unwrap();
+    let output = out_dir.join("routed.kicad_pcb");
+    let report = out_dir.join("op_result.json");
+    let mut command = Command::new(engine_bin());
+    command
+        .arg("route-native")
+        .arg(&source)
+        .arg(&output)
+        .arg("--native-bridge")
+        .arg(&bridge)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    if operation_result {
+        command.arg("--operation-result").arg(&report);
+    }
+    let mut child = command.spawn().unwrap();
+    let stdout = child.stdout.take().unwrap();
+    let stderr = child.stderr.take().unwrap();
+    if close_stdout {
+        drop(stdout);
+    } else {
+        thread::spawn(move || std::io::copy(&mut { stdout }, &mut std::io::sink()));
+    }
+    let mut diagnostics = Vec::new();
+    if close_stderr {
+        drop(stderr);
+    } else {
+        std::io::Read::read_to_end(&mut { stderr }, &mut diagnostics).unwrap();
+    }
+    let status = child.wait().unwrap();
+    (status.code(), output, report, diagnostics)
+}
+
+#[test]
+fn closed_stdout_or_stderr_after_publication_keeps_a_documented_exit_status() {
+    let ws = Workspace::new("closed-outputs");
+
+    // No saved report: the published board is left for the caller to reconcile.
+    let (code, output, _, diagnostics) = run_with_closed_outputs(&ws, "stdout", true, false, false);
+    let diagnostics = String::from_utf8_lossy(&diagnostics);
+    assert_eq!(code, Some(8), "stderr: {diagnostics}");
+    assert!(output.exists(), "board must stay published");
+    assert!(
+        diagnostics.contains("destination board was published")
+            && diagnostics.contains("standard output"),
+        "stderr: {diagnostics}"
+    );
+    assert!(!diagnostics.contains("panicked"), "stderr: {diagnostics}");
+
+    // The saved report carries the result, so its status stands.
+    let (code, output, report, diagnostics) =
+        run_with_closed_outputs(&ws, "stdout-report", true, false, true);
+    assert_eq!(
+        code,
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&diagnostics)
+    );
+    assert!(output.exists());
+    let saved: Value = serde_json::from_slice(&fs::read(&report).unwrap()).unwrap();
+    assert_eq!(saved["status"], "complete");
+    assert_eq!(saved["exit_code"], 0);
+
+    // Both streams closed: still no crash status.
+    let (code, output, _, _) = run_with_closed_outputs(&ws, "both", true, true, false);
+    assert_eq!(code, Some(8));
+    assert!(output.exists());
+
+    // Closed stderr alone does not disturb a successful run.
+    let (code, output, _, _) = run_with_closed_outputs(&ws, "stderr", false, true, false);
+    assert_eq!(code, Some(0));
+    assert!(output.exists());
+
+    // A refusal with closed streams keeps its own status (usage error, exit 2 family).
+    let mut child = Command::new(engine_bin())
+        .args(["route-native", "--no-such-flag"])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(child.stdout.take());
+    drop(child.stderr.take());
+    let refused = child.wait().unwrap().code();
+    let reference = Command::new(engine_bin())
+        .args(["route-native", "--no-such-flag"])
+        .output()
+        .unwrap()
+        .status
+        .code();
+    assert_eq!(refused, reference);
+    assert_ne!(refused, Some(101));
+}

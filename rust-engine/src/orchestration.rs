@@ -632,7 +632,7 @@ impl OwnedTempDir {
 impl Drop for OwnedTempDir {
     fn drop(&mut self) {
         if let Err(e) = self.cleanup() {
-            eprintln!("native staging cleanup: {e}");
+            write_stderr_line(&format!("native staging cleanup: {e}"));
         }
     }
 }
@@ -3991,7 +3991,40 @@ fn emit_stderr_failure(result: &OperationResult) {
         "reason": result.reason,
     });
     if let Ok(line) = serde_json::to_string(&summary) {
-        eprintln!("{line}");
+        write_stderr_line(&line);
+    }
+}
+
+/// Writes one line to standard output and reports a closed or failing stream to the caller.
+/// `println!` panics there, which would replace the operation's exit status after publication.
+fn write_stdout_line(text: &str) -> std::io::Result<()> {
+    use std::io::Write as _;
+    let mut out = std::io::stdout().lock();
+    out.write_all(text.as_bytes())?;
+    out.write_all(b"\n")?;
+    out.flush()
+}
+
+/// Writes one diagnostic line to standard error; a closed stream is ignored.
+fn write_stderr_line(text: &str) {
+    use std::io::Write as _;
+    let _ = writeln!(std::io::stderr().lock(), "{text}");
+}
+
+/// Exit status when the final operation result could not be written to standard output.
+/// A saved `--operation-result` file already carries the result, so the status stands.
+/// Otherwise a published board, or a result that reported success, is left for the caller
+/// to reconcile (exit 8); a failure keeps its own status.
+fn exit_after_stdout_failure(result: &OperationResult, report_file_saved: bool) -> u8 {
+    if report_file_saved {
+        result.exit_code
+    } else if result.publication.published
+        || result.publication.commit_point_reached
+        || result.exit_code == 0
+    {
+        OperationStatus::AmbiguousTermination.exit_code()
+    } else {
+        result.exit_code
     }
 }
 
@@ -4001,7 +4034,7 @@ pub fn run_cli(args: &[OsString]) -> u8 {
             break;
         }
         if arg == "--help" || arg == "-h" {
-            println!("{USAGE_MSG}");
+            let _ = write_stdout_line(USAGE_MSG);
             return 0;
         }
     }
@@ -4010,27 +4043,30 @@ pub fn run_cli(args: &[OsString]) -> u8 {
         Err(msg) => {
             let result = usage_error_result(msg.clone());
             if let Ok(json_text) = serde_json::to_string_pretty(&result) {
-                println!("{json_text}");
+                let _ = write_stdout_line(&json_text);
             }
-            eprintln!("{msg}\n{USAGE_MSG}");
+            write_stderr_line(&format!("{msg}\n{USAGE_MSG}"));
             emit_stderr_failure(&result);
             return result.exit_code;
         }
     };
 
     let mut result = run_native(&config);
+    let mut report_file_saved = false;
     if let Some(op_result_path) = &config.operation_result {
         if result.operation_result_admitted {
             match serde_json::to_vec_pretty(&result) {
                 Ok(mut bytes) => {
                     bytes.push(b'\n');
-                    if let Err(e) = atomic_hard_link_publish(
+                    let saved = atomic_hard_link_publish(
                         op_result_path,
                         &bytes,
                         &result.operation_id,
                         0o644,
                         || {},
-                    ) {
+                    );
+                    report_file_saved = saved.is_ok();
+                    if let Err(e) = saved {
                         if result.publication.published {
                             result.publication.ambiguous_termination = true;
                             result.status = OperationStatus::AmbiguousTermination;
@@ -4084,9 +4120,22 @@ pub fn run_cli(args: &[OsString]) -> u8 {
     }
 
     match serde_json::to_string_pretty(&result) {
-        Ok(json_text) => println!("{json_text}"),
+        Ok(json_text) => {
+            if let Err(e) = write_stdout_line(&json_text) {
+                let exit_code = exit_after_stdout_failure(&result, report_file_saved);
+                let board = if result.publication.published {
+                    "destination board was published; "
+                } else {
+                    ""
+                };
+                write_stderr_line(&format!(
+                    "route-native (exit {exit_code}): {board}cannot write the operation result to standard output: {e}"
+                ));
+                return exit_code;
+            }
+        }
         Err(e) => {
-            eprintln!("cannot serialize operation result: {e}");
+            write_stderr_line(&format!("cannot serialize operation result: {e}"));
             return if result.publication.commit_point_reached || result.exit_code == 8 {
                 8
             } else {
@@ -4096,7 +4145,10 @@ pub fn run_cli(args: &[OsString]) -> u8 {
     }
     if result.exit_code != 0 {
         if let Some(reason) = &result.reason {
-            eprintln!("route-native failed (exit {}): {reason}", result.exit_code);
+            write_stderr_line(&format!(
+                "route-native failed (exit {}): {reason}",
+                result.exit_code
+            ));
         }
         emit_stderr_failure(&result);
     }
